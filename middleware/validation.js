@@ -273,7 +273,19 @@ const validateProduct = [
     .isLength({ min: 10, max: 5000 })
     .withMessage('Product description must be between 10 and 5000 characters'),
   
+  body('shortDescription')
+    .optional()
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage('Short description must not exceed 500 characters'),
+  
   commonValidations.price(),
+  
+  body('comparePrice')
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage('Compare price must be a positive number')
+    .toFloat(),
   
   body('category')
     .trim()
@@ -298,9 +310,26 @@ const validateProduct = [
     .isLength({ max: 50 })
     .withMessage('SKU must not exceed 50 characters'),
   
+  body('barcode')
+    .optional()
+    .trim()
+    .isLength({ max: 50 })
+    .withMessage('Barcode must not exceed 50 characters'),
+  
+  body('productType')
+    .optional()
+    .isIn(['simple', 'variable', 'grouped', 'external'])
+    .withMessage('Product type must be simple, variable, grouped, or external'),
+  
   body('stock')
     .isInt({ min: 0 })
     .withMessage('Stock must be a non-negative integer')
+    .toInt(),
+  
+  body('lowStockThreshold')
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage('Low stock threshold must be a non-negative integer')
     .toInt(),
   
   body('weight')
@@ -337,6 +366,73 @@ const validateProduct = [
     .trim()
     .isLength({ min: 1, max: 30 })
     .withMessage('Each tag must be between 1 and 30 characters'),
+  
+  body('variants')
+    .optional()
+    .isArray()
+    .withMessage('Variants must be an array'),
+  
+  body('variants.*.name')
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 50 })
+    .withMessage('Variant name must be between 1 and 50 characters'),
+  
+  body('variants.*.options')
+    .optional()
+    .isArray()
+    .withMessage('Variant options must be an array'),
+  
+  body('attributes')
+    .optional()
+    .isArray()
+    .withMessage('Attributes must be an array'),
+  
+  body('attributes.*.name')
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 50 })
+    .withMessage('Attribute name must be between 1 and 50 characters'),
+  
+  body('attributes.*.values')
+    .optional()
+    .isArray()
+    .withMessage('Attribute values must be an array'),
+  
+  body('specifications')
+    .optional()
+    .isArray()
+    .withMessage('Specifications must be an array'),
+  
+  body('isDigital')
+    .optional()
+    .isBoolean()
+    .withMessage('isDigital must be a boolean')
+    .toBoolean(),
+  
+  body('isFeatured')
+    .optional()
+    .isBoolean()
+    .withMessage('isFeatured must be a boolean')
+    .toBoolean(),
+  
+  body('seoTitle')
+    .optional()
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage('SEO title must not exceed 100 characters'),
+  
+  body('seoDescription')
+    .optional()
+    .trim()
+    .isLength({ max: 300 })
+    .withMessage('SEO description must not exceed 300 characters'),
+  
+  body('seoKeywords')
+    .optional()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('SEO keywords must not exceed 200 characters'),
 
   handleValidationErrors
 ];
@@ -427,6 +523,102 @@ const validateProductUpdate = [
     .trim()
     .isLength({ min: 1, max: 30 })
     .withMessage('Each tag must be between 1 and 30 characters'),
+
+  // New fields validation
+  body('shortDescription')
+    .optional()
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage('Short description must not exceed 500 characters'),
+
+  body('comparePrice')
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage('Compare price must be a positive number')
+    .toFloat(),
+
+  body('barcode')
+    .optional()
+    .trim()
+    .isLength({ max: 50 })
+    .withMessage('Barcode must not exceed 50 characters'),
+
+  body('productType')
+    .optional()
+    .isIn(['simple', 'variable'])
+    .withMessage('Product type must be either simple or variable'),
+
+  body('lowStockThreshold')
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage('Low stock threshold must be a non-negative integer')
+    .toInt(),
+
+  body('variants')
+    .optional()
+    .isArray()
+    .withMessage('Variants must be an array'),
+
+  body('variants.*.name')
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 50 })
+    .withMessage('Variant name must be between 1 and 50 characters'),
+
+  body('variants.*.options')
+    .optional()
+    .isArray()
+    .withMessage('Variant options must be an array'),
+
+  body('attributes')
+    .optional()
+    .isArray()
+    .withMessage('Attributes must be an array'),
+
+  body('attributes.*.name')
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 50 })
+    .withMessage('Attribute name must be between 1 and 50 characters'),
+
+  body('attributes.*.values')
+    .optional()
+    .isArray()
+    .withMessage('Attribute values must be an array'),
+
+  body('specifications')
+    .optional()
+    .isArray()
+    .withMessage('Specifications must be an array'),
+
+  body('isDigital')
+    .optional()
+    .isBoolean()
+    .withMessage('Digital product flag must be a boolean')
+    .toBoolean(),
+
+  body('isFeatured')
+    .optional()
+    .isBoolean()
+    .withMessage('Featured product flag must be a boolean')
+    .toBoolean(),
+
+  body('seoTitle')
+    .optional()
+    .trim()
+    .isLength({ max: 60 })
+    .withMessage('SEO title must not exceed 60 characters'),
+
+  body('seoDescription')
+    .optional()
+    .trim()
+    .isLength({ max: 160 })
+    .withMessage('SEO description must not exceed 160 characters'),
+
+  body('seoKeywords')
+    .optional()
+    .isArray()
+    .withMessage('SEO keywords must be an array'),
 
   handleValidationErrors
 ];

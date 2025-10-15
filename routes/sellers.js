@@ -116,7 +116,81 @@ const filterSellerData = (seller, privacySettings, isOwnProfile = false, isAdmin
   return sellerData;
 };
 
-// Get all sellers
+// Get all sellers (public endpoint)
+router.get('/public',
+  query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
+  query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
+  query('search').optional().isLength({ min: 1, max: 100 }).withMessage('Search term must be between 1 and 100 characters'),
+  query('category').optional().isLength({ min: 1, max: 50 }).withMessage('Category must be between 1 and 50 characters'),
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 20;
+      const skip = (page - 1) * limit;
+      const search = req.query.search;
+      const category = req.query.category;
+
+      // Build query - only show active sellers publicly
+      const query = {
+        status: 'active',
+        isActive: true,
+        isVerified: true
+      };
+      
+      if (search) {
+        query.$or = [
+          { firstName: { $regex: search, $options: 'i' } },
+          { lastName: { $regex: search, $options: 'i' } },
+          { 'businessDetails.businessName': { $regex: search, $options: 'i' } },
+          { 'businessDetails.businessType': { $regex: search, $options: 'i' } }
+        ];
+      }
+      
+      if (category) {
+        query['businessDetails.businessCategory'] = { $regex: category, $options: 'i' };
+      }
+
+      // Get privacy settings
+      const privacySettings = await getPrivacySettings();
+
+      // Fetch sellers with limited public information
+      const sellers = await Seller.find(query)
+        .select('firstName lastName businessDetails profilePicture rating totalSales totalProducts registrationDate isBusinessVerified')
+        .sort({ rating: -1, totalSales: -1 })
+        .skip(skip)
+        .limit(limit);
+
+      const total = await Seller.countDocuments(query);
+
+      // Apply privacy filtering for public view
+      const filteredSellers = sellers.map(seller => 
+        filterSellerData(seller, privacySettings, false, false)
+      );
+
+      res.json({
+        sellers: filteredSellers,
+        pagination: {
+          currentPage: page,
+          totalPages: Math.ceil(total / limit),
+          totalItems: total,
+          itemsPerPage: limit,
+          hasNextPage: page < Math.ceil(total / limit),
+          hasPrevPage: page > 1
+        }
+      });
+
+    } catch (error) {
+      logger.error('Get public sellers error', error);
+      res.status(500).json({
+        error: 'Failed to fetch sellers',
+        message: 'An error occurred while fetching seller data'
+      });
+    }
+  }
+);
+
+// Get all sellers (authenticated endpoint)
 router.get('/',
   authenticate,
   query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),

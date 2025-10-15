@@ -254,12 +254,51 @@ router.post('/',
         }));
       }
 
+      // Parse complex fields that come as JSON strings
+      const parsedBody = { ...req.body };
+      
+      // Parse JSON fields
+      if (parsedBody.dimensions && typeof parsedBody.dimensions === 'string') {
+        parsedBody.dimensions = JSON.parse(parsedBody.dimensions);
+      }
+      if (parsedBody.weight && typeof parsedBody.weight === 'string') {
+        parsedBody.weight = JSON.parse(parsedBody.weight);
+      }
+      if (parsedBody.variants && typeof parsedBody.variants === 'string') {
+        parsedBody.variants = JSON.parse(parsedBody.variants);
+      }
+      if (parsedBody.attributes && typeof parsedBody.attributes === 'string') {
+        parsedBody.attributes = JSON.parse(parsedBody.attributes);
+      }
+      if (parsedBody.specifications && typeof parsedBody.specifications === 'string') {
+        parsedBody.specifications = JSON.parse(parsedBody.specifications);
+      }
+      if (parsedBody.tags && typeof parsedBody.tags === 'string') {
+        parsedBody.tags = JSON.parse(parsedBody.tags);
+      }
+
+      // Map SEO fields to the correct structure
+      const seoInfo = {};
+      if (parsedBody.seoTitle) seoInfo.metaTitle = parsedBody.seoTitle;
+      if (parsedBody.seoDescription) seoInfo.metaDescription = parsedBody.seoDescription;
+      if (parsedBody.seoKeywords) {
+        seoInfo.keywords = Array.isArray(parsedBody.seoKeywords) 
+          ? parsedBody.seoKeywords 
+          : parsedBody.seoKeywords.split(',').map(k => k.trim());
+      }
+
       const productData = {
-        ...req.body,
+        ...parsedBody,
         seller: req.user.id,
         images: imageUrls,
-        status: 'pending' // Products need approval
+        status: 'pending', // Products need approval
+        seoInfo: Object.keys(seoInfo).length > 0 ? seoInfo : undefined
       };
+
+      // Remove the original SEO fields as they're now in seoInfo
+      delete productData.seoTitle;
+      delete productData.seoDescription;
+      delete productData.seoKeywords;
 
       const product = new Product(productData);
       await product.save();
@@ -374,15 +413,53 @@ router.put('/:id',
         product.images = [...product.images, ...newImageUrls];
       }
 
-      // Update other fields
+      // Parse complex fields that come as JSON strings
+      const parsedBody = { ...req.body };
+      
+      // Parse JSON fields
+      if (parsedBody.dimensions && typeof parsedBody.dimensions === 'string') {
+        parsedBody.dimensions = JSON.parse(parsedBody.dimensions);
+      }
+      if (parsedBody.weight && typeof parsedBody.weight === 'string') {
+        parsedBody.weight = JSON.parse(parsedBody.weight);
+      }
+      if (parsedBody.variants && typeof parsedBody.variants === 'string') {
+        parsedBody.variants = JSON.parse(parsedBody.variants);
+      }
+      if (parsedBody.attributes && typeof parsedBody.attributes === 'string') {
+        parsedBody.attributes = JSON.parse(parsedBody.attributes);
+      }
+      if (parsedBody.specifications && typeof parsedBody.specifications === 'string') {
+        parsedBody.specifications = JSON.parse(parsedBody.specifications);
+      }
+      if (parsedBody.tags && typeof parsedBody.tags === 'string') {
+        parsedBody.tags = JSON.parse(parsedBody.tags);
+      }
+
+      // Handle SEO fields mapping
+      if (parsedBody.seoTitle || parsedBody.seoDescription || parsedBody.seoKeywords) {
+        if (!product.seoInfo) product.seoInfo = {};
+        
+        if (parsedBody.seoTitle) product.seoInfo.metaTitle = parsedBody.seoTitle;
+        if (parsedBody.seoDescription) product.seoInfo.metaDescription = parsedBody.seoDescription;
+        if (parsedBody.seoKeywords) {
+          product.seoInfo.keywords = Array.isArray(parsedBody.seoKeywords) 
+            ? parsedBody.seoKeywords 
+            : parsedBody.seoKeywords.split(',').map(k => k.trim());
+        }
+      }
+
+      // Update other fields - expanded list to include new fields
       const allowedUpdates = [
-        'name', 'description', 'price', 'category', 'condition', 
-        'quantity', 'tags', 'specifications', 'location'
+        'name', 'description', 'shortDescription', 'price', 'comparePrice', 'category', 'subcategory', 
+        'brand', 'sku', 'barcode', 'stock', 'lowStockThreshold', 'weight', 'dimensions',
+        'productType', 'isDigital', 'isFeatured', 'variants', 'attributes', 'specifications',
+        'tags', 'condition', 'quantity', 'location'
       ];
 
       allowedUpdates.forEach(field => {
-        if (req.body[field] !== undefined) {
-          product[field] = req.body[field];
+        if (parsedBody[field] !== undefined) {
+          product[field] = parsedBody[field];
         }
       });
 
