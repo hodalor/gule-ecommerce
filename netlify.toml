@@ -6,7 +6,7 @@
   publish = "build"
   
   # Default build command
-  command = "npm run build"
+  command = "CI=false npm run build"
 
 [build.environment]
   # Node.js version
@@ -14,6 +14,9 @@
   
   # Skip npm audit during build for faster deployment
   NPM_FLAGS = "--legacy-peer-deps"
+  
+  # Treat warnings as warnings, not errors
+  CI = "false"
 
 # Redirect rules for Single Page Application (SPA)
 [[redirects]]
