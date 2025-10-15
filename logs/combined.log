@@ -1778,3 +1778,23 @@
 {"level":"info","message":"Received SIGINT. Starting graceful shutdown...","service":"gule-backend","timestamp":"2025-10-15T14:55:35.908Z"}
 {"level":"info","message":"Received SIGINT. Gracefully shutting down database connection...","service":"gule-marketplace","timestamp":"2025-10-15 16:55:35"}
 {"level":"warn","message":"Mongoose disconnected from MongoDB","service":"gule-marketplace","timestamp":"2025-10-15 16:55:37"}
+{"level":"info","message":"Email service initialized successfully","service":"gule-marketplace","timestamp":"2025-10-15 17:23:25"}
+{"level":"info","message":"Initializing database for development environment","service":"gule-marketplace","timestamp":"2025-10-15 17:23:26"}
+{"level":"info","message":"Attempting to connect to MongoDB...","options":{"bufferCommands":false,"connectTimeoutMS":10000,"family":4,"heartbeatFrequencyMS":10000,"maxIdleTimeMS":30000,"maxPoolSize":5,"retryWrites":true,"serverSelectionTimeoutMS":5000,"socketTimeoutMS":45000,"useNewUrlParser":true,"useUnifiedTopology":true,"w":"majority"},"service":"gule-marketplace","timestamp":"2025-10-15 17:23:26","uri":"mongodb+srv://***:***@lenderbase1.akz3eab.mongodb.net/?retryWrites=true&w=majority&appName=Lenderbase1"}
+{"database":"test","host":"ac-ajahtxn-shard-00-02.akz3eab.mongodb.net","level":"info","message":"Successfully connected to MongoDB","port":27017,"service":"gule-marketplace","timestamp":"2025-10-15 17:23:30"}
+{"level":"info","message":"Creating database indexes...","service":"gule-marketplace","timestamp":"2025-10-15 17:23:30"}
+{"level":"info","message":"Database indexes created successfully","service":"gule-marketplace","timestamp":"2025-10-15 17:23:53"}
+{"level":"info","message":"Initializing default data...","service":"gule-marketplace","timestamp":"2025-10-15 17:23:53"}
+{"level":"info","message":"Default data initialization completed","service":"gule-marketplace","timestamp":"2025-10-15 17:23:53"}
+{"level":"info","message":"Database initialized successfully","service":"gule-backend","timestamp":"2025-10-15T15:23:53.251Z"}
+{"level":"info","message":"Database initialization completed successfully","service":"gule-marketplace","timestamp":"2025-10-15 17:23:53"}
+{"level":"info","message":"Server running on http://localhost:8000","service":"gule-backend","timestamp":"2025-10-15T15:23:53.255Z"}
+{"level":"info","message":"Environment: development","service":"gule-backend","timestamp":"2025-10-15T15:23:53.255Z"}
+{"level":"info","message":"Health check: http://localhost:8000/health","service":"gule-backend","timestamp":"2025-10-15T15:23:53.256Z"}
+{"level":"info","message":"API docs info: http://localhost:8000/api/docs-info","service":"gule-backend","timestamp":"2025-10-15T15:23:53.256Z"}
+{"level":"info","message":"API Documentation: http://localhost:8000/api/docs","service":"gule-backend","timestamp":"2025-10-15T15:23:53.257Z"}
+{"level":"info","message":"Received SIGINT. Starting graceful shutdown...","service":"gule-backend","timestamp":"2025-10-15T15:29:19.634Z"}
+{"level":"info","message":"Received SIGINT. Gracefully shutting down database connection...","service":"gule-marketplace","timestamp":"2025-10-15 17:29:19"}
+{"level":"info","message":"Received SIGINT. Starting graceful shutdown...","service":"gule-backend","timestamp":"2025-10-15T15:29:19.886Z"}
+{"level":"info","message":"Received SIGINT. Gracefully shutting down database connection...","service":"gule-marketplace","timestamp":"2025-10-15 17:29:19"}
+{"level":"warn","message":"Mongoose disconnected from MongoDB","service":"gule-marketplace","timestamp":"2025-10-15 17:29:21"}
