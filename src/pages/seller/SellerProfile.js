@@ -4,22 +4,17 @@ import { toast } from 'react-hot-toast';
 import {
   UserIcon,
   BuildingStorefrontIcon,
-  MapPinIcon,
-  PhoneIcon,
-  EnvelopeIcon,
   GlobeAltIcon,
   CameraIcon,
   EyeIcon,
   EyeSlashIcon,
-  CheckIcon,
-  XMarkIcon,
-  PencilIcon
+  CheckIcon
 } from '@heroicons/react/24/outline';
 import { updateProfile, changePassword } from '../../store/slices/authSlice';
 
 const SellerProfile = () => {
   const dispatch = useDispatch();
-  const { user, loading, error } = useSelector((state) => state.auth);
+  const { user, loading } = useSelector((state) => state.auth);
 
   const [activeTab, setActiveTab] = useState('personal');
   const [showPasswordForm, setShowPasswordForm] = useState(false);

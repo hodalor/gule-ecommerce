@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { fetchProducts, updateProduct } from '../../store/slices/productSlice';
+import { fetchProducts } from '../../store/slices/productSlice';
 import {
   MagnifyingGlassIcon,
   FunnelIcon,

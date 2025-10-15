@@ -12,8 +12,6 @@ import {
   FunnelIcon
 } from '@heroicons/react/24/outline';
 import {
-  LineChart,
-  Line,
   AreaChart,
   Area,
   BarChart,
@@ -51,7 +49,6 @@ const SellerReports = () => {
   } = useSelector((state) => state.reports);
 
   const [dateRange, setDateRange] = useState('30days');
-  const [reportType, setReportType] = useState('overview');
 
   useEffect(() => {
     if (user?.id) {

@@ -1,22 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import { useSelector } from 'react-redux';
 import { toast } from 'react-hot-toast';
 import {
-  CogIcon,
   BellIcon,
   ShieldCheckIcon,
   CreditCardIcon,
   TruckIcon,
   GlobeAltIcon,
-  UserGroupIcon,
   ChartBarIcon,
   ExclamationTriangleIcon,
-  CheckIcon,
-  XMarkIcon
+  CheckIcon
 } from '@heroicons/react/24/outline';
 
 const SellerSettings = () => {
-  const dispatch = useDispatch();
   const { user, loading } = useSelector((state) => state.auth);
 
   const [activeTab, setActiveTab] = useState('notifications');

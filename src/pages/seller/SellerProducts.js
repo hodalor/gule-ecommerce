@@ -5,10 +5,8 @@ import {
   PlusIcon,
   PencilIcon,
   TrashIcon,
-  EyeIcon,
   MagnifyingGlassIcon,
   FunnelIcon,
-  PhotoIcon,
   XMarkIcon,
   CheckIcon,
   ExclamationTriangleIcon,
@@ -28,8 +26,6 @@ const SellerProducts = () => {
   const { user } = useSelector((state) => state.auth);
   const { products, loading, error } = useSelector((state) => state.products);
   
-  // Use Redux state for products
-  const productsList = products || [];
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -69,6 +65,7 @@ const SellerProducts = () => {
 
   // Filter and sort products
   useEffect(() => {
+    const productsList = products || [];
     let filtered = [...productsList];
 
     // Search filter
@@ -108,7 +105,7 @@ const SellerProducts = () => {
     });
 
     setFilteredProducts(filtered);
-  }, [productsList, searchTerm, statusFilter, categoryFilter, sortBy, sortOrder]);
+  }, [products, searchTerm, statusFilter, categoryFilter, sortBy, sortOrder]);
 
   const handleSort = (field) => {
     if (sortBy === field) {
@@ -171,6 +168,9 @@ const SellerProducts = () => {
             }
             toast.success(`${selectedProducts.length} products deleted`);
           }
+          break;
+        default:
+          toast.error('Unknown action');
           break;
       }
       setSelectedProducts([]);

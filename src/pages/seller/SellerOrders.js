@@ -11,18 +11,10 @@ import {
   TruckIcon,
   ClockIcon,
   ExclamationTriangleIcon,
-  ChatBubbleLeftRightIcon,
   PrinterIcon,
   ArrowUpIcon,
   ArrowDownIcon,
-  DocumentTextIcon,
-  CurrencyDollarIcon,
-  ShoppingBagIcon,
-  UsersIcon,
-  CalendarIcon,
-  MapPinIcon,
-  PhoneIcon,
-  EnvelopeIcon
+  ShoppingBagIcon
 } from '@heroicons/react/24/outline';
 
 const SellerOrders = () => {
