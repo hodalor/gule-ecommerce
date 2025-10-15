@@ -30,9 +30,6 @@ import Wishlist from './pages/Wishlist';
 
 // Buyer Pages
 import BuyerDashboard from './pages/buyer/BuyerDashboard';
-import BuyerOrders from './pages/buyer/BuyerOrders';
-import OrderTracking from './pages/buyer/OrderTracking';
-import BuyerProfile from './pages/buyer/BuyerProfile';
 
 // Seller Pages
 import SellerDashboard from './pages/seller/SellerDashboard';
