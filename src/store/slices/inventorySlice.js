@@ -144,6 +144,89 @@ export const reserveStock = createAsyncThunk(
   }
 );
 
+export const updateInventoryItem = createAsyncThunk(
+  'inventory/updateInventoryItem',
+  async ({ id, updates, updatedBy }, { rejectWithValue }) => {
+    try {
+      const response = await axios.put(`/api/admin/inventory/${id}`, {
+        ...updates,
+        updatedBy
+      });
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to update inventory item');
+    }
+  }
+);
+
+export const flagLowStock = createAsyncThunk(
+  'inventory/flagLowStock',
+  async ({ itemId, flaggedBy }, { rejectWithValue }) => {
+    try {
+      const response = await axios.post(`/api/admin/inventory/${itemId}/flag-low-stock`, {
+        flaggedBy
+      });
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to flag low stock');
+    }
+  }
+);
+
+export const requestRestock = createAsyncThunk(
+  'inventory/requestRestock',
+  async ({ itemId, quantity, requestedBy }, { rejectWithValue }) => {
+    try {
+      const response = await axios.post(`/api/admin/inventory/${itemId}/request-restock`, {
+        quantity,
+        requestedBy
+      });
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to request restock');
+    }
+  }
+);
+
+export const approveRestock = createAsyncThunk(
+  'inventory/approveRestock',
+  async ({ itemId, approvedBy }, { rejectWithValue }) => {
+    try {
+      const response = await axios.post(`/api/admin/inventory/${itemId}/approve-restock`, {
+        approvedBy
+      });
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to approve restock');
+    }
+  }
+);
+
+export const exportInventory = createAsyncThunk(
+  'inventory/exportInventory',
+  async (filters, { rejectWithValue }) => {
+    try {
+      const response = await axios.post('/api/admin/inventory/export', filters, {
+        responseType: 'blob'
+      });
+      
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `inventory-export-${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      return { success: true, message: 'Inventory exported successfully' };
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to export inventory');
+    }
+  }
+);
+
 const initialState = {
   items: [],
   selectedItem: null,

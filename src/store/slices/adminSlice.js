@@ -1,12 +1,12 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import axios from 'axios';
+import api from '../../utils/api';
 
 // Async thunks for admin management
 export const fetchAdmins = createAsyncThunk(
   'admin/fetchAdmins',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.get('/api/admin/admins');
+      const response = await api.get('/admin/admins');
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch admins');
@@ -18,7 +18,7 @@ export const createAdmin = createAsyncThunk(
   'admin/createAdmin',
   async (adminData, { rejectWithValue }) => {
     try {
-      const response = await axios.post('/api/admin/admins', adminData);
+      const response = await api.post('/admin/admins', adminData);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to create admin');
@@ -30,7 +30,7 @@ export const updateAdmin = createAsyncThunk(
   'admin/updateAdmin',
   async ({ id, adminData }, { rejectWithValue }) => {
     try {
-      const response = await axios.put(`/api/admin/admins/${id}`, adminData);
+      const response = await api.put(`/admin/admins/${id}`, adminData);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to update admin');
@@ -42,7 +42,7 @@ export const deleteAdmin = createAsyncThunk(
   'admin/deleteAdmin',
   async (id, { rejectWithValue }) => {
     try {
-      await axios.delete(`/api/admin/admins/${id}`);
+      await api.delete(`/admin/admins/${id}`);
       return id;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to delete admin');
@@ -54,7 +54,7 @@ export const generateWorkId = createAsyncThunk(
   'admin/generateWorkId',
   async (adminId, { rejectWithValue }) => {
     try {
-      const response = await axios.post(`/api/admin/admins/${adminId}/work-id`);
+      const response = await api.post(`/admin/admins/${adminId}/work-id`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to generate work ID');

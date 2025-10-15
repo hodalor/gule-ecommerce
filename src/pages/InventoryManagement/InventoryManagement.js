@@ -6,7 +6,12 @@ import {
   setLowStockAlert,
   bulkUpdateStock,
   fetchStockHistory,
-  generateStockReport
+  generateStockReport,
+  updateInventoryItem,
+  flagLowStock,
+  requestRestock,
+  approveRestock,
+  exportInventory
 } from '../../store/slices/inventorySlice';
 import {
   CubeIcon,
