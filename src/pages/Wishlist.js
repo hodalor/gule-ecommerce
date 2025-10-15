@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Link } from 'react-router-dom';
 import {
@@ -19,8 +19,6 @@ const Wishlist = () => {
   // TODO: Replace with actual wishlist slice when implemented
   // For now, using empty array until wishlist API is created
   const wishlistItems = [];
-  const loading = false;
-  const error = null;
 
   const handleAddToCart = (product) => {
     if (!isAuthenticated) {

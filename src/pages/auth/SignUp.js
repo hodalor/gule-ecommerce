@@ -181,7 +181,7 @@ const SignUp = () => {
         userData.taxId = formData.taxId || '';
       }
 
-      const result = await dispatch(registerUser(userData)).unwrap();
+      await dispatch(registerUser(userData)).unwrap();
       toast.success('Account created successfully! Please check your email to verify your account.');
       
       // Redirect to login page after successful registration

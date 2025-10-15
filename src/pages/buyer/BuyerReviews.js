@@ -6,10 +6,8 @@ import {
   StarIcon,
   PencilIcon,
   TrashIcon,
-  EyeIcon,
   FunnelIcon,
   MagnifyingGlassIcon,
-  PhotoIcon,
   XMarkIcon
 } from '@heroicons/react/24/outline';
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
@@ -25,12 +23,10 @@ import {
 
 const BuyerReviews = () => {
   const dispatch = useDispatch();
-  const { user } = useSelector((state) => state.auth);
   const { 
     reviews, 
     loading, 
     error, 
-    pagination,
     searchTerm,
     ratingFilter,
     sortBy

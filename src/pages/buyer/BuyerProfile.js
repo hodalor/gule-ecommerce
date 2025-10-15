@@ -5,7 +5,6 @@ import {
   EnvelopeIcon,
   PhoneIcon,
   CalendarIcon,
-  MapPinIcon,
   CameraIcon,
   EyeIcon,
   EyeSlashIcon,

@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import React, { useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { 
   MapPinIcon, 
@@ -14,9 +13,6 @@ import {
 } from '@heroicons/react/24/outline';
 
 const BuyerAddresses = () => {
-  const dispatch = useDispatch();
-  const { user } = useSelector((state) => state.auth);
-  
   // Mock addresses data - replace with actual Redux state
   const [addresses, setAddresses] = useState([
     {

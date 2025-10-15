@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 import { loginUser, clearError } from '../../store/slices/authSlice';
@@ -16,10 +16,7 @@ const Login = () => {
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const location = useLocation();
   const { loading, error } = useSelector((state) => state.auth);
-
-  const from = location.state?.from?.pathname || '/';
 
   const validateForm = () => {
     const newErrors = {};
@@ -62,7 +59,7 @@ const Login = () => {
     if (!validateForm()) return;
 
     try {
-      const result = await dispatch(loginUser(formData)).unwrap();
+      await dispatch(loginUser(formData)).unwrap();
       toast.success('Login successful!');
       
       // Redirect based on role

@@ -8,8 +8,7 @@ import {
   UserIcon,
   MapPinIcon,
   ExclamationTriangleIcon,
-  ChartBarIcon,
-  Cog6ToothIcon
+  ChartBarIcon
 } from '@heroicons/react/24/outline';
 import NotificationCenter from '../../components/notifications/NotificationCenter';
 import BuyerOrders from './BuyerOrders';

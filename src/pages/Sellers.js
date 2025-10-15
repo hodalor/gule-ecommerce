@@ -15,7 +15,7 @@ const Sellers = () => {
     // Fetch sellers and categories on component mount
     dispatch(fetchSellers({ search: searchTerm, category: selectedCategory, sortBy }));
     dispatch(fetchSellerCategories());
-  }, [dispatch]);
+  }, [dispatch, searchTerm, selectedCategory, sortBy]);
 
   useEffect(() => {
     // Refetch sellers when filters change

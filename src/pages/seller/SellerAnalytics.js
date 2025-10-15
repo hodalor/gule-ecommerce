@@ -8,10 +8,7 @@ import {
   ArrowTrendingUpIcon,
   ArrowTrendingDownIcon,
   EyeIcon,
-  HeartIcon,
-  CalendarIcon,
-  ArrowUpIcon,
-  ArrowDownIcon
+  CalendarIcon
 } from '@heroicons/react/24/outline';
 import { 
   fetchSellerReports, 
@@ -25,9 +22,7 @@ const SellerAnalytics = () => {
   const { 
     stats, 
     salesData, 
-    productPerformance, 
-    loading, 
-    error 
+    productPerformance 
   } = useSelector((state) => state.reports);
   
   const [dateRange, setDateRange] = useState('7d');

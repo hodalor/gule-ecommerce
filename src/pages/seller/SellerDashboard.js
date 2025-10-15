@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
+import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import { 
   HomeIcon,
   CubeIcon,
@@ -8,14 +8,11 @@ import {
   ChartBarIcon,
   Cog6ToothIcon,
   UserIcon,
-  BellIcon,
   CurrencyDollarIcon,
   EyeIcon,
-  TruckIcon,
   ExclamationTriangleIcon,
   ArchiveBoxIcon,
   ClipboardDocumentListIcon,
-  PlusIcon,
   CheckCircleIcon
 } from '@heroicons/react/24/outline';
 import { fetchUserOrders } from '../../store/slices/orderSlice';
@@ -35,8 +32,8 @@ const SellerDashboard = () => {
   const dispatch = useDispatch();
   const location = useLocation();
   const { user } = useSelector((state) => state.auth);
-  const { orders, loading: ordersLoading } = useSelector((state) => state.orders);
-  const { products, loading: productsLoading } = useSelector((state) => state.products);
+  const { orders } = useSelector((state) => state.orders);
+  const { products } = useSelector((state) => state.products);
 
   useEffect(() => {
     if (user?.id) {

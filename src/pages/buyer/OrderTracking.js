@@ -26,78 +26,46 @@ const OrderTracking = () => {
     }
   }, [orderId, dispatch]);
 
-  // Use real tracking data from Redux, fallback to mock for demo
-  const currentTrackingData = trackingData || {
-    id: orderId || 'ORD-2024-001',
-    status: 'processing',
-    estimatedDelivery: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    trackingNumber: 'Pending',
-    carrier: 'To be assigned',
-    carrierPhone: 'N/A',
-    carrierEmail: 'N/A',
-    timeline: [
-      {
-        status: 'placed',
-        title: 'Order Placed',
-        description: 'Your order has been placed successfully',
-        timestamp: new Date().toISOString(),
-        completed: true,
-        location: 'Online'
-      },
-      {
-        status: 'confirmed',
-        title: 'Order Confirmed',
-        description: 'Waiting for seller confirmation',
-        timestamp: null,
-        completed: false,
-        location: 'Pending'
-      },
-      {
-        status: 'processing',
-        title: 'Processing',
-        description: 'Order will be prepared for shipment',
-        timestamp: null,
-        completed: false,
-        location: 'Pending'
-      },
-      {
-        status: 'shipped',
-        title: 'Shipped',
-        description: 'Order will be shipped',
-        timestamp: null,
-        completed: false,
-        location: 'Pending'
-      },
-      {
-        status: 'delivered',
-        title: 'Delivered',
-        description: 'Order will be delivered',
-        timestamp: null,
-        completed: false,
-        location: 'Pending'
-      }
-    ],
-    items: [
-      {
-        id: 1,
-        name: 'Loading...',
-        price: 0,
-        quantity: 1,
-        image: '/api/placeholder/80/80'
-      }
-    ],
-    shippingAddress: {
-      name: 'Loading...',
-      address: 'Loading...',
-      city: 'Loading...',
-      state: 'Loading...',
-      zipCode: 'Loading...',
-      phone: 'Loading...'
-    },
-    total: 0
-  };
-
   useEffect(() => {
+    // Use real tracking data from Redux, fallback to mock for demo
+    const currentTrackingData = trackingData || {
+      id: orderId || 'ORD-2024-001',
+      status: 'processing',
+      estimatedDelivery: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      trackingNumber: 'Pending',
+      carrier: 'To be assigned',
+      items: [
+        {
+          id: 1,
+          name: 'Sample Product',
+          quantity: 1,
+          price: 99.99,
+          image: '/api/placeholder/100/100'
+        }
+      ],
+      timeline: [
+        {
+          status: 'order_placed',
+          timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+          description: 'Order has been placed successfully'
+        },
+        {
+          status: 'processing',
+          timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+          description: 'Order is being processed'
+        }
+      ],
+      shippingAddress: {
+        name: 'Loading...',
+        address: 'Loading...',
+        city: 'Loading...',
+        state: 'Loading...',
+        zipCode: 'Loading...',
+        phone: 'Loading...'
+      },
+      total: 0
+    };
+    
     setSelectedOrder(currentTrackingData);
   }, [trackingData, orderId]);
 
@@ -422,7 +390,6 @@ const OrderTracking = () => {
 // Component for searching/selecting order to track
 const OrderTrackingSearch = () => {
   const [trackingNumber, setTrackingNumber] = useState('');
-  const [orderId, setOrderId] = useState('');
   const { orders } = useSelector(state => state.orders);
 
   const handleTrackByNumber = (e) => {

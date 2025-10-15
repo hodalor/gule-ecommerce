@@ -24,17 +24,7 @@ const Products = () => {
     dispatch(fetchProducts(filters));
   }, [dispatch, searchTerm, selectedCategory, sortBy]);
 
-  const handleSearch = (e) => {
-    setSearchTerm(e.target.value);
-  };
 
-  const handleCategoryChange = (e) => {
-    setSelectedCategory(e.target.value);
-  };
-
-  const handleSortChange = (e) => {
-    setSortBy(e.target.value);
-  };
 
   if (loading) {
     return (

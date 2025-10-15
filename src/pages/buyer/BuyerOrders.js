@@ -16,7 +16,7 @@ import toast from 'react-hot-toast';
 
 const BuyerOrders = () => {
   const dispatch = useDispatch();
-  const { orders, loading, pagination } = useSelector(state => state.orders);
+  const { orders, loading } = useSelector(state => state.orders);
   const [activeTab, setActiveTab] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrder, setSelectedOrder] = useState(null);

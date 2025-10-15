@@ -3,9 +3,6 @@ import { useDispatch, useSelector } from 'react-redux';
 import { toast } from 'react-hot-toast';
 import { 
   ExclamationTriangleIcon,
-  ChatBubbleLeftRightIcon,
-  DocumentArrowUpIcon,
-  ClockIcon,
   CheckCircleIcon,
   XCircleIcon,
   EyeIcon,
@@ -15,19 +12,14 @@ import {
   FunnelIcon
 } from '@heroicons/react/24/outline';
 import { 
-  fetchUserDisputes, 
   createDispute, 
   addDisputeMessage, 
-  getDisputeDetails,
-  clearError 
+  getDisputeDetails
 } from '../../store/slices/disputeSlice';
-import { fetchUserOrders } from '../../store/slices/orderSlice';
 
 const BuyerDisputes = () => {
   const dispatch = useDispatch();
-  const { user } = useSelector((state) => state.auth);
-  const { disputes, loading, error, pagination } = useSelector((state) => state.disputes);
-  const { orders } = useSelector((state) => state.orders);
+  const { disputes, loading } = useSelector((state) => state.disputes);
   
   // State for UI management
   const [filteredDisputes, setFilteredDisputes] = useState([]);
@@ -167,19 +159,6 @@ const BuyerDisputes = () => {
       hour: '2-digit',
       minute: '2-digit'
     });
-  };
-
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'open':
-        return <ClockIcon className="h-5 w-5" />;
-      case 'resolved':
-        return <CheckCircleIcon className="h-5 w-5" />;
-      case 'rejected':
-        return <XCircleIcon className="h-5 w-5" />;
-      default:
-        return <ExclamationTriangleIcon className="h-5 w-5" />;
-    }
   };
 
   return (

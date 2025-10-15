@@ -4,17 +4,12 @@ import {
   BellIcon, 
   XMarkIcon, 
   CheckIcon,
-  ExclamationTriangleIcon,
-  InformationCircleIcon,
-  CheckCircleIcon,
   Cog6ToothIcon,
   TrashIcon
 } from '@heroicons/react/24/outline';
 import { 
   selectNotifications,
   selectUnreadCount, 
-  selectNotificationLoading, 
-  selectNotificationError,
   fetchNotifications,
   markAsRead,
   markAllAsRead,
