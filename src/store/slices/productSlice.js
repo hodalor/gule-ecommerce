@@ -1,7 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
 
 // Async thunks
 export const fetchProducts = createAsyncThunk(
@@ -53,7 +53,7 @@ export const fetchCategories = createAsyncThunk(
   'products/fetchCategories',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`${API_URL}/categories`);
+      const response = await axios.get(`${API_URL}/products/categories/list`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch categories');
@@ -149,8 +149,8 @@ const productSlice = createSlice({
       })
       .addCase(fetchProducts.fulfilled, (state, action) => {
         state.loading = false;
-        state.products = action.payload.products;
-        state.pagination = action.payload.pagination;
+        state.products = action.payload.data.products;
+        state.pagination = action.payload.data.pagination;
       })
       .addCase(fetchProducts.rejected, (state, action) => {
         state.loading = false;
@@ -163,7 +163,7 @@ const productSlice = createSlice({
       })
       .addCase(fetchProductById.fulfilled, (state, action) => {
         state.loading = false;
-        state.currentProduct = action.payload.product;
+        state.currentProduct = action.payload.data.product;
       })
       .addCase(fetchProductById.rejected, (state, action) => {
         state.loading = false;
@@ -175,7 +175,7 @@ const productSlice = createSlice({
       })
       // Fetch categories
       .addCase(fetchCategories.fulfilled, (state, action) => {
-        state.categories = action.payload.categories;
+        state.categories = action.payload.data.categories;
       })
       // Create product
       .addCase(createProduct.fulfilled, (state, action) => {

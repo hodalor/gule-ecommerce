@@ -164,7 +164,7 @@ const Products = () => {
         {/* Results Count */}
         <div className="mb-6">
           <p className="text-gray-600">
-            Showing {sortedProducts.length} of {products.length} products
+            Showing {sortedProducts.length} of {products?.length || 0} products
           </p>
         </div>
 

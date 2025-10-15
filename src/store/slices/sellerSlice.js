@@ -12,7 +12,7 @@ export const fetchSellers = createAsyncThunk(
       if (category && category !== 'all') params.append('category', category);
       if (sortBy) params.append('sortBy', sortBy);
 
-      const response = await fetch(`${API_BASE_URL}/sellers?${params}`, {
+      const response = await fetch(`${API_BASE_URL}/sellers/public?${params}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -129,7 +129,27 @@ const sellerSlice = createSlice({
       })
       .addCase(fetchSellers.fulfilled, (state, action) => {
         state.loading.sellers = false;
-        state.sellers = action.payload.sellers || action.payload;
+        
+        // Map backend response to frontend expected format
+        const rawSellers = action.payload.sellers || action.payload;
+        state.sellers = rawSellers.map(seller => ({
+          id: seller._id || seller.id,
+          name: seller.fullName || `${seller.firstName} ${seller.lastName}`,
+          firstName: seller.firstName,
+          lastName: seller.lastName,
+          description: seller.businessDetails?.businessDescription || 'Professional seller',
+          avatar: seller.profileImage || 'https://via.placeholder.com/64x64/6366F1/FFFFFF?text=' + (seller.firstName?.[0] || 'S'),
+          verified: seller.isVerified || false,
+          rating: seller.rating || seller.averageRating || 0,
+          reviewCount: seller.totalReviews || 0,
+          productCount: seller.totalProducts || 0,
+          totalSales: seller.totalSales || 0,
+          category: seller.businessDetails?.businessCategory || 'General',
+          location: seller.businessDetails?.businessAddress || 'Location not specified',
+          joinedDate: seller.registrationDate || seller.createdAt,
+          businessName: seller.businessDetails?.businessName,
+          topProducts: seller.topProducts || []
+        }));
         
         // Calculate stats
         const sellers = state.sellers;

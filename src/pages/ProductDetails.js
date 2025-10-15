@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchProduct } from '../store/slices/productsSlice';
+import { fetchProductById } from '../store/slices/productSlice';
 
 const ProductDetails = () => {
   const { id } = useParams();
@@ -12,7 +12,7 @@ const ProductDetails = () => {
 
   useEffect(() => {
     if (id) {
-      dispatch(fetchProduct(id));
+      dispatch(fetchProductById(id));
     }
   }, [dispatch, id]);
 
