@@ -1,0 +1,181 @@
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+
+// Async thunks for seller operations
+export const fetchSellers = createAsyncThunk(
+  'sellers/fetchSellers',
+  async ({ search, category, sortBy } = {}, { rejectWithValue }) => {
+    try {
+      const params = new URLSearchParams();
+      if (search) params.append('search', search);
+      if (category && category !== 'all') params.append('category', category);
+      if (sortBy) params.append('sortBy', sortBy);
+
+      const response = await fetch(`${API_BASE_URL}/sellers?${params}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch sellers');
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+export const fetchSellerById = createAsyncThunk(
+  'sellers/fetchSellerById',
+  async (sellerId, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/sellers/${sellerId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch seller');
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+export const fetchSellerCategories = createAsyncThunk(
+  'sellers/fetchSellerCategories',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/sellers/categories`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch seller categories');
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+const initialState = {
+  sellers: [],
+  currentSeller: null,
+  categories: ['all', 'Electronics', 'Fashion', 'Home & Garden', 'Sports', 'Books', 'Beauty', 'Automotive', 'Toys'],
+  loading: {
+    sellers: false,
+    currentSeller: false,
+    categories: false
+  },
+  error: {
+    sellers: null,
+    currentSeller: null,
+    categories: null
+  },
+  stats: {
+    totalSellers: 0,
+    verifiedSellers: 0,
+    averageRating: 0,
+    totalProducts: 0
+  }
+};
+
+const sellerSlice = createSlice({
+  name: 'sellers',
+  initialState,
+  reducers: {
+    clearError: (state, action) => {
+      const { type } = action.payload;
+      if (type && state.error[type]) {
+        state.error[type] = null;
+      } else {
+        state.error = {
+          sellers: null,
+          currentSeller: null,
+          categories: null
+        };
+      }
+    },
+    clearCurrentSeller: (state) => {
+      state.currentSeller = null;
+      state.error.currentSeller = null;
+    }
+  },
+  extraReducers: (builder) => {
+    // Fetch sellers
+    builder
+      .addCase(fetchSellers.pending, (state) => {
+        state.loading.sellers = true;
+        state.error.sellers = null;
+      })
+      .addCase(fetchSellers.fulfilled, (state, action) => {
+        state.loading.sellers = false;
+        state.sellers = action.payload.sellers || action.payload;
+        
+        // Calculate stats
+        const sellers = state.sellers;
+        state.stats.totalSellers = sellers.length;
+        state.stats.verifiedSellers = sellers.filter(s => s.verified).length;
+        state.stats.averageRating = sellers.length > 0 
+          ? (sellers.reduce((sum, s) => sum + (s.rating || 0), 0) / sellers.length).toFixed(1)
+          : 0;
+        state.stats.totalProducts = sellers.reduce((sum, s) => sum + (s.productCount || 0), 0);
+      })
+      .addCase(fetchSellers.rejected, (state, action) => {
+        state.loading.sellers = false;
+        state.error.sellers = action.payload;
+      });
+
+    // Fetch seller by ID
+    builder
+      .addCase(fetchSellerById.pending, (state) => {
+        state.loading.currentSeller = true;
+        state.error.currentSeller = null;
+      })
+      .addCase(fetchSellerById.fulfilled, (state, action) => {
+        state.loading.currentSeller = false;
+        state.currentSeller = action.payload;
+      })
+      .addCase(fetchSellerById.rejected, (state, action) => {
+        state.loading.currentSeller = false;
+        state.error.currentSeller = action.payload;
+      });
+
+    // Fetch seller categories
+    builder
+      .addCase(fetchSellerCategories.pending, (state) => {
+        state.loading.categories = true;
+        state.error.categories = null;
+      })
+      .addCase(fetchSellerCategories.fulfilled, (state, action) => {
+        state.loading.categories = false;
+        state.categories = ['all', ...action.payload];
+      })
+      .addCase(fetchSellerCategories.rejected, (state, action) => {
+        state.loading.categories = false;
+        state.error.categories = action.payload;
+      });
+  }
+});
+
+export const { clearError, clearCurrentSeller } = sellerSlice.actions;
+export default sellerSlice.reducer;
