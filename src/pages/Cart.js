@@ -109,13 +109,13 @@ const Cart = () => {
 
               <div className="divide-y divide-gray-200">
                 {items.map((item) => (
-                  <div key={item.product._id} className="p-6">
+                  <div key={item.productId} className="p-6">
                     <div className="flex items-start space-x-4">
                       {/* Product Image */}
                       <div className="flex-shrink-0">
                         <img
-                          src={item.product.images?.[0] || 'https://via.placeholder.com/100x100/E5E7EB/9CA3AF?text=No+Image'}
-                          alt={item.product.name}
+                          src={item.image || 'https://via.placeholder.com/100x100/E5E7EB/9CA3AF?text=No+Image'}
+                          alt={item.name}
                           className="w-20 h-20 object-cover rounded-lg"
                         />
                       </div>
@@ -123,13 +123,13 @@ const Cart = () => {
                       {/* Product Details */}
                       <div className="flex-1 min-w-0">
                         <Link
-                          to={`/product/${item.product._id}`}
+                          to={`/product/${item.productId}`}
                           className="text-lg font-medium text-gray-900 hover:text-primary-600 transition-colors"
                         >
-                          {item.product.name}
+                          {item.name}
                         </Link>
                         <p className="text-sm text-gray-500 mt-1">
-                          Sold by: {item.product.seller?.name || 'Unknown Seller'}
+                          Sold by: {item.sellerId || 'Unknown Seller'}
                         </p>
                         {item.variant && (
                           <p className="text-sm text-gray-500">
@@ -137,7 +137,7 @@ const Cart = () => {
                           </p>
                         )}
                         <p className="text-lg font-semibold text-gray-900 mt-2">
-                          ${item.product.price.toFixed(2)}
+                          ${item.price.toFixed(2)}
                         </p>
                       </div>
 
@@ -145,7 +145,7 @@ const Cart = () => {
                       <div className="flex items-center space-x-3">
                         <div className="flex items-center border border-gray-300 rounded-lg">
                           <button
-                            onClick={() => handleUpdateQuantity(item.product._id, item.quantity - 1)}
+                            onClick={() => handleUpdateQuantity(item.productId, item.quantity - 1)}
                             className="p-2 hover:bg-gray-100 transition-colors"
                           >
                             <MinusIcon className="h-4 w-4" />
@@ -154,7 +154,7 @@ const Cart = () => {
                             {item.quantity}
                           </span>
                           <button
-                            onClick={() => handleUpdateQuantity(item.product._id, item.quantity + 1)}
+                            onClick={() => handleUpdateQuantity(item.productId, item.quantity + 1)}
                             className="p-2 hover:bg-gray-100 transition-colors"
                           >
                             <PlusIcon className="h-4 w-4" />
@@ -162,7 +162,7 @@ const Cart = () => {
                         </div>
 
                         <button
-                          onClick={() => handleRemoveItem(item.product._id)}
+                          onClick={() => handleRemoveItem(item.productId)}
                           className="p-2 text-red-600 hover:text-red-700 transition-colors"
                         >
                           <TrashIcon className="h-5 w-5" />
@@ -173,7 +173,7 @@ const Cart = () => {
                     {/* Item Total */}
                     <div className="mt-4 flex justify-end">
                       <p className="text-lg font-semibold text-gray-900">
-                        Subtotal: ${(item.product.price * item.quantity).toFixed(2)}
+                        Subtotal: ${(item.price * item.quantity).toFixed(2)}
                       </p>
                     </div>
                   </div>

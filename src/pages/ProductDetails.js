@@ -2,13 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchProductById } from '../store/slices/productSlice';
+import { addToCart } from '../store/slices/cartSlice';
+import toast from 'react-hot-toast';
 
 const ProductDetails = () => {
   const { id } = useParams();
   const dispatch = useDispatch();
-  const { currentProduct: product, loading, error } = useSelector(state => state.products);
-  const [quantity, setQuantity] = useState(1);
+  const { currentProduct: product, loading, error } = useSelector((state) => state.products);
+  const { user } = useSelector((state) => state.auth);
+  
   const [selectedImage, setSelectedImage] = useState(0);
+  const [quantity, setQuantity] = useState(1);
 
   useEffect(() => {
     if (id) {
@@ -17,8 +21,22 @@ const ProductDetails = () => {
   }, [dispatch, id]);
 
   const handleAddToCart = () => {
-    // Add to cart logic would go here
-    alert(`Added ${quantity} item(s) to cart!`);
+    if (!user) {
+      toast.error('Please login to add items to cart');
+      return;
+    }
+
+    const cartItem = {
+      productId: product._id,
+      name: product.name,
+      price: product.price,
+      image: product.images?.[0] || '',
+      quantity,
+      sellerId: product.seller
+    };
+
+    dispatch(addToCart(cartItem));
+    toast.success(`${product.name} added to cart!`);
   };
 
   if (loading) {

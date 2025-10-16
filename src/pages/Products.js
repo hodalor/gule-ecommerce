@@ -1,19 +1,42 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchProducts, fetchCategories } from '../store/slices/productsSlice';
+import { fetchProducts, fetchCategories } from '../store/slices/productSlice';
+import { addToCart } from '../store/slices/cartSlice';
+import toast from 'react-hot-toast';
 
 const Products = () => {
   const dispatch = useDispatch();
   const { products, categories, loading, error } = useSelector(state => state.products);
+  const { user, isAuthenticated } = useSelector(state => state.auth);
   
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState('name');
 
   useEffect(() => {
+    dispatch(fetchProducts());
     dispatch(fetchCategories());
   }, [dispatch]);
+
+  const handleAddToCart = (product) => {
+    if (!isAuthenticated) {
+      toast.error('Please log in to add items to cart');
+      return;
+    }
+
+    const cartItem = {
+      productId: product._id,
+      name: product.name,
+      price: product.price,
+      image: product.images?.[0] || '',
+      quantity: 1,
+      sellerId: product.seller
+    };
+
+    dispatch(addToCart(cartItem));
+    toast.success(`${product.name} added to cart!`);
+  };
 
   useEffect(() => {
     const filters = {
@@ -227,6 +250,14 @@ const Products = () => {
                     >
                       View Details
                     </Link>
+                    <button 
+                      onClick={() => handleAddToCart(product)}
+                      className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors duration-200"
+                    >
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4m0 0L7 13m0 0l-1.5 6M7 13l-1.5 6m0 0h9" />
+                      </svg>
+                    </button>
                     <button className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors duration-200">
                       <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
