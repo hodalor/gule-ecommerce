@@ -10,6 +10,12 @@ import complaintsSlice from './slices/complaintsSlice';
 import refundsSlice from './slices/refundsSlice';
 import inventorySlice from './slices/inventorySlice';
 import storePerformanceSlice from './slices/storePerformanceSlice';
+import productSlice from './slices/productSlice';
+import sellerSlice from './slices/sellerSlice';
+import reviewSlice from './slices/reviewSlice';
+import categorySlice from './slices/categorySlice';
+import escrowSlice from './slices/escrowSlice';
+import adminDisputeSlice from './slices/adminDisputeSlice';
 
 export const store = configureStore({
   reducer: {
@@ -24,6 +30,12 @@ export const store = configureStore({
     refunds: refundsSlice,
     inventory: inventorySlice,
     storePerformance: storePerformanceSlice,
+    products: productSlice,
+    sellers: sellerSlice,
+    reviews: reviewSlice,
+    categories: categorySlice,
+    escrow: escrowSlice,
+    adminDisputes: adminDisputeSlice,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

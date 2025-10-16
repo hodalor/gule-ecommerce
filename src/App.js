@@ -15,6 +15,12 @@ import Dashboard from './pages/Dashboard/Dashboard';
 import AdminManagement from './pages/AdminManagement/AdminManagement';
 import OrderManagement from './pages/OrderManagement/OrderManagement';
 import UserManagement from './pages/UserManagement/UserManagement';
+import ProductManagement from './pages/ProductManagement/ProductManagement';
+import SellerManagement from './pages/SellerManagement/SellerManagement';
+import ReviewManagement from './pages/ReviewManagement/ReviewManagement';
+import CategoryManagement from './pages/CategoryManagement/CategoryManagement';
+import EscrowManagement from './pages/EscrowManagement/EscrowManagement';
+import DisputeManagement from './pages/DisputeManagement/DisputeManagement';
 import ComplaintsManagement from './pages/ComplaintsManagement/ComplaintsManagement';
 import RefundsManagement from './pages/RefundsManagement/RefundsManagement';
 import InventoryManagement from './pages/InventoryManagement/InventoryManagement';
@@ -72,6 +78,12 @@ function AppContent() {
             <Route path="users" element={<UserManagement />} />
             <Route path="admins" element={<AdminManagement />} />
             <Route path="orders" element={<OrderManagement />} />
+            <Route path="products" element={<ProductManagement />} />
+            <Route path="sellers" element={<SellerManagement />} />
+            <Route path="reviews" element={<ReviewManagement />} />
+            <Route path="categories" element={<CategoryManagement />} />
+            <Route path="escrow" element={<EscrowManagement />} />
+            <Route path="disputes" element={<DisputeManagement />} />
             <Route path="inventory" element={<InventoryManagement />} />
             <Route path="stores" element={<StorePerformance />} />
             <Route path="complaints" element={<ComplaintsManagement />} />

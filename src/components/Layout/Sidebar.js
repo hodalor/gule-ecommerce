@@ -15,6 +15,11 @@ import {
   ArrowPathIcon,
   CubeIcon,
   ChartBarIcon,
+  TagIcon,
+  StarIcon,
+  BuildingStorefrontIcon,
+  ShoppingCartIcon,
+  BanknotesIcon
 } from '@heroicons/react/24/outline';
 
 const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
@@ -43,6 +48,48 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
       icon: ShoppingBagIcon, 
       current: location.pathname.startsWith('/admin/orders'),
       roles: ['Super Admin', 'Admin', 'Review Officer']
+    },
+    { 
+      name: 'Product Management', 
+      href: '/admin/products', 
+      icon: ShoppingCartIcon, 
+      current: location.pathname.startsWith('/admin/products'),
+      roles: ['Super Admin', 'Admin', 'Inventory Manager']
+    },
+    { 
+      name: 'Seller Management', 
+      href: '/admin/sellers', 
+      icon: BuildingStorefrontIcon, 
+      current: location.pathname.startsWith('/admin/sellers'),
+      roles: ['Super Admin', 'Admin']
+    },
+    { 
+      name: 'Review Management', 
+      href: '/admin/reviews', 
+      icon: StarIcon, 
+      current: location.pathname.startsWith('/admin/reviews'),
+      roles: ['Super Admin', 'Admin', 'Review Officer']
+    },
+    { 
+      name: 'Category Management', 
+      href: '/admin/categories', 
+      icon: TagIcon, 
+      current: location.pathname.startsWith('/admin/categories'),
+      roles: ['Super Admin', 'Admin', 'Inventory Manager']
+    },
+    { 
+      name: 'Escrow Management', 
+      href: '/admin/escrow', 
+      icon: BanknotesIcon, 
+      current: location.pathname.startsWith('/admin/escrow'),
+      roles: ['Super Admin', 'Admin', 'Finance Officer']
+    },
+    { 
+      name: 'Dispute Management', 
+      href: '/admin/disputes', 
+      icon: ExclamationTriangleIcon, 
+      current: location.pathname.startsWith('/admin/disputes'),
+      roles: ['Super Admin', 'Admin', 'Support Agent']
     },
     { 
       name: 'Inventory Management', 
