@@ -110,9 +110,9 @@ const productSchema = new mongoose.Schema({
     enum: ['ZMW', 'USD', 'EUR', 'GBP']
   },
   category: {
-    type: String,
-    required: [true, 'Product category is required'],
-    trim: true
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Category',
+    required: [true, 'Product category is required']
   },
   subcategory: {
     type: String,
