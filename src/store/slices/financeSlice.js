@@ -17,7 +17,7 @@ export const fetchTransactions = createAsyncThunk(
         }),
       });
       
-      const response = await axios.get(`/api/admin/finance/transactions?${params}`);
+      const response = await axios.get(`/api/finance/transactions?${params}`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch transactions');
@@ -35,7 +35,7 @@ export const fetchEscrowFunds = createAsyncThunk(
         ...(status && { status }),
       });
       
-      const response = await axios.get(`/api/admin/finance/escrow?${params}`);
+      const response = await axios.get(`/api/finance/escrow?${params}`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch escrow funds');
@@ -47,7 +47,7 @@ export const releaseFunds = createAsyncThunk(
   'finance/releaseFunds',
   async ({ transactionId, amount, reason }, { rejectWithValue }) => {
     try {
-      const response = await axios.post(`/api/admin/finance/release`, {
+      const response = await axios.post(`/api/finance/release`, {
         transactionId,
         amount,
         reason,
@@ -63,7 +63,7 @@ export const refundFunds = createAsyncThunk(
   'finance/refundFunds',
   async ({ transactionId, amount, reason }, { rejectWithValue }) => {
     try {
-      const response = await axios.post(`/api/admin/finance/refund`, {
+      const response = await axios.post(`/api/finance/refund`, {
         transactionId,
         amount,
         reason,
@@ -79,7 +79,7 @@ export const generateFinancialReport = createAsyncThunk(
   'finance/generateFinancialReport',
   async ({ type, dateRange, format }, { rejectWithValue }) => {
     try {
-      const response = await axios.post('/api/admin/finance/reports', {
+      const response = await axios.post('/api/finance/reports', {
         type,
         dateRange,
         format,
@@ -95,7 +95,7 @@ export const fetchFinancialSummary = createAsyncThunk(
   'finance/fetchFinancialSummary',
   async ({ period = 'month' }, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`/api/admin/finance/summary?period=${period}`);
+      const response = await axios.get(`/api/finance/summary?period=${period}`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch financial summary');

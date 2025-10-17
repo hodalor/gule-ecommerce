@@ -1,145 +1,80 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
+import api from '../../utils/api';
 
-// Async thunks for order management
+const ADMIN_ORDERS_API = '/admin/orders';
+
+// Async thunks
 export const fetchOrders = createAsyncThunk(
-  'orders/fetchOrders',
-  async ({ page = 1, limit = 10, status, search }, { rejectWithValue }) => {
+  'adminOrders/fetchOrders',
+  async ({ 
+    page = 1, 
+    limit = 10, 
+    search = '', 
+    status = '', 
+    startDate = '', 
+    endDate = '', 
+    minAmount = '', 
+    maxAmount = '', 
+    paymentStatus = '', 
+    reviewOfficer = '' 
+  }, { rejectWithValue }) => {
     try {
-      // Mock data for demo purposes
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+      });
       
-      const mockOrders = [
-        {
-          id: 'ORD-001',
-          orderNumber: 'ORD-001',
-          customer: {
-            name: 'John Doe',
-            email: 'john@example.com',
-            phone: '+1 234 567 8900'
-          },
-          items: [
-            {
-              id: 1,
-              name: 'Wireless Bluetooth Headphones',
-              price: 89.99,
-              quantity: 2,
-              sku: 'WBH-001'
-            }
-          ],
-          total: 179.98,
-          status: 'Pending',
-          paymentStatus: 'Paid',
-          orderDate: '2024-01-20T10:30:00Z',
-          estimatedDelivery: '2024-01-25',
-          reviewOfficer: null
-        },
-        {
-          id: 'ORD-002',
-          orderNumber: 'ORD-002',
-          customer: {
-            name: 'Jane Smith',
-            email: 'jane@example.com',
-            phone: '+1 234 567 8901'
-          },
-          items: [
-            {
-              id: 2,
-              name: 'Smart Fitness Watch',
-              price: 199.99,
-              quantity: 1,
-              sku: 'SFW-002'
-            }
-          ],
-          total: 199.99,
-          status: 'Under Review',
-          paymentStatus: 'Paid',
-          orderDate: '2024-01-21T14:15:00Z',
-          estimatedDelivery: '2024-01-26',
-          reviewOfficer: 'John Smith'
-        },
-        {
-          id: 'ORD-003',
-          orderNumber: 'ORD-003',
-          customer: {
-            name: 'Mike Johnson',
-            email: 'mike@example.com',
-            phone: '+1 234 567 8902'
-          },
-          items: [
-            {
-              id: 3,
-              name: 'Gaming Keyboard',
-              price: 129.99,
-              quantity: 1,
-              sku: 'GK-003'
-            }
-          ],
-          total: 129.99,
-          status: 'Approved',
-          paymentStatus: 'Paid',
-          orderDate: '2024-01-22T09:45:00Z',
-          estimatedDelivery: '2024-01-27',
-          reviewOfficer: 'Sarah Johnson'
-        }
-      ];
-      
-      // Filter by status if provided
-      let filteredOrders = mockOrders;
-      if (status) {
-        filteredOrders = mockOrders.filter(order => order.status === status);
-      }
-      
-      // Filter by search if provided
-      if (search) {
-        filteredOrders = filteredOrders.filter(order => 
-          order.orderNumber.toLowerCase().includes(search.toLowerCase()) ||
-          order.customer.name.toLowerCase().includes(search.toLowerCase()) ||
-          order.customer.email.toLowerCase().includes(search.toLowerCase())
-        );
-      }
-      
-      return {
-        orders: filteredOrders,
-        totalCount: filteredOrders.length,
-        pagination: {
-          currentPage: page,
-          totalPages: Math.ceil(filteredOrders.length / limit),
-          totalCount: filteredOrders.length
-        }
-      };
+      if (search) params.append('search', search);
+      if (status) params.append('status', status);
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+      if (minAmount) params.append('minAmount', minAmount);
+      if (maxAmount) params.append('maxAmount', maxAmount);
+      if (paymentStatus) params.append('paymentStatus', paymentStatus);
+      if (reviewOfficer) params.append('reviewOfficer', reviewOfficer);
+
+      const response = await api.get(`${ADMIN_ORDERS_API}?${params}`);
+      return response.data;
     } catch (error) {
-      return rejectWithValue(error.message || 'Failed to fetch orders');
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch orders');
+    }
+  }
+);
+
+export const fetchOrderById = createAsyncThunk(
+  'orders/fetchOrderById',
+  async (orderId, { rejectWithValue }) => {
+    try {
+      const response = await axios.get(`${ADMIN_ORDERS_API}/${orderId}`);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch order');
     }
   }
 );
 
 export const updateOrderStatus = createAsyncThunk(
   'orders/updateOrderStatus',
-  async ({ orderId, status, reviewOfficer }, { rejectWithValue }) => {
+  async ({ orderId, status, reason }, { rejectWithValue }) => {
     try {
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      return {
-        orderId,
+      const response = await axios.put(`${ADMIN_ORDERS_API}/${orderId}/status`, {
         status,
-        reviewOfficer,
-        updatedAt: new Date().toISOString()
-      };
+        reason
+      });
+      return response.data;
     } catch (error) {
-      return rejectWithValue(error.message || 'Failed to update order status');
+      return rejectWithValue(error.response?.data?.message || 'Failed to update order status');
     }
   }
 );
 
 export const assignReviewOfficer = createAsyncThunk(
   'orders/assignReviewOfficer',
-  async ({ orderIds, reviewOfficerId }, { rejectWithValue }) => {
+  async ({ orderId, reviewOfficerId }, { rejectWithValue }) => {
     try {
-      const response = await axios.post('/api/admin/orders/assign-reviewer', {
-        orderIds,
-        reviewOfficerId,
+      const response = await axios.put(`${ADMIN_ORDERS_API}/${orderId}/assign-reviewer`, {
+        reviewOfficerId
       });
       return response.data;
     } catch (error) {
@@ -150,12 +85,11 @@ export const assignReviewOfficer = createAsyncThunk(
 
 export const bulkUpdateOrders = createAsyncThunk(
   'orders/bulkUpdateOrders',
-  async ({ orderIds, action, data }, { rejectWithValue }) => {
+  async ({ orderIds, updates }, { rejectWithValue }) => {
     try {
-      const response = await axios.post('/api/admin/orders/bulk-update', {
+      const response = await axios.put(`${ADMIN_ORDERS_API}/bulk-update`, {
         orderIds,
-        action,
-        data,
+        updates
       });
       return response.data;
     } catch (error) {
@@ -164,56 +98,49 @@ export const bulkUpdateOrders = createAsyncThunk(
   }
 );
 
+export const exportOrders = createAsyncThunk(
+  'orders/exportOrders',
+  async ({ format = 'csv', filters = {} }, { rejectWithValue }) => {
+    try {
+      const queryParams = new URLSearchParams();
+      queryParams.append('format', format);
+      
+      // Add filter parameters
+      Object.keys(filters).forEach(key => {
+        if (filters[key]) {
+          queryParams.append(key, filters[key]);
+        }
+      });
+
+      const response = await axios.get(`${ADMIN_ORDERS_API}/export?${queryParams.toString()}`, {
+        responseType: 'blob'
+      });
+      
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `orders_export.${format}`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      return { message: 'Orders exported successfully' };
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to export orders');
+    }
+  }
+);
+
 export const getOrderDetails = createAsyncThunk(
   'orders/getOrderDetails',
   async (orderId, { rejectWithValue }) => {
     try {
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Return mock order details
-      const mockOrder = {
-        id: orderId,
-        orderNumber: orderId,
-        customer: {
-          name: 'John Doe',
-          email: 'john@example.com',
-          phone: '+1 234 567 8900',
-          address: {
-            street: '123 Main St',
-            city: 'New York',
-            state: 'NY',
-            zipCode: '10001',
-            country: 'USA'
-          }
-        },
-        items: [
-          {
-            id: 1,
-            name: 'Wireless Bluetooth Headphones',
-            price: 89.99,
-            quantity: 2,
-            sku: 'WBH-001',
-            image: '/images/headphones.jpg'
-          }
-        ],
-        total: 179.98,
-        subtotal: 179.98,
-        tax: 0,
-        shipping: 0,
-        status: 'Pending',
-        paymentStatus: 'Paid',
-        paymentMethod: 'Credit Card',
-        orderDate: '2024-01-20T10:30:00Z',
-        estimatedDelivery: '2024-01-25',
-        trackingNumber: null,
-        reviewOfficer: null,
-        notes: []
-      };
-      
-      return mockOrder;
+      const response = await axios.get(`${ADMIN_ORDERS_API}/${orderId}`);
+      return response.data;
     } catch (error) {
-      return rejectWithValue(error.message || 'Failed to fetch order details');
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch order details');
     }
   }
 );
@@ -286,10 +213,27 @@ const orderSlice = createSlice({
       })
       .addCase(fetchOrders.fulfilled, (state, action) => {
         state.loading = false;
-        state.orders = action.payload.orders || action.payload;
-        state.totalCount = action.payload.totalCount || action.payload.length;
+        // Handle nested response structure from backend
+        const responseData = action.payload.data || action.payload;
+        state.orders = Array.isArray(responseData.orders) ? responseData.orders : 
+                      Array.isArray(responseData) ? responseData : [];
+        state.totalCount = responseData.totalCount || responseData.total || 0;
+        state.currentPage = responseData.currentPage || responseData.page || 1;
       })
       .addCase(fetchOrders.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      // Fetch order by ID
+      .addCase(fetchOrderById.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchOrderById.fulfilled, (state, action) => {
+        state.loading = false;
+        state.orderDetails = action.payload;
+      })
+      .addCase(fetchOrderById.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })
@@ -304,6 +248,9 @@ const orderSlice = createSlice({
         if (index !== -1) {
           state.orders[index] = action.payload;
         }
+        if (state.orderDetails && state.orderDetails.id === action.payload.id) {
+          state.orderDetails = action.payload;
+        }
       })
       .addCase(updateOrderStatus.rejected, (state, action) => {
         state.loading = false;
@@ -316,14 +263,13 @@ const orderSlice = createSlice({
       })
       .addCase(assignReviewOfficer.fulfilled, (state, action) => {
         state.bulkActionLoading = false;
-        // Update orders with assigned review officer
-        action.payload.forEach(updatedOrder => {
-          const index = state.orders.findIndex(order => order.id === updatedOrder.id);
-          if (index !== -1) {
-            state.orders[index] = updatedOrder;
-          }
-        });
-        state.selectedOrders = [];
+        const index = state.orders.findIndex(order => order.id === action.payload.id);
+        if (index !== -1) {
+          state.orders[index] = action.payload;
+        }
+        if (state.orderDetails && state.orderDetails.id === action.payload.id) {
+          state.orderDetails = action.payload;
+        }
       })
       .addCase(assignReviewOfficer.rejected, (state, action) => {
         state.bulkActionLoading = false;
@@ -336,17 +282,30 @@ const orderSlice = createSlice({
       })
       .addCase(bulkUpdateOrders.fulfilled, (state, action) => {
         state.bulkActionLoading = false;
-        // Update orders based on bulk action
-        action.payload.forEach(updatedOrder => {
-          const index = state.orders.findIndex(order => order.id === updatedOrder.id);
-          if (index !== -1) {
-            state.orders[index] = updatedOrder;
-          }
-        });
+        if (action.payload.orders) {
+          action.payload.orders.forEach(updatedOrder => {
+            const index = state.orders.findIndex(order => order.id === updatedOrder.id);
+            if (index !== -1) {
+              state.orders[index] = updatedOrder;
+            }
+          });
+        }
         state.selectedOrders = [];
       })
       .addCase(bulkUpdateOrders.rejected, (state, action) => {
         state.bulkActionLoading = false;
+        state.error = action.payload;
+      })
+      // Export orders
+      .addCase(exportOrders.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(exportOrders.fulfilled, (state) => {
+        state.loading = false;
+      })
+      .addCase(exportOrders.rejected, (state, action) => {
+        state.loading = false;
         state.error = action.payload;
       })
       // Fetch order details

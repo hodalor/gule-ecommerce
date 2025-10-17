@@ -6,7 +6,7 @@ export const fetchPrivacySettings = createAsyncThunk(
   'settings/fetchPrivacySettings',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.get('/api/admin/settings/privacy');
+      const response = await axios.get('/api/settings/privacy');
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch privacy settings');
@@ -18,7 +18,7 @@ export const updatePrivacySetting = createAsyncThunk(
   'settings/updatePrivacySetting',
   async ({ setting, value }, { rejectWithValue }) => {
     try {
-      const response = await axios.put('/api/admin/settings/privacy', {
+      const response = await axios.patch('/api/settings/privacy', {
         [setting]: value,
       });
       return { setting, value };
@@ -28,14 +28,14 @@ export const updatePrivacySetting = createAsyncThunk(
   }
 );
 
-export const fetchSystemSettings = createAsyncThunk(
-  'settings/fetchSystemSettings',
+export const resetSettings = createAsyncThunk(
+  'settings/resetSettings',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.get('/api/admin/settings/system');
+      const response = await axios.post('/api/settings/reset');
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch system settings');
+      return rejectWithValue(error.response?.data?.message || 'Failed to reset settings');
     }
   }
 );
@@ -44,7 +44,7 @@ export const updateSystemSetting = createAsyncThunk(
   'settings/updateSystemSetting',
   async ({ setting, value }, { rejectWithValue }) => {
     try {
-      const response = await axios.put('/api/admin/settings/system', {
+      const response = await axios.patch('/api/settings/system', {
         [setting]: value,
       });
       return { setting, value };
@@ -70,10 +70,10 @@ export const backupSystem = createAsyncThunk(
   'settings/backupSystem',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.post('/api/admin/system/backup');
+      const response = await axios.post('/api/settings/backup');
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to create backup');
+      return rejectWithValue(error.response?.data?.message || 'Failed to backup system');
     }
   }
 );
@@ -84,7 +84,8 @@ export const restoreSystem = createAsyncThunk(
     try {
       const formData = new FormData();
       formData.append('backup', backupFile);
-      const response = await axios.post('/api/admin/system/restore', formData, {
+      
+      const response = await axios.post('/api/settings/restore', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },

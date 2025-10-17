@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import axios from 'axios';
+import api from '../../utils/api';
 
 // Async thunks for audit management
 export const fetchAuditLogs = createAsyncThunk(
@@ -18,7 +18,7 @@ export const fetchAuditLogs = createAsyncThunk(
         }),
       });
       
-      const response = await axios.get(`/api/admin/audit/logs?${params}`);
+      const response = await api.get(`/admin/audit-logs?${params}`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch audit logs');
@@ -30,7 +30,7 @@ export const fetchAuditLogDetails = createAsyncThunk(
   'audit/fetchAuditLogDetails',
   async (logId, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`/api/admin/audit/logs/${logId}`);
+      const response = await api.get(`/admin/audit-logs/${logId}`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch audit log details');
@@ -42,7 +42,7 @@ export const exportAuditLogs = createAsyncThunk(
   'audit/exportAuditLogs',
   async ({ format, filters }, { rejectWithValue }) => {
     try {
-      const response = await axios.post('/api/admin/audit/export', {
+      const response = await api.post('/admin/audit-logs/export', {
         format,
         filters,
       });
@@ -57,7 +57,7 @@ export const fetchAuditStats = createAsyncThunk(
   'audit/fetchAuditStats',
   async ({ period = 'week' }, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`/api/admin/audit/stats?period=${period}`);
+      const response = await api.get(`/admin/audit-logs/statistics?period=${period}`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch audit statistics');
@@ -132,8 +132,8 @@ const auditSlice = createSlice({
       })
       .addCase(fetchAuditLogs.fulfilled, (state, action) => {
         state.loading = false;
-        state.logs = action.payload.logs || action.payload;
-        state.totalCount = action.payload.totalCount || action.payload.length;
+        state.logs = action.payload.data?.logs || action.payload.logs || action.payload;
+        state.totalCount = action.payload.data?.pagination?.totalCount || action.payload.totalCount || action.payload.length;
       })
       .addCase(fetchAuditLogs.rejected, (state, action) => {
         state.loading = false;
@@ -146,7 +146,7 @@ const auditSlice = createSlice({
       })
       .addCase(fetchAuditLogDetails.fulfilled, (state, action) => {
         state.loading = false;
-        state.selectedLog = action.payload;
+        state.selectedLog = action.payload.data || action.payload;
       })
       .addCase(fetchAuditLogDetails.rejected, (state, action) => {
         state.loading = false;
@@ -159,7 +159,7 @@ const auditSlice = createSlice({
       })
       .addCase(exportAuditLogs.fulfilled, (state, action) => {
         state.exportLoading = false;
-        state.exportData = action.payload;
+        state.exportData = action.payload.data || action.payload;
       })
       .addCase(exportAuditLogs.rejected, (state, action) => {
         state.exportLoading = false;
@@ -172,7 +172,7 @@ const auditSlice = createSlice({
       })
       .addCase(fetchAuditStats.fulfilled, (state, action) => {
         state.loading = false;
-        state.stats = action.payload;
+        state.stats = action.payload.data || action.payload;
       })
       .addCase(fetchAuditStats.rejected, (state, action) => {
         state.loading = false;

@@ -1,6 +1,7 @@
-import React from 'react';
-import { useSelector } from 'react-redux';
+import React, { useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
+import { fetchDashboardStatistics, fetchRecentActivities } from '../../store/slices/dashboardSlice';
 import {
   UsersIcon,
   ShoppingBagIcon,
@@ -16,138 +17,111 @@ import {
   BellIcon,
   CheckCircleIcon,
   XCircleIcon,
-  ClockIcon
+  ClockIcon,
+  TruckIcon,
+  StarIcon
 } from '@heroicons/react/24/outline';
 
 const Dashboard = () => {
+  const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
+  const { statistics, recentActivities, loading, error } = useSelector((state) => state.dashboard);
 
-  // Mock data - in real app, this would come from API
+  useEffect(() => {
+    dispatch(fetchDashboardStatistics());
+    dispatch(fetchRecentActivities({ limit: 10 }));
+  }, [dispatch]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-500 text-xl mb-4">Error loading dashboard</div>
+          <div className="text-gray-600 mb-4">{error}</div>
+          <button 
+            onClick={() => {
+              dispatch(fetchDashboardStatistics());
+              dispatch(fetchRecentActivities({ limit: 10 }));
+            }}
+            className="bg-primary-600 text-white px-4 py-2 rounded hover:bg-primary-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Transform statistics data for display
   const stats = [
     {
       name: 'Total Users',
-      value: '12,847',
-      change: '+18%',
-      changeType: 'increase',
-      icon: UserGroupIcon,
-      color: 'bg-blue-500',
-      link: '/admin/users'
+      value: (statistics.users?.buyers?.total || 0) + (statistics.users?.sellers?.total || 0),
+      change: '+12%',
+      changeType: 'positive',
+      icon: UsersIcon,
+      color: 'bg-blue-500'
+    },
+    {
+      name: 'Total Products',
+      value: statistics.products?.total || 0,
+      change: '+8%',
+      changeType: 'positive',
+      icon: ShoppingBagIcon,
+      color: 'bg-green-500'
+    },
+    {
+      name: 'Total Revenue',
+      value: `$${(statistics.orders?.totalRevenue || 0).toLocaleString()}`,
+      change: '+15%',
+      changeType: 'positive',
+      icon: CurrencyDollarIcon,
+      color: 'bg-yellow-500'
     },
     {
       name: 'Total Orders',
-      value: '2,847',
-      change: '+12%',
-      changeType: 'increase',
-      icon: ShoppingBagIcon,
-      color: 'bg-green-500',
-      link: '/admin/orders'
-    },
-    {
-      name: 'Revenue',
-      value: '$89,247',
-      change: '+8.2%',
-      changeType: 'increase',
-      icon: CurrencyDollarIcon,
-      color: 'bg-yellow-500',
-      link: '/admin/finance'
-    },
-    {
-      name: 'Active Stores',
-      value: '324',
-      change: '+5%',
-      changeType: 'increase',
+      value: statistics.orders?.totalOrders || 0,
+      change: '+10%',
+      changeType: 'positive',
       icon: ChartBarIcon,
-      color: 'bg-purple-500',
-      link: '/admin/stores'
+      color: 'bg-purple-500'
     },
     {
-      name: 'Pending Complaints',
-      value: '23',
-      change: '-15%',
-      changeType: 'decrease',
-      icon: ExclamationTriangleIcon,
-      color: 'bg-red-500',
-      link: '/admin/complaints'
+      name: 'Pending Orders',
+      value: statistics.orders?.pendingOrders || 0,
+      change: '-5%',
+      changeType: 'negative',
+      icon: TruckIcon,
+      color: 'bg-orange-500'
     },
     {
-      name: 'Refund Requests',
-      value: '156',
-      change: '+3%',
-      changeType: 'increase',
-      icon: ArrowPathIcon,
-      color: 'bg-orange-500',
-      link: '/admin/refunds'
-    },
-    {
-      name: 'Low Stock Items',
-      value: '89',
-      change: '-8%',
-      changeType: 'decrease',
-      icon: CubeIcon,
-      color: 'bg-indigo-500',
-      link: '/admin/inventory'
-    },
-    {
-      name: 'Active Admins',
-      value: '24',
-      change: '+2',
-      changeType: 'increase',
-      icon: UsersIcon,
-      color: 'bg-teal-500',
-      link: '/admin/admins'
+      name: 'Average Rating',
+      value: (statistics.reviews?.averageRating || 0).toFixed(1),
+      change: '+0.2',
+      changeType: 'positive',
+      icon: StarIcon,
+      color: 'bg-pink-500'
     }
   ];
 
-  const recentActivities = [
-    {
-      id: 1,
-      action: 'New user complaint received',
-      user: 'John Doe',
-      time: '2 minutes ago',
-      type: 'complaint',
-      status: 'pending'
-    },
-    {
-      id: 2,
-      action: 'Refund request approved',
-      user: 'Jane Smith',
-      time: '15 minutes ago',
-      type: 'refund',
-      status: 'approved'
-    },
-    {
-      id: 3,
-      action: 'Low stock alert triggered',
-      user: 'System',
-      time: '30 minutes ago',
-      type: 'inventory',
-      status: 'warning'
-    },
-    {
-      id: 4,
-      action: 'New seller registered',
-      user: 'Mike Johnson',
-      time: '1 hour ago',
-      type: 'user',
-      status: 'success'
-    },
-    {
-      id: 5,
-      action: 'Payment released to seller',
-      user: 'Sarah Wilson',
-      time: '2 hours ago',
-      type: 'payment',
-      status: 'completed'
-    },
-    {
-      id: 6,
-      action: 'Store performance flagged',
-      user: 'Tech Store',
-      time: '3 hours ago',
-      type: 'store',
-      status: 'warning'
-    }
-  ];
+  // Transform recent activities data for display
+  const transformedActivities = recentActivities.map((activity, index) => ({
+    id: activity._id || index,
+    action: activity.action || 'Unknown action',
+    user: activity.userId?.name || activity.userId?.email || 'System',
+    time: new Date(activity.createdAt).toLocaleString(),
+    type: activity.resourceType?.toLowerCase() || 'system',
+    status: activity.severity === 'high' ? 'error' : 
+            activity.severity === 'medium' ? 'warning' : 'success'
+  }));
 
   const getActivityIcon = (type) => {
     switch (type) {
@@ -266,7 +240,7 @@ const Dashboard = () => {
           </div>
           <div className="p-6">
             <div className="space-y-4">
-              {recentActivities.map((activity) => (
+              {transformedActivities.map((activity) => (
                 <div key={activity.id} className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
                   <div className="flex-shrink-0">
                     {getActivityIcon(activity.type)}

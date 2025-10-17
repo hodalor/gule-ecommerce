@@ -1,10 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import axios from 'axios';
+import api from '../../utils/api';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
-
-// Configure axios defaults
-axios.defaults.withCredentials = true;
 
 // Async thunks for seller management
 export const fetchSellers = createAsyncThunk(
@@ -21,7 +18,7 @@ export const fetchSellers = createAsyncThunk(
       if (verified) params.append('verified', verified);
       if (businessType) params.append('businessType', businessType);
 
-      const response = await axios.get(`${API_URL}/sellers?${params}`);
+      const response = await api.get(`/admin/sellers?${params}`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch sellers');
@@ -33,7 +30,7 @@ export const fetchSellerById = createAsyncThunk(
   'adminSellers/fetchSellerById',
   async (sellerId, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`${API_URL}/sellers/${sellerId}`);
+      const response = await api.get(`/admin/sellers/${sellerId}`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch seller');
@@ -45,7 +42,7 @@ export const updateSellerStatus = createAsyncThunk(
   'adminSellers/updateSellerStatus',
   async ({ sellerId, status, reason }, { rejectWithValue }) => {
     try {
-      const response = await axios.patch(`${API_URL}/sellers/${sellerId}/status`, {
+      const response = await api.patch(`/admin/sellers/${sellerId}/status`, {
         status,
         reason
       });
@@ -60,7 +57,7 @@ export const verifySellerBusiness = createAsyncThunk(
   'adminSellers/verifySellerBusiness',
   async ({ sellerId, verified, reason }, { rejectWithValue }) => {
     try {
-      const response = await axios.patch(`${API_URL}/sellers/${sellerId}/verify-business`, {
+      const response = await api.patch(`/admin/sellers/${sellerId}/verify-business`, {
         verified,
         reason
       });
@@ -73,9 +70,9 @@ export const verifySellerBusiness = createAsyncThunk(
 
 export const fetchSellerStatistics = createAsyncThunk(
   'adminSellers/fetchSellerStatistics',
-  async (sellerId, { rejectWithValue }) => {
+  async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`${API_URL}/sellers/${sellerId}/statistics`);
+      const response = await api.get(`/admin/sellers/stats/summary`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch seller statistics');
@@ -87,7 +84,7 @@ export const deleteSeller = createAsyncThunk(
   'adminSellers/deleteSeller',
   async ({ sellerId, reason }, { rejectWithValue }) => {
     try {
-      await axios.delete(`${API_URL}/sellers/${sellerId}`, {
+      await api.delete(`/admin/sellers/${sellerId}`, {
         data: { reason }
       });
       return sellerId;
@@ -101,7 +98,7 @@ export const bulkUpdateSellers = createAsyncThunk(
   'adminSellers/bulkUpdateSellers',
   async ({ sellerIds, action, data }, { rejectWithValue }) => {
     try {
-      const response = await axios.patch(`${API_URL}/admin/sellers/bulk`, {
+      const response = await api.patch(`/admin/sellers/bulk`, {
         sellerIds,
         action,
         data
@@ -122,7 +119,7 @@ export const exportSellers = createAsyncThunk(
         if (filters[key]) params.append(key, filters[key]);
       });
 
-      const response = await axios.get(`${API_URL}/admin/sellers/export?${params}`, {
+      const response = await api.get(`/admin/sellers/export?${params}`, {
         responseType: 'blob'
       });
       
@@ -147,7 +144,7 @@ export const sendSellerNotification = createAsyncThunk(
   'adminSellers/sendSellerNotification',
   async ({ sellerId, title, message, type }, { rejectWithValue }) => {
     try {
-      const response = await axios.post(`${API_URL}/admin/sellers/${sellerId}/notify`, {
+      const response = await api.post(`/admin/sellers/${sellerId}/notify`, {
         title,
         message,
         type

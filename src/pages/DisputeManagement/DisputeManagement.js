@@ -2,6 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { toast } from 'react-hot-toast';
 import {
+  fetchDisputes,
+  fetchDisputeById,
+  updateDisputeStatus,
+  assignDispute,
+  resolveDispute,
+  addDisputeMessage,
+  fetchDisputeMessages,
+  updateDisputePriority,
+  escalateDispute,
+  fetchDisputeStatistics,
+  exportDisputeReport,
+  clearError,
+  clearSuccess
+} from '../../store/slices/adminDisputeSlice';
+import {
   ExclamationTriangleIcon,
   CheckCircleIcon,
   XCircleIcon,
@@ -22,11 +37,16 @@ import {
 const DisputeManagement = () => {
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
+  const { 
+    disputes, 
+    loading, 
+    error, 
+    pagination, 
+    selectedDispute,
+    statistics 
+  } = useSelector((state) => state.adminDisputes);
   
   // State management
-  const [disputes, setDisputes] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [selectedDispute, setSelectedDispute] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState('view'); // 'view', 'resolve'
   
@@ -36,6 +56,8 @@ const DisputeManagement = () => {
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
+  const [activeTab, setActiveTab] = useState('all');
+  const [dateRange, setDateRange] = useState({ start: null, end: null });
   
   // Resolution form
   const [resolutionForm, setResolutionForm] = useState({
@@ -49,6 +71,23 @@ const DisputeManagement = () => {
   // New message form
   const [newMessage, setNewMessage] = useState('');
   const [messageAttachments, setMessageAttachments] = useState([]);
+
+  useEffect(() => {
+    const fetchData = () => {
+      dispatch(fetchDisputes({
+        page: pagination?.currentPage || 1,
+        limit: 20,
+        search: searchTerm,
+        status: statusFilter !== 'all' ? statusFilter : '',
+        priority: priorityFilter !== 'all' ? priorityFilter : '',
+        type: typeFilter !== 'all' ? typeFilter : '',
+        dateRange: dateFilter !== 'all' ? dateFilter : ''
+      }));
+    };
+
+    fetchData();
+    dispatch(fetchDisputeStatistics());
+  }, [dispatch, pagination?.currentPage, searchTerm, statusFilter, priorityFilter, typeFilter, dateFilter]);
 
   // Mock data - replace with actual API calls
   const mockDisputes = [
@@ -164,31 +203,30 @@ const DisputeManagement = () => {
   ];
 
   useEffect(() => {
-    fetchDisputes();
-  }, []);
+    const fetchData = () => {
+      dispatch(fetchDisputes({ 
+        page: pagination?.currentPage || 1, 
+        limit: pagination?.itemsPerPage || 20,
+        search: searchTerm,
+        status: activeTab !== 'all' ? activeTab : statusFilter,
+        priority: priorityFilter,
+        type: typeFilter,
+        dateRange: dateRange.start && dateRange.end ? dateRange : undefined
+      }));
+    };
 
-  const fetchDisputes = async () => {
-    setLoading(true);
-    try {
-      // Replace with actual API call
-      setTimeout(() => {
-        setDisputes(mockDisputes);
-        setLoading(false);
-      }, 1000);
-    } catch (error) {
-      toast.error('Failed to fetch disputes');
-      setLoading(false);
-    }
-  };
+    fetchData();
+    dispatch(fetchDisputeStatistics());
+  }, [dispatch, activeTab, searchTerm, statusFilter, priorityFilter, typeFilter, dateRange, pagination?.currentPage]);
 
   const handleViewDispute = (dispute) => {
-    setSelectedDispute(dispute);
+    dispatch(fetchDisputeById(dispute.id));
     setModalType('view');
     setShowModal(true);
   };
 
   const handleResolveDispute = (dispute) => {
-    setSelectedDispute(dispute);
+    dispatch(fetchDisputeById(dispute.id));
     setModalType('resolve');
     setResolutionForm({
       resolution: '',
@@ -589,7 +627,7 @@ const DisputeManagement = () => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center text-sm font-medium text-gray-900">
                         <CurrencyDollarIcon className="h-4 w-4 text-gray-400 mr-1" />
-                        {dispute.amount.toFixed(2)}
+                        {(dispute.amount || 0).toFixed(2)}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -717,7 +755,7 @@ const DisputeManagement = () => {
                           <h4 className="font-medium text-gray-900 mb-2">Dispute Amount</h4>
                           <div className="flex items-center space-x-2">
                             <CurrencyDollarIcon className="h-4 w-4 text-gray-400" />
-                            <span className="text-lg font-semibold">${selectedDispute.amount.toFixed(2)}</span>
+                            <span className="text-lg font-semibold">${(selectedDispute.amount || 0).toFixed(2)}</span>
                           </div>
                         </div>
 

@@ -67,8 +67,18 @@ const UserManagement = () => {
   const userRoles = ['buyer', 'seller'];
 
   useEffect(() => {
-    dispatch(fetchUsers({ page: 1, limit: 20 }));
-  }, [dispatch]);
+    const fetchData = () => {
+      dispatch(fetchUsers({ 
+        page: pagination?.currentPage || 1, 
+        limit: 20,
+        search: searchTerm,
+        role: roleFilter,
+        status: statusFilter
+      }));
+    };
+
+    fetchData();
+  }, [dispatch, pagination?.currentPage, searchTerm, roleFilter, statusFilter]);
 
   const handleCreateUser = () => {
     setModalMode('create');
@@ -192,7 +202,7 @@ const UserManagement = () => {
     }
   };
 
-  const canManageUsers = currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin';
+  const canManageUsers = currentUser?.role === 'super_admin' || currentUser?.role === 'admin';
 
   return (
     <div className="space-y-6">
@@ -431,7 +441,7 @@ const UserManagement = () => {
                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                         user.role === 'seller' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
                       }`}>
-                        {user.role?.charAt(0).toUpperCase() + user.role?.slice(1)}
+                        {(user.role || 'N/A')?.charAt(0).toUpperCase() + (user.role || 'N/A')?.slice(1)}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -441,7 +451,7 @@ const UserManagement = () => {
                         user.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
-                        {user.status?.charAt(0).toUpperCase() + user.status?.slice(1)}
+                        {(user.status || 'N/A')?.charAt(0).toUpperCase() + (user.status || 'N/A')?.slice(1)}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -523,18 +533,18 @@ const UserManagement = () => {
                       alt={selectedUser?.name}
                     />
                     <div>
-                      <h4 className="text-xl font-semibold text-gray-900">{selectedUser?.name}</h4>
-                      <p className="text-gray-600">{selectedUser?.email}</p>
+                      <h4 className="text-xl font-semibold text-gray-900">{selectedUser?.name || 'N/A'}</h4>
+                      <p className="text-gray-600">{selectedUser?.email || 'N/A'}</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700">Role</label>
-                      <p className="text-sm text-gray-900">{selectedUser?.role}</p>
+                      <p className="text-sm text-gray-900">{selectedUser?.role || 'Not specified'}</p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700">Status</label>
-                      <p className="text-sm text-gray-900">{selectedUser?.status}</p>
+                      <p className="text-sm text-gray-900">{selectedUser?.status || 'Not specified'}</p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700">Phone</label>
@@ -543,7 +553,32 @@ const UserManagement = () => {
                     <div>
                       <label className="block text-sm font-medium text-gray-700">Join Date</label>
                       <p className="text-sm text-gray-900">
-                        {new Date(selectedUser?.createdAt || Date.now()).toLocaleDateString()}
+                        {selectedUser?.createdAt ? new Date(selectedUser.createdAt).toLocaleDateString() : 'Not available'}
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Address</label>
+                      <p className="text-sm text-gray-900">
+                        {selectedUser?.address && typeof selectedUser.address === 'object' 
+                          ? `${selectedUser.address.street || ''}, ${selectedUser.address.city || ''}, ${selectedUser.address.state || ''} ${selectedUser.address.zipCode || ''}, ${selectedUser.address.country || ''}`.replace(/,\s*,/g, ',').replace(/^,\s*|,\s*$/g, '') || 'Not provided'
+                          : selectedUser?.address || 'Not provided'
+                        }
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Date of Birth</label>
+                      <p className="text-sm text-gray-900">
+                        {selectedUser?.dateOfBirth ? new Date(selectedUser.dateOfBirth).toLocaleDateString() : 'Not provided'}
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Gender</label>
+                      <p className="text-sm text-gray-900">{selectedUser?.gender || 'Not specified'}</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Last Active</label>
+                      <p className="text-sm text-gray-900">
+                        {selectedUser?.lastActive ? new Date(selectedUser.lastActive).toLocaleDateString() : 'Never'}
                       </p>
                     </div>
                   </div>

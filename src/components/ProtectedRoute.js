@@ -22,6 +22,11 @@ const ProtectedRoute = ({ children, requiredRole = null }) => {
 
   // Check role-based access if required
   if (requiredRole && user?.role !== requiredRole) {
+    // Super Admin has unrestricted access to all features (God mode)
+    if (user?.role === 'super_admin') {
+      return children;
+    }
+
     // Check if user has sufficient permissions
     const roleHierarchy = {
       'Super Admin': 4,

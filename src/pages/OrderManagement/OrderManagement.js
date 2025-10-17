@@ -51,8 +51,19 @@ const OrderManagement = () => {
   ];
 
   useEffect(() => {
-    dispatch(fetchOrders({ page: 1, limit: 20 }));
-  }, [dispatch]);
+    const fetchData = () => {
+      dispatch(fetchOrders({ 
+        page: pagination?.currentPage || 1, 
+        limit: 20,
+        search: searchTerm,
+        status: statusFilter,
+        startDate: dateFilter ? new Date(dateFilter).toISOString().split('T')[0] : '',
+        endDate: dateFilter ? new Date(dateFilter).toISOString().split('T')[0] : ''
+      }));
+    };
+
+    fetchData();
+  }, [dispatch, pagination?.currentPage, searchTerm, statusFilter, dateFilter]);
 
   const handleSelectOrder = (orderId) => {
     setSelectedOrders(prev => 
@@ -119,7 +130,7 @@ const OrderManagement = () => {
     return matchesSearch && matchesStatus && matchesDate;
   });
 
-  const canManageOrders = user?.role === 'Super Admin' || user?.role === 'Admin' || user?.role === 'Review Officer';
+  const canManageOrders = user?.role === 'super_admin' || user?.role === 'admin' || user?.role === 'review_officer';
 
   return (
     <div className="space-y-6">

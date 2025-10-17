@@ -64,8 +64,22 @@ const InventoryManagement = () => {
   const categories = ['Electronics', 'Clothing', 'Home & Garden', 'Sports', 'Books', 'Beauty', 'Toys', 'Automotive', 'Other'];
 
   useEffect(() => {
-    dispatch(fetchInventory({ page: 1, limit: 50 }));
-  }, [dispatch]);
+    const fetchData = () => {
+      dispatch(fetchInventory({ 
+        page: pagination?.currentPage || 1, 
+        limit: 50,
+        search: searchTerm,
+        category: categoryFilter,
+        store: storeFilter,
+        stockStatus: stockFilter,
+        tab: activeTab,
+        minPrice: priceRange.min,
+        maxPrice: priceRange.max
+      }));
+    };
+
+    fetchData();
+  }, [dispatch, pagination?.currentPage, searchTerm, categoryFilter, storeFilter, stockFilter, activeTab, priceRange]);
 
   const handleViewItem = (item) => {
     setModalMode('view');
@@ -201,7 +215,7 @@ const InventoryManagement = () => {
     }
   };
 
-  const canManageInventory = currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin' || currentUser?.role === 'Inventory Manager';
+  const canManageInventory = currentUser?.role === 'super_admin' || currentUser?.role === 'admin';
 
   return (
     <div className="space-y-6">
@@ -702,7 +716,7 @@ const InventoryManagement = () => {
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">Total Value:</span>
                         <span className="text-sm font-medium text-gray-900">
-                          ${(selectedItem.stock * selectedItem.price).toFixed(2)}
+                          ${((selectedItem.stock || 0) * (selectedItem.price || 0)).toFixed(2)}
                         </span>
                       </div>
                       <div className="flex justify-between">

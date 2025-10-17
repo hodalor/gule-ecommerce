@@ -66,8 +66,20 @@ const RefundsManagement = () => {
   const refundMethods = ['original_payment', 'store_credit', 'bank_transfer', 'check'];
 
   useEffect(() => {
-    dispatch(fetchRefunds({ page: 1, limit: 20 }));
-  }, [dispatch]);
+    const fetchData = () => {
+      dispatch(fetchRefunds({ 
+        page: pagination?.currentPage || 1, 
+        limit: pagination?.itemsPerPage || 20,
+        search: searchTerm,
+        status: activeTab !== 'all' ? activeTab : statusFilter,
+        type: typeFilter,
+        amountRange: amountRange.min && amountRange.max ? amountRange : undefined,
+        dateRange: dateRange.start && dateRange.end ? dateRange : undefined
+      }));
+    };
+
+    fetchData();
+  }, [dispatch, activeTab, searchTerm, statusFilter, typeFilter, amountRange, dateRange, pagination?.currentPage]);
 
   const handleViewRefund = (refund) => {
     setModalMode('view');
@@ -200,7 +212,7 @@ const RefundsManagement = () => {
     }
   };
 
-  const canManageRefunds = currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin' || currentUser?.role === 'Finance Manager';
+  const canManageRefunds = currentUser?.role === 'super_admin' || currentUser?.role === 'admin';
 
   return (
     <div className="space-y-6">

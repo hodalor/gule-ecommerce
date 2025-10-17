@@ -14,19 +14,34 @@ import {
   CheckCircleIcon,
   XCircleIcon
 } from '@heroicons/react/24/outline';
+import {
+  fetchCategories,
+  fetchCategoryById,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+  bulkUpdateCategories,
+  fetchCategoryStatistics,
+  exportCategories
+} from '../../store/slices/categorySlice';
 
 const CategoryManagement = () => {
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
+  const {
+    categories,
+    loading,
+    error,
+    pagination,
+    selectedCategory,
+    categoryStatistics
+  } = useSelector((state) => state.categories);
 
-  // State management
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(false);
+  // Local state management
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState(null);
   const [expandedCategories, setExpandedCategories] = useState(new Set());
   const [formData, setFormData] = useState({
     name: '',
@@ -40,128 +55,29 @@ const CategoryManagement = () => {
     slug: ''
   });
 
-  // Mock data - replace with actual API calls
-  const mockCategories = [
-    {
-      id: 1,
-      name: 'Electronics',
-      slug: 'electronics',
-      description: 'Electronic devices and accessories',
-      parentId: null,
-      image: 'https://via.placeholder.com/150x150?text=Electronics',
-      status: 'active',
-      sortOrder: 1,
-      productCount: 245,
-      seoTitle: 'Electronics - Best Deals Online',
-      seoDescription: 'Shop the latest electronics with great deals and fast shipping.',
-      createdAt: '2024-01-01T00:00:00Z',
-      updatedAt: '2024-01-15T10:30:00Z',
-      children: [
-        {
-          id: 2,
-          name: 'Smartphones',
-          slug: 'smartphones',
-          description: 'Latest smartphones and mobile devices',
-          parentId: 1,
-          image: 'https://via.placeholder.com/150x150?text=Smartphones',
-          status: 'active',
-          sortOrder: 1,
-          productCount: 89,
-          seoTitle: 'Smartphones - Latest Models',
-          seoDescription: 'Discover the latest smartphone models with cutting-edge features.',
-          createdAt: '2024-01-02T00:00:00Z',
-          updatedAt: '2024-01-14T15:45:00Z',
-          children: []
-        },
-        {
-          id: 3,
-          name: 'Laptops',
-          slug: 'laptops',
-          description: 'Laptops and notebooks for work and gaming',
-          parentId: 1,
-          image: 'https://via.placeholder.com/150x150?text=Laptops',
-          status: 'active',
-          sortOrder: 2,
-          productCount: 67,
-          seoTitle: 'Laptops - Work & Gaming',
-          seoDescription: 'Find the perfect laptop for work, gaming, or everyday use.',
-          createdAt: '2024-01-02T00:00:00Z',
-          updatedAt: '2024-01-13T09:20:00Z',
-          children: []
-        }
-      ]
-    },
-    {
-      id: 4,
-      name: 'Fashion',
-      slug: 'fashion',
-      description: 'Clothing, shoes, and accessories',
-      parentId: null,
-      image: 'https://via.placeholder.com/150x150?text=Fashion',
-      status: 'active',
-      sortOrder: 2,
-      productCount: 189,
-      seoTitle: 'Fashion - Trendy Clothing & Accessories',
-      seoDescription: 'Stay fashionable with our latest collection of clothing and accessories.',
-      createdAt: '2024-01-01T00:00:00Z',
-      updatedAt: '2024-01-12T14:30:00Z',
-      children: [
-        {
-          id: 5,
-          name: 'Men\'s Clothing',
-          slug: 'mens-clothing',
-          description: 'Clothing for men',
-          parentId: 4,
-          image: 'https://via.placeholder.com/150x150?text=Mens',
-          status: 'active',
-          sortOrder: 1,
-          productCount: 95,
-          seoTitle: 'Men\'s Clothing - Latest Trends',
-          seoDescription: 'Discover the latest trends in men\'s fashion and clothing.',
-          createdAt: '2024-01-03T00:00:00Z',
-          updatedAt: '2024-01-11T16:20:00Z',
-          children: []
-        }
-      ]
-    },
-    {
-      id: 6,
-      name: 'Home & Garden',
-      slug: 'home-garden',
-      description: 'Home improvement and garden supplies',
-      parentId: null,
-      image: 'https://via.placeholder.com/150x150?text=Home',
-      status: 'inactive',
-      sortOrder: 3,
-      productCount: 0,
-      seoTitle: 'Home & Garden - Transform Your Space',
-      seoDescription: 'Everything you need to improve your home and garden.',
-      createdAt: '2024-01-01T00:00:00Z',
-      updatedAt: '2024-01-10T12:15:00Z',
-      children: []
-    }
-  ];
-
   useEffect(() => {
-    fetchCategories();
-  }, []);
+    const fetchData = () => {
+      dispatch(fetchCategories({ 
+        page: pagination?.currentPage || 1, 
+        limit: 50,
+        search: searchTerm,
+        status: 'all'
+      }));
+    };
 
-  const fetchCategories = async () => {
-    setLoading(true);
-    try {
-      // Simulate API call
-      setTimeout(() => {
-        setCategories(mockCategories);
-        setLoading(false);
-      }, 1000);
-    } catch (error) {
-      console.error('Error fetching categories:', error);
-      setLoading(false);
-    }
-  };
-
+    fetchData();
+    dispatch(fetchCategoryStatistics());
+  }, [dispatch, pagination?.currentPage, searchTerm]);
   const handleSearch = (e) => {
-    setSearchTerm(e.target.value);
+    const searchValue = e.target.value;
+    setSearchTerm(searchValue);
+    
+    // Dispatch search with debouncing could be added here
+    dispatch(fetchCategories({ 
+      page: 1, 
+      limit: 50, 
+      search: searchValue 
+    }));
   };
 
   const handleSelectCategory = (categoryId) => {
@@ -173,7 +89,7 @@ const CategoryManagement = () => {
   };
 
   const handleSelectAll = () => {
-    const allCategoryIds = getAllCategoryIds(filteredCategories);
+    const allCategoryIds = getAllCategoryIds(categories || []);
     if (selectedCategories.length === allCategoryIds.length) {
       setSelectedCategories([]);
     } else {
@@ -184,7 +100,7 @@ const CategoryManagement = () => {
   const getAllCategoryIds = (categories) => {
     let ids = [];
     categories.forEach(category => {
-      ids.push(category.id);
+      ids.push(category._id || category.id);
       if (category.children && category.children.length > 0) {
         ids = ids.concat(getAllCategoryIds(category.children));
       }
@@ -206,7 +122,9 @@ const CategoryManagement = () => {
 
   const openModal = (type, category = null) => {
     setModalType(type);
-    setSelectedCategory(category);
+    if (type === 'view' && category) {
+      dispatch(fetchCategoryById(category._id || category.id));
+    }
     if (category) {
       setFormData({
         name: category.name || '',
@@ -238,7 +156,6 @@ const CategoryManagement = () => {
   const closeModal = () => {
     setShowModal(false);
     setModalType('');
-    setSelectedCategory(null);
     setFormData({
       name: '',
       description: '',
@@ -252,31 +169,68 @@ const CategoryManagement = () => {
     });
   };
 
-  const handleFormSubmit = (e) => {
+  const handleFormSubmit = async (e) => {
     e.preventDefault();
-    console.log('Form submitted:', formData);
-    // Implement form submission logic
-    closeModal();
+    try {
+      if (modalType === 'add') {
+        await dispatch(createCategory(formData)).unwrap();
+      } else if (modalType === 'edit' && selectedCategory) {
+        await dispatch(updateCategory({ 
+          id: selectedCategory._id || selectedCategory.id, 
+          categoryData: formData 
+        })).unwrap();
+      }
+      
+      // Refresh categories after successful operation
+      dispatch(fetchCategories({ page: 1, limit: 50 }));
+      closeModal();
+    } catch (error) {
+      console.error('Form submission error:', error);
+    }
   };
 
-  const handleBulkAction = (action) => {
-    console.log(`Bulk ${action} for categories:`, selectedCategories);
-    // Implement bulk actions
-    setSelectedCategories([]);
+  const handleBulkAction = async (action) => {
+    try {
+      const actionData = {};
+      if (action === 'activate') {
+        actionData.status = 'active';
+      } else if (action === 'deactivate') {
+        actionData.status = 'inactive';
+      }
+      
+      await dispatch(bulkUpdateCategories({
+        categoryIds: selectedCategories,
+        action,
+        data: actionData
+      })).unwrap();
+      
+      // Refresh categories and clear selection
+      dispatch(fetchCategories({ page: 1, limit: 50 }));
+      setSelectedCategories([]);
+    } catch (error) {
+      console.error('Bulk action error:', error);
+    }
   };
 
-  const handleCategoryAction = (action, categoryId) => {
-    console.log(`${action} category:`, categoryId);
-    // Implement individual category actions
+  const handleCategoryAction = async (action, categoryId) => {
+    try {
+      if (action === 'delete') {
+        await dispatch(deleteCategory(categoryId)).unwrap();
+        // Refresh categories after deletion
+        dispatch(fetchCategories({ page: 1, limit: 50 }));
+      }
+    } catch (error) {
+      console.error('Category action error:', error);
+    }
   };
 
-  // Filter categories based on search
+  // Filter categories based on search (client-side filtering for immediate feedback)
   const filterCategories = (categories, searchTerm) => {
-    if (!searchTerm) return categories;
+    if (!categories || !searchTerm) return categories || [];
     
     return categories.filter(category => {
-      const matchesSearch = category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           category.description.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = (category.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           (category.description || '').toLowerCase().includes(searchTerm.toLowerCase());
       
       const hasMatchingChildren = category.children && category.children.length > 0 &&
                                  filterCategories(category.children, searchTerm).length > 0;
@@ -296,13 +250,15 @@ const CategoryManagement = () => {
       inactive: { color: 'bg-red-100 text-red-800', icon: XCircleIcon }
     };
 
-    const config = statusConfig[status] || statusConfig.active;
+    // Handle undefined/null status with fallback
+    const safeStatus = status || 'active';
+    const config = statusConfig[safeStatus] || statusConfig.active;
     const Icon = config.icon;
 
     return (
       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
         <Icon className="h-3 w-3 mr-1" />
-        {status.charAt(0).toUpperCase() + status.slice(1)}
+        {safeStatus.charAt(0).toUpperCase() + safeStatus.slice(1)}
       </span>
     );
   };
@@ -438,7 +394,9 @@ const CategoryManagement = () => {
               <div className="ml-5 w-0 flex-1">
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Total Categories</dt>
-                  <dd className="text-lg font-medium text-gray-900">{getAllCategoryIds(categories).length}</dd>
+                  <dd className="text-lg font-medium text-gray-900">
+                    {categoryStatistics?.totalCategories || getAllCategoryIds(categories || []).length}
+                  </dd>
                 </dl>
               </div>
             </div>
@@ -455,7 +413,8 @@ const CategoryManagement = () => {
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Active Categories</dt>
                   <dd className="text-lg font-medium text-gray-900">
-                    {getAllCategoryIds(categories.filter(c => c.status === 'active')).length}
+                    {categoryStatistics?.activeCategories || 
+                     getAllCategoryIds((categories || []).filter(c => c.status === 'active')).length}
                   </dd>
                 </dl>
               </div>
@@ -473,7 +432,8 @@ const CategoryManagement = () => {
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Root Categories</dt>
                   <dd className="text-lg font-medium text-gray-900">
-                    {categories.filter(c => !c.parentId).length}
+                    {categoryStatistics?.rootCategories || 
+                     (categories || []).filter(c => !c.parentId).length}
                   </dd>
                 </dl>
               </div>
@@ -491,7 +451,9 @@ const CategoryManagement = () => {
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Total Products</dt>
                   <dd className="text-lg font-medium text-gray-900">
-                    {categories.reduce((total, cat) => total + cat.productCount + (cat.children?.reduce((subTotal, child) => subTotal + child.productCount, 0) || 0), 0)}
+                    {categoryStatistics?.totalProducts || 
+                     (categories || []).reduce((total, cat) => total + (cat.productCount || 0) + 
+                       ((cat.children || []).reduce((subTotal, child) => subTotal + (child.productCount || 0), 0)), 0)}
                   </dd>
                 </dl>
               </div>

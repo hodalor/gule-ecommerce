@@ -1,12 +1,23 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import axios from 'axios';
+import api from '../../utils/api';
+
+const ADMIN_USERS_API = '/admin/users';
 
 // Async thunks for user management
 export const fetchUsers = createAsyncThunk(
-  'user/fetchUsers',
-  async (params, { rejectWithValue }) => {
+  'adminUsers/fetchUsers',
+  async ({ page = 1, limit = 10, search = '', role = '', status = '' }, { rejectWithValue }) => {
     try {
-      const response = await axios.get('/api/admin/users', { params });
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+      });
+      
+      if (search) params.append('search', search);
+      if (role) params.append('role', role);
+      if (status) params.append('status', status);
+
+      const response = await api.get(`${ADMIN_USERS_API}?${params}`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch users');
@@ -15,10 +26,10 @@ export const fetchUsers = createAsyncThunk(
 );
 
 export const createUser = createAsyncThunk(
-  'user/createUser',
+  'adminUsers/createUser',
   async (userData, { rejectWithValue }) => {
     try {
-      const response = await axios.post('/api/admin/users', userData);
+      const response = await api.post(ADMIN_USERS_API, userData);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to create user');
@@ -27,10 +38,10 @@ export const createUser = createAsyncThunk(
 );
 
 export const updateUser = createAsyncThunk(
-  'user/updateUser',
-  async ({ id, userData }, { rejectWithValue }) => {
+  'adminUsers/updateUser',
+  async ({ userId, userData }, { rejectWithValue }) => {
     try {
-      const response = await axios.put(`/api/admin/users/${id}`, userData);
+      const response = await api.put(`${ADMIN_USERS_API}/${userId}`, userData);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to update user');
@@ -39,11 +50,11 @@ export const updateUser = createAsyncThunk(
 );
 
 export const deleteUser = createAsyncThunk(
-  'user/deleteUser',
-  async (id, { rejectWithValue }) => {
+  'adminUsers/deleteUser',
+  async (userId, { rejectWithValue }) => {
     try {
-      await axios.delete(`/api/admin/users/${id}`);
-      return id;
+      const response = await api.delete(`${ADMIN_USERS_API}/${userId}`);
+      return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to delete user');
     }
@@ -51,10 +62,10 @@ export const deleteUser = createAsyncThunk(
 );
 
 export const suspendUser = createAsyncThunk(
-  'user/suspendUser',
-  async ({ id, reason }, { rejectWithValue }) => {
+  'adminUsers/suspendUser',
+  async (userId, { rejectWithValue }) => {
     try {
-      const response = await axios.post(`/api/admin/users/${id}/suspend`, { reason });
+      const response = await api.patch(`${ADMIN_USERS_API}/${userId}/suspend`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to suspend user');
@@ -63,10 +74,10 @@ export const suspendUser = createAsyncThunk(
 );
 
 export const activateUser = createAsyncThunk(
-  'user/activateUser',
-  async (id, { rejectWithValue }) => {
+  'adminUsers/activateUser',
+  async (userId, { rejectWithValue }) => {
     try {
-      const response = await axios.post(`/api/admin/users/${id}/activate`);
+      const response = await api.patch(`${ADMIN_USERS_API}/${userId}/activate`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to activate user');
@@ -75,13 +86,12 @@ export const activateUser = createAsyncThunk(
 );
 
 export const bulkUpdateUsers = createAsyncThunk(
-  'user/bulkUpdateUsers',
-  async ({ userIds, action, data }, { rejectWithValue }) => {
+  'adminUsers/bulkUpdateUsers',
+  async ({ userIds, updateData }, { rejectWithValue }) => {
     try {
-      const response = await axios.post('/api/admin/users/bulk', {
+      const response = await api.patch(`${ADMIN_USERS_API}/bulk-update`, {
         userIds,
-        action,
-        data
+        updateData
       });
       return response.data;
     } catch (error) {
@@ -91,10 +101,10 @@ export const bulkUpdateUsers = createAsyncThunk(
 );
 
 export const exportUsers = createAsyncThunk(
-  'user/exportUsers',
+  'adminUsers/exportUsers',
   async (filters, { rejectWithValue }) => {
     try {
-      const response = await axios.get('/api/admin/users/export', {
+      const response = await api.get(`${ADMIN_USERS_API}/export`, {
         params: filters,
         responseType: 'blob'
       });

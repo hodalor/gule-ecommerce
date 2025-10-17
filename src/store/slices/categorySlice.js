@@ -1,10 +1,10 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
+import api from '../../utils/api';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
-
-// Configure axios defaults
-axios.defaults.withCredentials = true;
+const ADMIN_CATEGORIES_API = '/admin/categories';
+const PRODUCTS_CATEGORIES_API = '/products/categories';
 
 // Async thunks for category management
 export const fetchCategories = createAsyncThunk(
@@ -20,7 +20,7 @@ export const fetchCategories = createAsyncThunk(
       if (status) params.append('status', status);
       if (parentId) params.append('parentId', parentId);
 
-      const response = await axios.get(`${API_URL}/products/categories?${params}`);
+      const response = await api.get(`${PRODUCTS_CATEGORIES_API}?${params}`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch categories');
@@ -57,7 +57,7 @@ export const createCategory = createAsyncThunk(
         }
       });
 
-      const response = await axios.post(`${API_URL}/admin/categories`, formData, {
+      const response = await api.post(ADMIN_CATEGORIES_API, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -262,12 +262,15 @@ const categorySlice = createSlice({
       })
       .addCase(fetchCategories.fulfilled, (state, action) => {
         state.loading = false;
-        state.categories = action.payload.categories || [];
-        state.pagination = {
-          currentPage: action.payload.currentPage || 1,
-          totalPages: action.payload.totalPages || 1,
-          totalItems: action.payload.totalItems || 0,
-          itemsPerPage: action.payload.itemsPerPage || 10
+        // Handle nested response structure from backend
+        const responseData = action.payload.data || action.payload;
+        state.categories = Array.isArray(responseData.categories) ? responseData.categories : 
+                          Array.isArray(responseData) ? responseData : [];
+        state.pagination = responseData.pagination || {
+          currentPage: 1,
+          totalPages: 1,
+          totalItems: 0,
+          itemsPerPage: 10
         };
       })
       .addCase(fetchCategories.rejected, (state, action) => {

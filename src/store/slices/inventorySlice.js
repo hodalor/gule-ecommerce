@@ -6,7 +6,7 @@ export const fetchInventory = createAsyncThunk(
   'inventory/fetchInventory',
   async (params, { rejectWithValue }) => {
     try {
-      const response = await axios.get('/api/admin/inventory', { params });
+      const response = await axios.get('/api/inventory', { params });
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch inventory');
@@ -18,7 +18,7 @@ export const updateStock = createAsyncThunk(
   'inventory/updateStock',
   async ({ productId, quantity, reason, type }, { rejectWithValue }) => {
     try {
-      const response = await axios.post(`/api/admin/inventory/${productId}/stock`, {
+      const response = await axios.patch(`/api/inventory/${productId}/stock`, {
         quantity,
         reason,
         type
@@ -34,7 +34,7 @@ export const setLowStockAlert = createAsyncThunk(
   'inventory/setLowStockAlert',
   async ({ productId, threshold }, { rejectWithValue }) => {
     try {
-      const response = await axios.post(`/api/admin/inventory/${productId}/alert`, {
+      const response = await axios.patch(`/api/inventory/${productId}/alert`, {
         threshold
       });
       return response.data;
@@ -48,7 +48,7 @@ export const bulkUpdateStock = createAsyncThunk(
   'inventory/bulkUpdateStock',
   async ({ updates, reason }, { rejectWithValue }) => {
     try {
-      const response = await axios.post('/api/admin/inventory/bulk-update', {
+      const response = await axios.patch('/api/inventory/bulk', {
         updates,
         reason
       });
@@ -63,7 +63,7 @@ export const fetchStockHistory = createAsyncThunk(
   'inventory/fetchStockHistory',
   async ({ productId, dateRange }, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`/api/admin/inventory/${productId}/history`, {
+      const response = await axios.get(`/api/inventory/${productId}/history`, {
         params: dateRange
       });
       return response.data;
@@ -77,7 +77,7 @@ export const generateStockReport = createAsyncThunk(
   'inventory/generateStockReport',
   async (filters, { rejectWithValue }) => {
     try {
-      const response = await axios.get('/api/admin/inventory/report', {
+      const response = await axios.get('/api/inventory/report', {
         params: filters,
         responseType: 'blob'
       });
@@ -92,7 +92,7 @@ export const fetchLowStockItems = createAsyncThunk(
   'inventory/fetchLowStockItems',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.get('/api/admin/inventory/low-stock');
+      const response = await axios.get('/api/inventory/low-stock');
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch low stock items');
@@ -321,9 +321,12 @@ const inventorySlice = createSlice({
       })
       .addCase(fetchInventory.fulfilled, (state, action) => {
         state.loading = false;
-        state.items = action.payload.items || action.payload;
-        state.totalCount = action.payload.totalCount || action.payload.length;
-        state.statistics = action.payload.statistics || state.statistics;
+        // Handle nested response structure from backend
+        const responseData = action.payload.data || action.payload;
+        state.items = Array.isArray(responseData.items) ? responseData.items : 
+                     Array.isArray(responseData) ? responseData : [];
+        state.totalCount = responseData.totalCount || responseData.length || 0;
+        state.statistics = responseData.statistics || state.statistics;
       })
       .addCase(fetchInventory.rejected, (state, action) => {
         state.loading = false;

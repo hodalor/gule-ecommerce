@@ -1,27 +1,38 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
+import api from '../../utils/api';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
-
-// Configure axios defaults
-axios.defaults.withCredentials = true;
+const ADMIN_PRODUCTS_API = '/admin/products';
+const PRODUCTS_API = '/products';
 
 // Async thunks for product management
 export const fetchProducts = createAsyncThunk(
   'adminProducts/fetchProducts',
-  async ({ page = 1, limit = 10, search = '', category = '', status = '', seller = '' }, { rejectWithValue }) => {
+  async ({ 
+    page = 1, 
+    limit = 10, 
+    search = '', 
+    status = '', 
+    category = '', 
+    seller = '', 
+    sortBy = 'createdAt', 
+    sortOrder = 'desc' 
+  }, { rejectWithValue }) => {
     try {
       const params = new URLSearchParams({
         page: page.toString(),
         limit: limit.toString(),
+        sortBy,
+        sortOrder
       });
       
       if (search) params.append('search', search);
-      if (category) params.append('category', category);
       if (status) params.append('status', status);
+      if (category) params.append('category', category);
       if (seller) params.append('seller', seller);
 
-      const response = await axios.get(`${API_URL}/products?${params}`);
+      const response = await api.get(`${ADMIN_PRODUCTS_API}?${params}`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch products');
@@ -72,9 +83,17 @@ export const deleteProduct = createAsyncThunk(
 
 export const fetchCategories = createAsyncThunk(
   'adminProducts/fetchCategories',
-  async (_, { rejectWithValue }) => {
+  async ({ page = 1, limit = 50, search = '', status = 'active' }, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`${API_URL}/products/categories/list`);
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+      });
+      
+      if (search) params.append('search', search);
+      if (status) params.append('status', status);
+
+      const response = await api.get(`${PRODUCTS_API}/categories?${params}`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch categories');
@@ -182,12 +201,14 @@ const productSlice = createSlice({
       })
       .addCase(fetchProducts.fulfilled, (state, action) => {
         state.loading = false;
-        state.products = action.payload.products || [];
-        state.pagination = {
-          currentPage: action.payload.currentPage || 1,
-          totalPages: action.payload.totalPages || 1,
-          totalItems: action.payload.totalItems || 0,
-          itemsPerPage: action.payload.itemsPerPage || 10
+        // Handle nested response structure from backend
+        const responseData = action.payload.data || action.payload;
+        state.products = responseData.products || [];
+        state.pagination = responseData.pagination || {
+          currentPage: 1,
+          totalPages: 1,
+          totalItems: 0,
+          itemsPerPage: 10
         };
       })
       .addCase(fetchProducts.rejected, (state, action) => {
@@ -248,8 +269,21 @@ const productSlice = createSlice({
       })
       
       // Fetch categories
+      .addCase(fetchCategories.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
       .addCase(fetchCategories.fulfilled, (state, action) => {
-        state.categories = action.payload;
+        state.loading = false;
+        // Handle nested response structure from backend
+        const responseData = action.payload.data || action.payload;
+        state.categories = Array.isArray(responseData.categories) ? responseData.categories : 
+                          Array.isArray(responseData) ? responseData : [];
+      })
+      .addCase(fetchCategories.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+        state.categories = []; // Ensure categories is always an array
       })
       
       // Bulk update products

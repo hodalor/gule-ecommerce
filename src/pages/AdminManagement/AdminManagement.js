@@ -44,8 +44,17 @@ const AdminManagement = () => {
   const roles = ['Super Admin', 'Admin', 'Accountant', 'Review Officer'];
 
   useEffect(() => {
-    dispatch(fetchAdmins({ page: 1, limit: 10 }));
-  }, [dispatch]);
+    const fetchData = () => {
+      dispatch(fetchAdmins({ 
+        page: pagination?.currentPage || 1, 
+        limit: 10,
+        search: searchTerm,
+        role: filterRole
+      }));
+    };
+
+    fetchData();
+  }, [dispatch, pagination?.currentPage, searchTerm, filterRole]);
 
   const handleCreateAdmin = () => {
     setModalMode('create');
@@ -111,7 +120,7 @@ const AdminManagement = () => {
     return matchesSearch && matchesRole;
   });
 
-  const canManageAdmins = user?.role === 'Super Admin' || user?.role === 'Admin';
+  const canManageAdmins = user?.role === 'super_admin';
 
   return (
     <div className="space-y-6">

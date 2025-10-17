@@ -1,6 +1,8 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Provider, useDispatch, useSelector } from 'react-redux';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
 import { store } from './store';
 import { checkAuthStatus } from './store/slices/authSlice';
 
@@ -28,6 +30,7 @@ import StorePerformance from './pages/StorePerformance/StorePerformance';
 import PrivacySettings from './pages/PrivacySettings/PrivacySettings';
 import FinancePanel from './pages/FinancePanel/FinancePanel';
 import AuditLogs from './pages/AuditLogs/AuditLogs';
+import ServerLogs from './components/ServerLogs';
 import Settings from './pages/Settings/Settings';
 
 // Protected Route Component
@@ -60,6 +63,19 @@ const AuthCheck = ({ children }) => {
   return children;
 };
 
+// Create Material-UI theme
+const theme = createTheme({
+  palette: {
+    mode: 'light',
+    primary: {
+      main: '#1976d2',
+    },
+    secondary: {
+      main: '#dc004e',
+    },
+  },
+});
+
 function AppContent() {
   return (
     <Router>
@@ -91,6 +107,7 @@ function AppContent() {
             <Route path="privacy" element={<PrivacySettings />} />
             <Route path="finance" element={<FinancePanel />} />
             <Route path="audit" element={<AuditLogs />} />
+            <Route path="server-logs" element={<ServerLogs />} />
             <Route path="settings" element={<Settings />} />
           </Route>
           
@@ -108,9 +125,12 @@ function AppContent() {
 function App() {
   return (
     <Provider store={store}>
-      <div className="App">
-        <AppContent />
-      </div>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <div className="App">
+          <AppContent />
+        </div>
+      </ThemeProvider>
     </Provider>
   );
 }

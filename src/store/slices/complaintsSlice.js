@@ -6,7 +6,7 @@ export const fetchComplaints = createAsyncThunk(
   'complaints/fetchComplaints',
   async (params, { rejectWithValue }) => {
     try {
-      const response = await axios.get('/api/admin/complaints', { params });
+      const response = await axios.get('/api/complaints', { params });
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch complaints');
@@ -18,7 +18,7 @@ export const updateComplaintStatus = createAsyncThunk(
   'complaints/updateStatus',
   async ({ id, status, resolution }, { rejectWithValue }) => {
     try {
-      const response = await axios.put(`/api/admin/complaints/${id}/status`, {
+      const response = await axios.patch(`/api/complaints/${id}/status`, {
         status,
         resolution
       });
@@ -33,7 +33,7 @@ export const assignComplaint = createAsyncThunk(
   'complaints/assign',
   async ({ id, assignedTo }, { rejectWithValue }) => {
     try {
-      const response = await axios.put(`/api/admin/complaints/${id}/assign`, {
+      const response = await axios.patch(`/api/complaints/${id}/assign`, {
         assignedTo
       });
       return response.data;
@@ -47,8 +47,8 @@ export const addComplaintNote = createAsyncThunk(
   'complaints/addNote',
   async ({ id, note }, { rejectWithValue }) => {
     try {
-      const response = await axios.post(`/api/admin/complaints/${id}/notes`, {
-        note
+      const response = await axios.post(`/api/complaints/${id}/responses`, {
+        message: note
       });
       return response.data;
     } catch (error) {
@@ -61,7 +61,7 @@ export const resolveComplaint = createAsyncThunk(
   'complaints/resolve',
   async ({ id, resolution, compensationAmount }, { rejectWithValue }) => {
     try {
-      const response = await axios.post(`/api/admin/complaints/${id}/resolve`, {
+      const response = await axios.patch(`/api/complaints/${id}/resolve`, {
         resolution,
         compensationAmount
       });
@@ -76,7 +76,7 @@ export const escalateComplaint = createAsyncThunk(
   'complaints/escalate',
   async ({ id, escalationReason }, { rejectWithValue }) => {
     try {
-      const response = await axios.post(`/api/admin/complaints/${id}/escalate`, {
+      const response = await axios.patch(`/api/complaints/${id}/escalate`, {
         escalationReason
       });
       return response.data;
@@ -90,7 +90,7 @@ export const bulkUpdateComplaints = createAsyncThunk(
   'complaints/bulkUpdate',
   async ({ complaintIds, action, data }, { rejectWithValue }) => {
     try {
-      const response = await axios.post('/api/admin/complaints/bulk', {
+      const response = await axios.patch('/api/complaints/bulk', {
         complaintIds,
         action,
         data

@@ -16,6 +16,7 @@ import reviewSlice from './slices/reviewSlice';
 import categorySlice from './slices/categorySlice';
 import escrowSlice from './slices/escrowSlice';
 import adminDisputeSlice from './slices/adminDisputeSlice';
+import dashboardSlice from './slices/dashboardSlice';
 
 export const store = configureStore({
   reducer: {
@@ -36,6 +37,7 @@ export const store = configureStore({
     categories: categorySlice,
     escrow: escrowSlice,
     adminDisputes: adminDisputeSlice,
+    dashboard: dashboardSlice,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

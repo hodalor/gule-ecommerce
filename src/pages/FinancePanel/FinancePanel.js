@@ -46,10 +46,25 @@ const FinancePanel = () => {
   const transactionStatuses = ['Pending', 'Completed', 'Failed', 'Refunded'];
 
   useEffect(() => {
+    const fetchData = () => {
+      dispatch(fetchTransactions({ 
+        page: 1, 
+        limit: 20,
+        search: searchTerm,
+        status: statusFilter,
+        dateRange: dateRange.start && dateRange.end ? dateRange : undefined
+      }));
+      dispatch(fetchEscrowFunds({ 
+        page: 1, 
+        limit: 20,
+        search: searchTerm,
+        dateRange: dateRange.start && dateRange.end ? dateRange : undefined
+      }));
+    };
+
     dispatch(fetchFinancialSummary());
-    dispatch(fetchTransactions({ page: 1, limit: 20 }));
-    dispatch(fetchEscrowFunds({ page: 1, limit: 20 }));
-  }, [dispatch]);
+    fetchData();
+  }, [dispatch, searchTerm, statusFilter, dateRange]);
 
   const handleReleaseFunds = async (escrowId) => {
     if (window.confirm('Are you sure you want to release these funds?')) {
@@ -80,7 +95,7 @@ const FinancePanel = () => {
     return matchesSearch && matchesStatus;
   });
 
-  const canManageFinance = user?.role === 'Super Admin' || user?.role === 'Admin' || user?.role === 'Accountant';
+  const canManageFinance = user?.role === 'super_admin' || user?.role === 'admin' || user?.role === 'accountant';
 
   if (!canManageFinance) {
     return (

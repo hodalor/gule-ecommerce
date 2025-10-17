@@ -1,24 +1,41 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import {
-  PlusIcon,
+import { 
+  PlusIcon, 
+  MagnifyingGlassIcon, 
+  FunnelIcon,
+  EyeIcon,
   PencilIcon,
   TrashIcon,
-  EyeIcon,
-  MagnifyingGlassIcon,
-  FunnelIcon,
-  DocumentArrowDownIcon,
+  CheckIcon,
+  XMarkIcon,
   PhotoIcon,
   CheckCircleIcon,
   XCircleIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon
 } from '@heroicons/react/24/outline';
+import { 
+  fetchProducts, 
+  fetchCategories, 
+  updateProductStatus, 
+  deleteProduct, 
+  bulkUpdateProducts,
+  exportProducts,
+  clearError 
+} from '../../store/slices/productSlice';
 
 const ProductManagement = () => {
   const dispatch = useDispatch();
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const { 
+    products, 
+    categories, 
+    loading, 
+    error, 
+    pagination,
+    filters 
+  } = useSelector(state => state.products);
   
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState('create');
@@ -27,91 +44,77 @@ const ProductManagement = () => {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedProducts, setSelectedProducts] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [priceRange, setPriceRange] = useState({ min: '', max: '' });
+  const [dateRange, setDateRange] = useState({ start: '', end: '' });
   
   const [formData, setFormData] = useState({
     name: '',
     description: '',
+    shortDescription: '',
     price: '',
+    comparePrice: '',
     category: '',
+    subcategory: '',
+    brand: '',
     stock: '',
-    images: [],
+    minStock: '',
+    sku: '',
+    barcode: '',
     status: 'active',
-    featured: false,
+    productType: 'simple', // simple, variable, grouped, external
+    isDigital: false,
+    isFeatured: false,
+    weight: { value: '', unit: 'kg' },
+    dimensions: { length: '', width: '', height: '', unit: 'cm' },
+    shippingClass: '',
+    taxStatus: 'taxable',
+    taxClass: 'standard',
+    seoTitle: '',
+    seoDescription: '',
+    seoKeywords: '',
+    tags: [],
+    images: [],
+    variants: [],
+    attributes: [],
+    specifications: [],
     sellerId: ''
   });
 
-  const [categories, setCategories] = useState([]);
+  const [imageFiles, setImageFiles] = useState([]);
+  const [imagePreview, setImagePreview] = useState([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
+
+  // Auto-save functionality
+  const [autoSaveStatus, setAutoSaveStatus] = useState('saved'); // 'saving', 'saved', 'error'
+  const [lastSaved, setLastSaved] = useState(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const autoSaveTimeoutRef = React.useRef(null);
+
   const [sellers, setSellers] = useState([]);
 
-  // Mock data - replace with actual API calls
   useEffect(() => {
-    fetchProducts();
-    fetchCategories();
+    const fetchData = () => {
+      dispatch(fetchProducts({
+        page: pagination?.currentPage || currentPage,
+        limit: pageSize,
+        search: searchTerm,
+        category: categoryFilter,
+        status: statusFilter,
+        sortBy: 'createdAt',
+        sortOrder: 'desc'
+      }));
+    };
+
+    fetchData();
+    dispatch(fetchCategories({ page: 1, limit: 100 }));
     fetchSellers();
-  }, []);
-
-  const fetchProducts = async () => {
-    setLoading(true);
-    try {
-      // Replace with actual API call
-      const mockProducts = [
-        {
-          id: 1,
-          name: 'Wireless Headphones',
-          description: 'High-quality wireless headphones with noise cancellation',
-          price: 199.99,
-          category: 'Electronics',
-          stock: 50,
-          status: 'active',
-          featured: true,
-          seller: 'TechStore',
-          sellerId: 1,
-          images: ['image1.jpg'],
-          createdAt: '2024-01-15',
-          updatedAt: '2024-01-20'
-        },
-        {
-          id: 2,
-          name: 'Running Shoes',
-          description: 'Comfortable running shoes for daily exercise',
-          price: 89.99,
-          category: 'Sports',
-          stock: 25,
-          status: 'active',
-          featured: false,
-          seller: 'SportsMart',
-          sellerId: 2,
-          images: ['image2.jpg'],
-          createdAt: '2024-01-10',
-          updatedAt: '2024-01-18'
-        }
-      ];
-      setProducts(mockProducts);
-    } catch (err) {
-      setError('Failed to fetch products');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchCategories = async () => {
-    try {
-      // Replace with actual API call
-      const mockCategories = [
-        { id: 1, name: 'Electronics' },
-        { id: 2, name: 'Sports' },
-        { id: 3, name: 'Fashion' },
-        { id: 4, name: 'Home & Garden' }
-      ];
-      setCategories(mockCategories);
-    } catch (err) {
-      console.error('Failed to fetch categories');
-    }
-  };
+  }, [dispatch, currentPage, pageSize, searchTerm, categoryFilter, statusFilter, pagination?.currentPage]);
 
   const fetchSellers = async () => {
     try {
-      // Replace with actual API call
+      // This should be replaced with actual API call to fetch sellers
       const mockSellers = [
         { id: 1, name: 'TechStore', businessName: 'Tech Solutions Inc.' },
         { id: 2, name: 'SportsMart', businessName: 'Sports Equipment Ltd.' }
@@ -124,36 +127,72 @@ const ProductManagement = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
     
     try {
       if (modalMode === 'create') {
-        // Create product API call
+        // Create product API call - this would need to be implemented
         console.log('Creating product:', formData);
       } else {
-        // Update product API call
+        // Update product API call - this would need to be implemented
         console.log('Updating product:', formData);
       }
       
       setShowModal(false);
       resetForm();
-      fetchProducts();
+      // Refresh products list
+      dispatch(fetchProducts({ 
+        page: pagination?.currentPage || 1, 
+        limit: pagination?.itemsPerPage || 20,
+        search: searchTerm,
+        category: categoryFilter,
+        status: statusFilter,
+        priceRange: priceRange.min && priceRange.max ? priceRange : undefined,
+        dateRange: dateRange.start && dateRange.end ? dateRange : undefined
+      }));
     } catch (err) {
-      setError('Failed to save product');
-    } finally {
-      setLoading(false);
+      console.error('Failed to save product:', err);
     }
   };
 
   const handleDelete = async (productId) => {
     if (window.confirm('Are you sure you want to delete this product?')) {
       try {
-        // Delete product API call
-        console.log('Deleting product:', productId);
-        fetchProducts();
+        await dispatch(deleteProduct({ productId, reason: 'Admin deletion' }));
+        // Refresh products list
+        dispatch(fetchProducts({ 
+          page: pagination?.currentPage || 1, 
+          limit: pagination?.itemsPerPage || 20,
+          search: searchTerm,
+          category: categoryFilter,
+          status: statusFilter,
+          priceRange: priceRange.min && priceRange.max ? priceRange : undefined,
+          dateRange: dateRange.start && dateRange.end ? dateRange : undefined
+        }));
       } catch (err) {
-        setError('Failed to delete product');
+        console.error('Failed to delete product:', err);
       }
+    }
+  };
+
+  const handleStatusChange = async (productId, newStatus) => {
+    try {
+      await dispatch(updateProductStatus({ 
+        productId, 
+        status: newStatus, 
+        reason: `Status changed to ${newStatus}` 
+      }));
+      // Refresh products list
+      dispatch(fetchProducts({ 
+        page: pagination?.currentPage || 1, 
+        limit: pagination?.itemsPerPage || 20,
+        search: searchTerm,
+        category: categoryFilter,
+        status: statusFilter,
+        priceRange: priceRange.min && priceRange.max ? priceRange : undefined,
+        dateRange: dateRange.start && dateRange.end ? dateRange : undefined
+      }));
+    } catch (err) {
+      console.error('Failed to update product status:', err);
     }
   };
 
@@ -162,13 +201,40 @@ const ProductManagement = () => {
     
     if (window.confirm(`Are you sure you want to ${action} ${selectedProducts.length} products?`)) {
       try {
-        // Bulk action API call
-        console.log(`Bulk ${action}:`, selectedProducts);
+        await dispatch(bulkUpdateProducts({
+          productIds: selectedProducts,
+          action,
+          data: { reason: `Bulk ${action} by admin` }
+        }));
         setSelectedProducts([]);
-        fetchProducts();
+        // Refresh products list
+        dispatch(fetchProducts({ 
+          page: pagination?.currentPage || 1, 
+          limit: pagination?.itemsPerPage || 20,
+          search: searchTerm,
+          category: categoryFilter,
+          status: statusFilter,
+          priceRange: priceRange.min && priceRange.max ? priceRange : undefined,
+          dateRange: dateRange.start && dateRange.end ? dateRange : undefined
+        }));
       } catch (err) {
-        setError(`Failed to ${action} products`);
+        console.error(`Failed to ${action} products:`, err);
       }
+    }
+  };
+
+  const handleExport = async (format = 'csv') => {
+    try {
+      await dispatch(exportProducts({
+        format,
+        filters: {
+          search: searchTerm,
+          category: categoryFilter,
+          status: statusFilter
+        }
+      }));
+    } catch (err) {
+      console.error('Failed to export products:', err);
     }
   };
 
@@ -176,14 +242,191 @@ const ProductManagement = () => {
     setFormData({
       name: '',
       description: '',
+      shortDescription: '',
       price: '',
+      comparePrice: '',
       category: '',
+      subcategory: '',
+      brand: '',
       stock: '',
-      images: [],
+      minStock: '',
+      sku: '',
+      barcode: '',
       status: 'active',
-      featured: false,
+      productType: 'simple',
+      isDigital: false,
+      isFeatured: false,
+      weight: { value: '', unit: 'kg' },
+      dimensions: { length: '', width: '', height: '', unit: 'cm' },
+      shippingClass: '',
+      taxStatus: 'taxable',
+      taxClass: 'standard',
+      seoTitle: '',
+      seoDescription: '',
+      seoKeywords: '',
+      tags: [],
+      images: [],
+      variants: [],
+      attributes: [],
+      specifications: [],
       sellerId: ''
     });
+    setImageFiles([]);
+    setImagePreview([]);
+    setSelectedProduct(null);
+    setHasUnsavedChanges(false);
+    setAutoSaveStatus('saved');
+    setLastSaved(null);
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+    }
+  };
+
+  // Auto-save functionality
+  const autoSave = async (data) => {
+    if (!data.name || modalMode === 'view') return;
+    
+    try {
+      setAutoSaveStatus('saving');
+      
+      // Simulate API call for auto-save (draft save)
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // In a real implementation, this would be an API call to save draft
+      console.log('Auto-saving product draft:', data);
+      
+      setAutoSaveStatus('saved');
+      setLastSaved(new Date());
+      setHasUnsavedChanges(false);
+    } catch (error) {
+      console.error('Auto-save failed:', error);
+      setAutoSaveStatus('error');
+    }
+  };
+
+  const debouncedAutoSave = (data) => {
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+    }
+    
+    setHasUnsavedChanges(true);
+    
+    autoSaveTimeoutRef.current = setTimeout(() => {
+      autoSave(data);
+    }, 2000); // Auto-save after 2 seconds of inactivity
+  };
+
+  // Enhanced form data handler with auto-save
+  const handleFormDataChange = (field, value) => {
+    const newFormData = { ...formData, [field]: value };
+    setFormData(newFormData);
+    
+    // Trigger auto-save for editing mode
+    if (modalMode === 'edit' && selectedProduct) {
+      debouncedAutoSave(newFormData);
+    }
+  };
+
+  // Cleanup auto-save timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Handle image upload
+  const handleImageUpload = (e) => {
+    const files = Array.from(e.target.files);
+    setImageFiles(prev => [...prev, ...files]);
+    
+    // Create preview URLs
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImagePreview(prev => [...prev, {
+          url: e.target.result,
+          name: file.name,
+          isExisting: false
+        }]);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const removeImage = (index) => {
+    setImagePreview(prev => prev.filter((_, i) => i !== index));
+    setImageFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Handle attributes management
+  const addAttribute = () => {
+    const newAttribute = {
+      id: Date.now(),
+      name: '',
+      values: [''],
+      variation: false,
+      visible: true
+    };
+    setFormData(prev => ({
+      ...prev,
+      attributes: [...prev.attributes, newAttribute]
+    }));
+  };
+
+  const removeAttribute = (attributeId) => {
+    setFormData(prev => ({
+      ...prev,
+      attributes: prev.attributes.filter(a => a.id !== attributeId)
+    }));
+  };
+
+  const updateAttribute = (attributeId, field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      attributes: prev.attributes.map(a => 
+        a.id === attributeId ? { ...a, [field]: value } : a
+      )
+    }));
+  };
+
+  const addAttributeValue = (attributeId) => {
+    setFormData(prev => ({
+      ...prev,
+      attributes: prev.attributes.map(a => 
+        a.id === attributeId 
+          ? { ...a, values: [...a.values, ''] }
+          : a
+      )
+    }));
+  };
+
+  const removeAttributeValue = (attributeId, valueIndex) => {
+    setFormData(prev => ({
+      ...prev,
+      attributes: prev.attributes.map(a => 
+        a.id === attributeId 
+          ? { ...a, values: a.values.filter((_, i) => i !== valueIndex) }
+          : a
+      )
+    }));
+  };
+
+  const updateAttributeValue = (attributeId, valueIndex, value) => {
+    setFormData(prev => ({
+      ...prev,
+      attributes: prev.attributes.map(a => 
+        a.id === attributeId 
+          ? { 
+              ...a, 
+              values: a.values.map((val, i) => 
+                i === valueIndex ? value : val
+              )
+            }
+          : a
+      )
+    }));
   };
 
   const openModal = (mode, product = null) => {
@@ -210,7 +453,8 @@ const ProductManagement = () => {
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          product.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = !categoryFilter || product.category === categoryFilter;
+    const categoryName = typeof product.category === 'object' ? product.category?.name : product.category;
+    const matchesCategory = !categoryFilter || categoryName === categoryFilter;
     const matchesStatus = !statusFilter || product.status === statusFilter;
     
     return matchesSearch && matchesCategory && matchesStatus;
@@ -421,7 +665,7 @@ const ProductManagement = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {product.category}
+                      {typeof product.category === 'object' ? product.category?.name : product.category}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       ${product.price}
@@ -430,7 +674,7 @@ const ProductManagement = () => {
                       {product.stock}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {product.seller}
+                      {typeof product.seller === 'object' ? product.seller?.businessName || product.seller?.name : product.seller}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {getStatusBadge(product.status)}
@@ -470,87 +714,192 @@ const ProductManagement = () => {
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
           <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
             <div className="mt-3">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">
-                {modalMode === 'create' ? 'Add New Product' : 
-                 modalMode === 'edit' ? 'Edit Product' : 'Product Details'}
+              <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center justify-between">
+                <span>
+                  {modalMode === 'create' ? 'Add New Product' : 
+                   modalMode === 'edit' ? 'Edit Product' : 'Product Details'}
+                </span>
+                {modalMode === 'edit' && (
+                  <div className="flex items-center space-x-2 text-sm">
+                    {autoSaveStatus === 'saving' && (
+                      <span className="text-blue-600 flex items-center">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-1"></div>
+                        Saving...
+                      </span>
+                    )}
+                    {autoSaveStatus === 'saved' && lastSaved && (
+                      <span className="text-green-600 flex items-center">
+                        <CheckCircleIcon className="h-4 w-4 mr-1" />
+                        Saved {new Date(lastSaved).toLocaleTimeString()}
+                      </span>
+                    )}
+                    {autoSaveStatus === 'error' && (
+                      <span className="text-red-600 flex items-center">
+                        <ExclamationTriangleIcon className="h-4 w-4 mr-1" />
+                        Save failed
+                      </span>
+                    )}
+                    {hasUnsavedChanges && autoSaveStatus !== 'saving' && (
+                      <span className="text-yellow-600">Unsaved changes</span>
+                    )}
+                  </div>
+                )}
               </h3>
               
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-6 max-h-96 overflow-y-auto">
+                {/* Product Type */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Product Type
+                  </label>
+                  <select
+                      value={formData.productType}
+                      onChange={(e) => handleFormDataChange('productType', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      disabled={modalMode === 'view'}
+                    >
+                    <option value="simple">Simple Product</option>
+                    <option value="variable">Variable Product</option>
+                    <option value="grouped">Grouped Product</option>
+                    <option value="external">External/Affiliate Product</option>
+                  </select>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Product Name
+                      Product Name *
                     </label>
                     <input
                       type="text"
                       value={formData.name}
-                      onChange={(e) => setFormData({...formData, name: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      onChange={(e) => handleFormDataChange('name', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       required
                       disabled={modalMode === 'view'}
+                      placeholder="Enter product name"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      SKU
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.sku}
+                      onChange={(e) => handleFormDataChange('sku', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      disabled={modalMode === 'view'}
+                      placeholder="Product SKU"
                     />
                   </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Category
+                      Category *
                     </label>
                     <select
                       value={formData.category}
-                      onChange={(e) => setFormData({...formData, category: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      onChange={(e) => handleFormDataChange('category', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       required
                       disabled={modalMode === 'view'}
                     >
                       <option value="">Select Category</option>
-                      {categories.map(category => (
+                      {Array.isArray(categories) && categories.map(category => (
                         <option key={category.id} value={category.name}>{category.name}</option>
                       ))}
                     </select>
                   </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Brand
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.brand}
+                      onChange={(e) => handleFormDataChange('brand', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      disabled={modalMode === 'view'}
+                      placeholder="Product brand"
+                    />
+                  </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Price
+                      Price *
                     </label>
                     <input
                       type="number"
                       step="0.01"
                       value={formData.price}
-                      onChange={(e) => setFormData({...formData, price: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      onChange={(e) => handleFormDataChange('price', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       required
                       disabled={modalMode === 'view'}
+                      placeholder="0.00"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Compare Price
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.comparePrice}
+                      onChange={(e) => handleFormDataChange('comparePrice', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      disabled={modalMode === 'view'}
+                      placeholder="0.00"
                     />
                   </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Stock
+                      Stock *
                     </label>
                     <input
                       type="number"
                       value={formData.stock}
-                      onChange={(e) => setFormData({...formData, stock: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      onChange={(e) => handleFormDataChange('stock', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       required
                       disabled={modalMode === 'view'}
+                      placeholder="0"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Min Stock
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.minStock}
+                      onChange={(e) => handleFormDataChange('minStock', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      disabled={modalMode === 'view'}
+                      placeholder="0"
                     />
                   </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Seller
+                      Seller *
                     </label>
                     <select
                       value={formData.sellerId}
-                      onChange={(e) => setFormData({...formData, sellerId: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      onChange={(e) => handleFormDataChange('sellerId', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       required
                       disabled={modalMode === 'view'}
                     >
                       <option value="">Select Seller</option>
-                      {sellers.map(seller => (
+                      {Array.isArray(sellers) && sellers.map(seller => (
                         <option key={seller.id} value={seller.id}>{seller.businessName}</option>
                       ))}
                     </select>
@@ -562,44 +911,485 @@ const ProductManagement = () => {
                     </label>
                     <select
                       value={formData.status}
-                      onChange={(e) => setFormData({...formData, status: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      onChange={(e) => handleFormDataChange('status', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       disabled={modalMode === 'view'}
                     >
                       <option value="active">Active</option>
-                      <option value="inactive">Inactive</option>
-                      <option value="pending">Pending</option>
+                      <option value="draft">Draft</option>
+                      <option value="out_of_stock">Out of Stock</option>
+                      <option value="discontinued">Discontinued</option>
                     </select>
                   </div>
                 </div>
-                
+
+                {/* Short Description */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Description
+                    Short Description
+                  </label>
+                  <textarea
+                      value={formData.shortDescription}
+                      onChange={(e) => handleFormDataChange('shortDescription', e.target.value)}
+                      rows="3"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      disabled={modalMode === 'view'}
+                      placeholder="Brief product description"
+                    />
+                </div>
+                
+                {/* Description */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Description *
                   </label>
                   <textarea
                     value={formData.description}
-                    onChange={(e) => setFormData({...formData, description: e.target.value})}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onChange={(e) => handleFormDataChange('description', e.target.value)}
+                    rows={4}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    required
                     disabled={modalMode === 'view'}
+                    placeholder="Enter detailed product description"
                   />
                 </div>
-                
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="featured"
-                    checked={formData.featured}
-                    onChange={(e) => setFormData({...formData, featured: e.target.checked})}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    disabled={modalMode === 'view'}
-                  />
-                  <label htmlFor="featured" className="ml-2 text-sm text-gray-700">
-                    Featured Product
+
+                {/* Product Images */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Product Images
                   </label>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
+                    <div className="space-y-2">
+                      <PhotoIcon className="mx-auto h-12 w-12 text-gray-400" />
+                      <div className="text-sm text-gray-600">
+                        <label htmlFor="images" className="cursor-pointer text-blue-600 hover:text-blue-500">
+                          Upload images
+                        </label>
+                        <input
+                          id="images"
+                          type="file"
+                          multiple
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                          className="hidden"
+                          disabled={modalMode === 'view'}
+                        />
+                        <p className="text-xs text-gray-500 mt-1">PNG, JPG, GIF up to 10MB each</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Image Preview */}
+                  {imagePreview.length > 0 && (
+                    <div className="grid grid-cols-3 gap-4 mt-4">
+                      {imagePreview.map((image, index) => (
+                        <div key={index} className="relative">
+                          <img
+                            src={image.url}
+                            alt={`Preview ${index + 1}`}
+                            className="w-full h-24 object-cover rounded-lg border"
+                          />
+                          {modalMode !== 'view' && (
+                            <button
+                              type="button"
+                              onClick={() => removeImage(index)}
+                              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                            >
+                              <XMarkIcon className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                
+
+                {/* Attributes */}
+                <div>
+                  <div className="flex justify-between items-center mb-3">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Product Attributes
+                    </label>
+                    {modalMode !== 'view' && (
+                      <button
+                        type="button"
+                        onClick={addAttribute}
+                        className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
+                      >
+                        Add Attribute
+                      </button>
+                    )}
+                  </div>
+                  
+                  {formData.attributes.map((attribute, attributeIndex) => (
+                    <div key={attribute.id} className="border border-gray-200 rounded-lg p-4 mb-3">
+                      <div className="grid grid-cols-2 gap-4 mb-3">
+                        <input
+                          type="text"
+                          value={attribute.name}
+                          onChange={(e) => updateAttribute(attribute.id, 'name', e.target.value)}
+                          placeholder="Attribute name (e.g., Color, Size)"
+                          className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          disabled={modalMode === 'view'}
+                        />
+                        <div className="flex items-center gap-4">
+                          <label className="flex items-center">
+                            <input
+                              type="checkbox"
+                              checked={attribute.variation}
+                              onChange={(e) => updateAttribute(attribute.id, 'variation', e.target.checked)}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                              disabled={modalMode === 'view'}
+                            />
+                            <span className="ml-2 text-sm text-gray-700">Used for variations</span>
+                          </label>
+                          <label className="flex items-center">
+                            <input
+                              type="checkbox"
+                              checked={attribute.visible}
+                              onChange={(e) => updateAttribute(attribute.id, 'visible', e.target.checked)}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                              disabled={modalMode === 'view'}
+                            />
+                            <span className="ml-2 text-sm text-gray-700">Visible on product page</span>
+                          </label>
+                          {modalMode !== 'view' && (
+                            <button
+                              type="button"
+                              onClick={() => removeAttribute(attribute.id)}
+                              className="text-red-600 hover:text-red-800"
+                            >
+                              <XMarkIcon className="h-5 w-5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-700">Values</span>
+                          {modalMode !== 'view' && (
+                            <button
+                              type="button"
+                              onClick={() => addAttributeValue(attribute.id)}
+                              className="text-blue-600 text-sm hover:text-blue-800"
+                            >
+                              Add Value
+                            </button>
+                          )}
+                        </div>
+                        
+                        {attribute.values.map((value, valueIndex) => (
+                          <div key={valueIndex} className="flex gap-2 items-center">
+                            <input
+                              type="text"
+                              value={value}
+                              onChange={(e) => updateAttributeValue(attribute.id, valueIndex, e.target.value)}
+                              placeholder="Attribute value"
+                              className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500"
+                              disabled={modalMode === 'view'}
+                            />
+                            {modalMode !== 'view' && (
+                              <button
+                                type="button"
+                                onClick={() => removeAttributeValue(attribute.id, valueIndex)}
+                                className="text-red-600 hover:text-red-800"
+                              >
+                                <XMarkIcon className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Product Options */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="isFeatured"
+                      checked={formData.isFeatured}
+                      onChange={(e) => setFormData({...formData, isFeatured: e.target.checked})}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      disabled={modalMode === 'view'}
+                    />
+                    <label htmlFor="isFeatured" className="ml-2 text-sm text-gray-700">
+                      Featured Product
+                    </label>
+                  </div>
+                  
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="isDigital"
+                      checked={formData.isDigital}
+                      onChange={(e) => setFormData({...formData, isDigital: e.target.checked})}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      disabled={modalMode === 'view'}
+                    />
+                    <label htmlFor="isDigital" className="ml-2 text-sm text-gray-700">
+                      Digital Product
+                    </label>
+                  </div>
+                </div>
+
+                {/* Physical Properties */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Weight (kg)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.weight}
+                      onChange={(e) => setFormData({...formData, weight: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      disabled={modalMode === 'view'}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Length (cm)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.dimensions.length}
+                      onChange={(e) => setFormData({
+                        ...formData, 
+                        dimensions: {...formData.dimensions, length: e.target.value}
+                      })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      disabled={modalMode === 'view'}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Width (cm)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.dimensions.width}
+                      onChange={(e) => setFormData({
+                        ...formData, 
+                        dimensions: {...formData.dimensions, width: e.target.value}
+                      })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      disabled={modalMode === 'view'}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Height (cm)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.dimensions.height}
+                      onChange={(e) => setFormData({
+                        ...formData, 
+                        dimensions: {...formData.dimensions, height: e.target.value}
+                      })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      disabled={modalMode === 'view'}
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+
+                {/* Shipping & Tax */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Shipping Class
+                    </label>
+                    <select
+                      value={formData.shippingClass}
+                      onChange={(e) => setFormData({...formData, shippingClass: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      disabled={modalMode === 'view'}
+                    >
+                      <option value="">No shipping class</option>
+                      <option value="standard">Standard</option>
+                      <option value="express">Express</option>
+                      <option value="overnight">Overnight</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Tax Status
+                    </label>
+                    <select
+                      value={formData.taxStatus}
+                      onChange={(e) => setFormData({...formData, taxStatus: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      disabled={modalMode === 'view'}
+                    >
+                      <option value="taxable">Taxable</option>
+                      <option value="shipping">Shipping only</option>
+                      <option value="none">None</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Tax Class
+                    </label>
+                    <select
+                      value={formData.taxClass}
+                      onChange={(e) => setFormData({...formData, taxClass: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      disabled={modalMode === 'view'}
+                    >
+                      <option value="">Standard</option>
+                      <option value="reduced-rate">Reduced rate</option>
+                      <option value="zero-rate">Zero rate</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* SEO Settings */}
+                <div className="space-y-4">
+                  <h4 className="text-lg font-medium text-gray-900">SEO Settings</h4>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      SEO Title
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.seoTitle}
+                      onChange={(e) => setFormData({...formData, seoTitle: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      disabled={modalMode === 'view'}
+                      placeholder="SEO title"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      SEO Description
+                    </label>
+                    <textarea
+                      value={formData.seoDescription}
+                      onChange={(e) => setFormData({...formData, seoDescription: e.target.value})}
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      disabled={modalMode === 'view'}
+                      placeholder="SEO description"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      SEO Keywords
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.seoKeywords}
+                      onChange={(e) => setFormData({...formData, seoKeywords: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      disabled={modalMode === 'view'}
+                      placeholder="SEO keywords (comma separated)"
+                    />
+                  </div>
+                </div>
+
+                {/* Tags */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Tags
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.tags.join(', ')}
+                    onChange={(e) => setFormData({
+                      ...formData, 
+                      tags: e.target.value.split(',').map(tag => tag.trim()).filter(tag => tag)
+                    })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    disabled={modalMode === 'view'}
+                    placeholder="Enter tags separated by commas"
+                  />
+                </div>
+
+                {/* Product Specifications */}
+                <div>
+                  <div className="flex justify-between items-center mb-3">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Product Specifications
+                    </label>
+                    {modalMode !== 'view' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newSpecs = [...formData.specifications, { key: '', value: '' }];
+                          handleFormDataChange('specifications', newSpecs);
+                        }}
+                        className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
+                      >
+                        Add Specification
+                      </button>
+                    )}
+                  </div>
+                  
+                  {formData.specifications.map((spec, index) => (
+                    <div key={index} className="grid grid-cols-2 gap-4 mb-3">
+                      <input
+                        type="text"
+                        value={spec.key}
+                        onChange={(e) => {
+                          const newSpecs = [...formData.specifications];
+                          newSpecs[index].key = e.target.value;
+                          handleFormDataChange('specifications', newSpecs);
+                        }}
+                        placeholder="Specification name"
+                        className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        disabled={modalMode === 'view'}
+                      />
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={spec.value}
+                          onChange={(e) => {
+                            const newSpecs = [...formData.specifications];
+                            newSpecs[index].value = e.target.value;
+                            handleFormDataChange('specifications', newSpecs);
+                          }}
+                          placeholder="Specification value"
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          disabled={modalMode === 'view'}
+                        />
+                        {modalMode !== 'view' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newSpecs = formData.specifications.filter((_, i) => i !== index);
+                              handleFormDataChange('specifications', newSpecs);
+                            }}
+                            className="text-red-600 hover:text-red-800 px-2"
+                          >
+                            <XMarkIcon className="h-5 w-5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
                 <div className="flex justify-end space-x-3 pt-4">
                   <button
                     type="button"

@@ -1,6 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
+  fetchEscrowTransactions,
+  fetchEscrowById,
+  updateEscrowStatus,
+  releaseEscrowFunds,
+  refundEscrowFunds,
+  bulkUpdateEscrow,
+  fetchEscrowStatistics,
+  setFilters,
+  clearError
+} from '../../store/slices/escrowSlice';
+import {
   MagnifyingGlassIcon,
   FunnelIcon,
   EyeIcon,
@@ -19,144 +30,49 @@ import {
 const EscrowManagement = () => {
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
+  const { 
+    transactions, 
+    loading, 
+    error, 
+    pagination, 
+    statistics, 
+    selectedTransaction,
+    filters: reduxFilters 
+  } = useSelector((state) => state.escrow);
 
-  // State management
-  const [transactions, setTransactions] = useState([]);
-  const [loading, setLoading] = useState(false);
+  // Local state management
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTab, setSelectedTab] = useState('all');
   const [selectedTransactions, setSelectedTransactions] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState('');
-  const [selectedTransaction, setSelectedTransaction] = useState(null);
-  const [filters, setFilters] = useState({
+  const [filters, setLocalFilters] = useState({
     status: '',
     amountRange: '',
     dateRange: '',
     disputeStatus: ''
   });
 
-  // Mock data - replace with actual API calls
-  const mockTransactions = [
-    {
-      id: 'esc_001',
-      orderId: 'ord_12345',
-      buyerId: 'user_001',
-      buyerName: 'John Doe',
-      buyerEmail: 'john@example.com',
-      sellerId: 'seller_001',
-      sellerName: 'Tech Store',
-      sellerEmail: 'tech@store.com',
-      amount: 299.99,
-      currency: 'USD',
-      status: 'held',
-      disputeStatus: null,
-      productName: 'Wireless Headphones',
-      createdAt: '2024-01-15T10:30:00Z',
-      updatedAt: '2024-01-15T10:30:00Z',
-      releaseDate: '2024-01-22T10:30:00Z',
-      autoReleaseEnabled: true,
-      notes: 'Standard escrow for electronics purchase',
-      paymentMethod: 'Credit Card',
-      transactionFee: 8.99
-    },
-    {
-      id: 'esc_002',
-      orderId: 'ord_12346',
-      buyerId: 'user_002',
-      buyerName: 'Jane Smith',
-      buyerEmail: 'jane@example.com',
-      sellerId: 'seller_002',
-      sellerName: 'Fashion Hub',
-      sellerEmail: 'fashion@hub.com',
-      amount: 149.50,
-      currency: 'USD',
-      status: 'disputed',
-      disputeStatus: 'pending_review',
-      disputeReason: 'Item not as described',
-      disputeCreatedAt: '2024-01-14T16:20:00Z',
-      productName: 'Designer Handbag',
-      createdAt: '2024-01-10T14:20:00Z',
-      updatedAt: '2024-01-14T16:20:00Z',
-      releaseDate: '2024-01-17T14:20:00Z',
-      autoReleaseEnabled: false,
-      notes: 'Dispute raised by buyer regarding product quality',
-      paymentMethod: 'PayPal',
-      transactionFee: 4.49
-    },
-    {
-      id: 'esc_003',
-      orderId: 'ord_12347',
-      buyerId: 'user_003',
-      buyerName: 'Mike Johnson',
-      buyerEmail: 'mike@example.com',
-      sellerId: 'seller_003',
-      sellerName: 'Home Essentials',
-      sellerEmail: 'home@essentials.com',
-      amount: 89.99,
-      currency: 'USD',
-      status: 'released',
-      disputeStatus: null,
-      productName: 'Kitchen Appliance Set',
-      createdAt: '2024-01-08T09:15:00Z',
-      updatedAt: '2024-01-15T09:15:00Z',
-      releaseDate: '2024-01-15T09:15:00Z',
-      releasedAt: '2024-01-15T09:15:00Z',
-      autoReleaseEnabled: true,
-      notes: 'Successfully completed transaction',
-      paymentMethod: 'Bank Transfer',
-      transactionFee: 2.70
-    },
-    {
-      id: 'esc_004',
-      orderId: 'ord_12348',
-      buyerId: 'user_004',
-      buyerName: 'Sarah Wilson',
-      buyerEmail: 'sarah@example.com',
-      sellerId: 'seller_004',
-      sellerName: 'Book Corner',
-      sellerEmail: 'books@corner.com',
-      amount: 45.00,
-      currency: 'USD',
-      status: 'refunded',
-      disputeStatus: 'resolved_refund',
-      disputeReason: 'Item damaged during shipping',
-      disputeCreatedAt: '2024-01-12T11:30:00Z',
-      disputeResolvedAt: '2024-01-14T15:45:00Z',
-      productName: 'Educational Books Set',
-      createdAt: '2024-01-05T11:30:00Z',
-      updatedAt: '2024-01-14T15:45:00Z',
-      releaseDate: '2024-01-12T11:30:00Z',
-      refundedAt: '2024-01-14T15:45:00Z',
-      autoReleaseEnabled: true,
-      notes: 'Refunded due to shipping damage',
-      paymentMethod: 'Credit Card',
-      transactionFee: 1.35
-    }
-  ];
-
   useEffect(() => {
-    fetchTransactions();
-  }, [selectedTab, filters]);
+    const fetchData = () => {
+      dispatch(fetchEscrowTransactions({ 
+        page: pagination?.currentPage || 1, 
+        limit: pagination?.itemsPerPage || 20,
+        search: searchTerm,
+        status: selectedTab !== 'all' ? selectedTab : filters.status,
+        dateRange: filters.dateRange,
+        amountRange: filters.amountRange,
+        disputeStatus: filters.disputeStatus
+      }));
+    };
 
-  const fetchTransactions = async () => {
-    setLoading(true);
-    try {
-      // Simulate API call
-      setTimeout(() => {
-        setTransactions(mockTransactions);
-        setLoading(false);
-      }, 1000);
-    } catch (error) {
-      console.error('Error fetching transactions:', error);
-      setLoading(false);
-    }
-  };
+    fetchData();
+    dispatch(fetchEscrowStatistics());
+  }, [dispatch, selectedTab, filters, searchTerm, pagination?.currentPage]);
 
   const handleSearch = (e) => {
     setSearchTerm(e.target.value);
   };
-
   const handleTabChange = (tab) => {
     setSelectedTab(tab);
     setSelectedTransactions([]);
@@ -174,39 +90,83 @@ const EscrowManagement = () => {
     if (selectedTransactions.length === filteredTransactions.length) {
       setSelectedTransactions([]);
     } else {
-      setSelectedTransactions(filteredTransactions.map(transaction => transaction.id));
+      setSelectedTransactions(filteredTransactions.map(transaction => transaction._id || transaction.id));
     }
   };
 
-  const handleBulkAction = (action) => {
-    console.log(`Bulk ${action} for transactions:`, selectedTransactions);
-    // Implement bulk actions
-    setSelectedTransactions([]);
+  const handleBulkAction = async (action) => {
+    try {
+      await dispatch(bulkUpdateEscrow({ 
+        transactionIds: selectedTransactions, 
+        action 
+      })).unwrap();
+      
+      // Refresh transactions after bulk action
+      dispatch(fetchEscrowTransactions({ 
+        page: pagination.currentPage, 
+        limit: pagination.itemsPerPage,
+        search: searchTerm,
+        status: selectedTab !== 'all' ? selectedTab : filters.status,
+        dateRange: filters.dateRange
+      }));
+      
+      setSelectedTransactions([]);
+    } catch (error) {
+      console.error(`Error performing bulk ${action}:`, error);
+    }
   };
 
-  const handleTransactionAction = (action, transactionId) => {
-    console.log(`${action} transaction:`, transactionId);
-    // Implement individual transaction actions
+  const handleTransactionAction = async (action, transactionId) => {
+    try {
+      switch (action) {
+        case 'release':
+          await dispatch(releaseEscrowFunds({ escrowId: transactionId })).unwrap();
+          break;
+        case 'refund':
+          await dispatch(refundEscrowFunds({ escrowId: transactionId })).unwrap();
+          break;
+        case 'update_status':
+          await dispatch(updateEscrowStatus({ 
+            escrowId: transactionId, 
+            status: 'processing' 
+          })).unwrap();
+          break;
+        default:
+          console.log(`${action} transaction:`, transactionId);
+      }
+      
+      // Refresh transactions after action
+      dispatch(fetchEscrowTransactions({ 
+        page: pagination.currentPage, 
+        limit: pagination.itemsPerPage,
+        search: searchTerm,
+        status: selectedTab !== 'all' ? selectedTab : filters.status,
+        dateRange: filters.dateRange
+      }));
+    } catch (error) {
+      console.error(`Error performing ${action} on transaction:`, error);
+    }
   };
 
   const openModal = (type, transaction = null) => {
     setModalType(type);
-    setSelectedTransaction(transaction);
+    if (transaction && type === 'view') {
+      dispatch(fetchEscrowById(transaction._id || transaction.id));
+    }
     setShowModal(true);
   };
 
   const closeModal = () => {
     setShowModal(false);
     setModalType('');
-    setSelectedTransaction(null);
   };
 
   // Filter transactions based on search and filters
-  const filteredTransactions = transactions.filter(transaction => {
-    const matchesSearch = transaction.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         transaction.buyerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         transaction.sellerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         transaction.productName.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredTransactions = (transactions || []).filter(transaction => {
+    const matchesSearch = (transaction.orderId || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (transaction.buyerName || transaction.buyer?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (transaction.sellerName || transaction.sellers?.[0]?.seller?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (transaction.productName || transaction.order?.items?.[0]?.product?.name || '').toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesTab = selectedTab === 'all' || 
                       (selectedTab === 'held' && transaction.status === 'held') ||
@@ -221,11 +181,11 @@ const EscrowManagement = () => {
   });
 
   const tabs = [
-    { id: 'all', name: 'All Transactions', count: transactions.length },
-    { id: 'held', name: 'Held', count: transactions.filter(t => t.status === 'held').length },
-    { id: 'disputed', name: 'Disputed', count: transactions.filter(t => t.status === 'disputed').length },
-    { id: 'released', name: 'Released', count: transactions.filter(t => t.status === 'released').length },
-    { id: 'refunded', name: 'Refunded', count: transactions.filter(t => t.status === 'refunded').length }
+    { id: 'all', name: 'All Transactions', count: (transactions || []).length },
+    { id: 'held', name: 'Held', count: (transactions || []).filter(t => t.status === 'held').length },
+    { id: 'disputed', name: 'Disputed', count: (transactions || []).filter(t => t.status === 'disputed').length },
+    { id: 'released', name: 'Released', count: (transactions || []).filter(t => t.status === 'released').length },
+    { id: 'refunded', name: 'Refunded', count: (transactions || []).filter(t => t.status === 'refunded').length }
   ];
 
   const getStatusBadge = (status) => {
@@ -274,15 +234,21 @@ const EscrowManagement = () => {
   };
 
   const calculateTotalHeld = () => {
-    return transactions
+    if (statistics?.totalHeld !== undefined) {
+      return statistics.totalHeld;
+    }
+    return (transactions || [])
       .filter(t => t.status === 'held')
-      .reduce((total, t) => total + t.amount, 0);
+      .reduce((total, t) => total + (t.amount || 0), 0);
   };
 
   const calculateTotalDisputed = () => {
-    return transactions
+    if (statistics?.totalDisputed !== undefined) {
+      return statistics.totalDisputed;
+    }
+    return (transactions || [])
       .filter(t => t.status === 'disputed')
-      .reduce((total, t) => total + t.amount, 0);
+      .reduce((total, t) => total + (t.amount || 0), 0);
   };
 
   return (
@@ -308,7 +274,9 @@ const EscrowManagement = () => {
               <div className="ml-5 w-0 flex-1">
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Total Transactions</dt>
-                  <dd className="text-lg font-medium text-gray-900">{transactions.length}</dd>
+                  <dd className="text-lg font-medium text-gray-900">
+                    {statistics?.totalTransactions || (transactions || []).length}
+                  </dd>
                 </dl>
               </div>
             </div>
@@ -361,7 +329,10 @@ const EscrowManagement = () => {
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Total Fees</dt>
                   <dd className="text-lg font-medium text-gray-900">
-                    {formatCurrency(transactions.reduce((total, t) => total + t.transactionFee, 0))}
+                    {formatCurrency(
+                      statistics?.totalFees || 
+                      (transactions || []).reduce((total, t) => total + (t.transactionFee || 0), 0)
+                    )}
                   </dd>
                 </dl>
               </div>

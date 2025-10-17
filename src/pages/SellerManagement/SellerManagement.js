@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
+  fetchSellers,
+  fetchSellerById,
+  updateSellerStatus,
+  verifySellerBusiness,
+  bulkUpdateSellers,
+  fetchSellerStatistics,
+  exportSellers
+} from '../../store/slices/sellerSlice';
+import {
   PlusIcon,
   PencilIcon,
   TrashIcon,
@@ -20,13 +29,17 @@ import {
 
 const SellerManagement = () => {
   const dispatch = useDispatch();
-  const [sellers, setSellers] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const { 
+    sellers, 
+    loading, 
+    error, 
+    pagination, 
+    selectedSeller,
+    sellerStatistics 
+  } = useSelector((state) => state.sellers);
   
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState('view');
-  const [selectedSeller, setSelectedSeller] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [verificationFilter, setVerificationFilter] = useState('');
@@ -34,99 +47,63 @@ const SellerManagement = () => {
   
   const [showDocumentModal, setShowDocumentModal] = useState(false);
   const [selectedDocuments, setSelectedDocuments] = useState([]);
+  const [dateRange, setDateRange] = useState({ start: '', end: '' });
 
-  // Mock data - replace with actual API calls
+  // Load sellers and statistics on component mount
   useEffect(() => {
-    fetchSellers();
-  }, []);
+    const fetchData = () => {
+      dispatch(fetchSellers({
+        page: pagination?.currentPage || 1,
+        limit: pagination?.itemsPerPage || 20,
+        search: searchTerm,
+        status: statusFilter,
+        verified: verificationFilter
+      }));
+    };
 
-  const fetchSellers = async () => {
-    setLoading(true);
+    fetchData();
+    dispatch(fetchSellerStatistics());
+  }, [dispatch, searchTerm, statusFilter, verificationFilter, pagination?.currentPage]);
+
+  const handleStatusChange = async (sellerId, newStatus, reason = '') => {
     try {
-      // Replace with actual API call
-      const mockSellers = [
-        {
-          id: 1,
-          businessName: 'Tech Solutions Inc.',
-          ownerName: 'John Smith',
-          email: 'john@techsolutions.com',
-          phone: '+1234567890',
-          address: '123 Business St, City, State 12345',
-          status: 'active',
-          verificationStatus: 'verified',
-          businessType: 'Corporation',
-          taxId: 'TAX123456789',
-          totalProducts: 45,
-          totalOrders: 234,
-          totalRevenue: 45678.90,
-          rating: 4.8,
-          joinedDate: '2024-01-15',
-          lastActive: '2024-01-20',
-          documents: [
-            { type: 'Business License', status: 'approved', uploadedAt: '2024-01-15' },
-            { type: 'Tax Certificate', status: 'approved', uploadedAt: '2024-01-15' }
-          ]
-        },
-        {
-          id: 2,
-          businessName: 'Sports Equipment Ltd.',
-          ownerName: 'Sarah Johnson',
-          email: 'sarah@sportsequip.com',
-          phone: '+1234567891',
-          address: '456 Commerce Ave, City, State 12345',
-          status: 'pending',
-          verificationStatus: 'pending',
-          businessType: 'LLC',
-          taxId: 'TAX987654321',
-          totalProducts: 12,
-          totalOrders: 45,
-          totalRevenue: 8900.50,
-          rating: 4.2,
-          joinedDate: '2024-01-18',
-          lastActive: '2024-01-19',
-          documents: [
-            { type: 'Business License', status: 'pending', uploadedAt: '2024-01-18' },
-            { type: 'Tax Certificate', status: 'under_review', uploadedAt: '2024-01-18' }
-          ]
-        }
-      ];
-      setSellers(mockSellers);
+      await dispatch(updateSellerStatus({ 
+        sellerId, 
+        status: newStatus, 
+        reason: reason || `Status changed to ${newStatus}` 
+      }));
+      // Refresh sellers list
+      dispatch(fetchSellers({ 
+        page: pagination?.currentPage || 1, 
+        limit: pagination?.itemsPerPage || 20,
+        search: searchTerm,
+        status: statusFilter,
+        verificationStatus: verificationFilter,
+        dateRange: dateRange.start && dateRange.end ? dateRange : undefined
+      }));
     } catch (err) {
-      setError('Failed to fetch sellers');
-    } finally {
-      setLoading(false);
+      console.error('Failed to update seller status:', err);
     }
   };
 
-  const handleStatusChange = async (sellerId, newStatus) => {
+  const handleVerificationChange = async (sellerId, verified, reason = '') => {
     try {
-      // API call to update seller status
-      console.log('Updating seller status:', sellerId, newStatus);
-      fetchSellers();
+      await dispatch(verifySellerBusiness({ 
+        sellerId, 
+        verified, 
+        reason: reason || `Verification ${verified ? 'approved' : 'rejected'}` 
+      }));
+      // Refresh sellers list
+      dispatch(fetchSellers({ 
+        page: pagination?.currentPage || 1, 
+        limit: pagination?.itemsPerPage || 20,
+        search: searchTerm,
+        status: statusFilter,
+        verificationStatus: verificationFilter,
+        dateRange: dateRange.start && dateRange.end ? dateRange : undefined
+      }));
     } catch (err) {
-      setError('Failed to update seller status');
-    }
-  };
-
-  const handleVerificationChange = async (sellerId, newStatus) => {
-    try {
-      // API call to update verification status
-      console.log('Updating verification status:', sellerId, newStatus);
-      fetchSellers();
-    } catch (err) {
-      setError('Failed to update verification status');
-    }
-  };
-
-  const handleDelete = async (sellerId) => {
-    if (window.confirm('Are you sure you want to delete this seller? This action cannot be undone.')) {
-      try {
-        // Delete seller API call
-        console.log('Deleting seller:', sellerId);
-        fetchSellers();
-      } catch (err) {
-        setError('Failed to delete seller');
-      }
+      console.error('Failed to update verification status:', err);
     }
   };
 
@@ -135,32 +112,82 @@ const SellerManagement = () => {
     
     if (window.confirm(`Are you sure you want to ${action} ${selectedSellers.length} sellers?`)) {
       try {
-        // Bulk action API call
-        console.log(`Bulk ${action}:`, selectedSellers);
+        await dispatch(bulkUpdateSellers({
+          sellerIds: selectedSellers,
+          action,
+          data: { reason: `Bulk ${action} by admin` }
+        }));
         setSelectedSellers([]);
-        fetchSellers();
+        // Refresh sellers list
+        dispatch(fetchSellers({ 
+          page: pagination?.currentPage || 1, 
+          limit: pagination?.itemsPerPage || 20,
+          search: searchTerm,
+          status: statusFilter,
+          verificationStatus: verificationFilter,
+          dateRange: dateRange.start && dateRange.end ? dateRange : undefined
+        }));
       } catch (err) {
-        setError(`Failed to ${action} sellers`);
+        console.error(`Failed to ${action} sellers:`, err);
       }
+    }
+  };
+
+  const handleExport = async (format = 'csv') => {
+    try {
+      await dispatch(exportSellers({
+        format,
+        filters: {
+          search: searchTerm,
+          status: statusFilter,
+          verified: verificationFilter
+        }
+      }));
+    } catch (err) {
+      console.error('Failed to export sellers:', err);
     }
   };
 
   const openModal = (mode, seller = null) => {
     setModalMode(mode);
-    setSelectedSeller(seller);
+    if (seller) {
+      dispatch(fetchSellerById(seller._id || seller.id));
+    }
     setShowModal(true);
   };
 
+  const handleDelete = async (sellerId) => {
+    if (window.confirm('Are you sure you want to delete this seller? This action cannot be undone.')) {
+      try {
+        await dispatch(bulkUpdateSellers({
+          sellerIds: [sellerId],
+          action: 'delete',
+          data: { reason: 'Deleted by admin' }
+        }));
+        // Refresh sellers list
+        dispatch(fetchSellers({ 
+          page: pagination?.currentPage || 1, 
+          limit: pagination?.itemsPerPage || 20,
+          search: searchTerm,
+          status: statusFilter,
+          verificationStatus: verificationFilter,
+          dateRange: dateRange.start && dateRange.end ? dateRange : undefined
+        }));
+      } catch (err) {
+        console.error('Failed to delete seller:', err);
+      }
+    }
+  };
+
   const openDocumentModal = (seller) => {
-    setSelectedSeller(seller);
-    setSelectedDocuments(seller.documents);
+    setSelectedDocuments(seller.documents || []);
     setShowDocumentModal(true);
   };
 
   const filteredSellers = sellers.filter(seller => {
-    const matchesSearch = seller.businessName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         seller.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         seller.email.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = seller.businessName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         seller.ownerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         seller.email?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = !statusFilter || seller.status === statusFilter;
     const matchesVerification = !verificationFilter || seller.verificationStatus === verificationFilter;
     
@@ -223,7 +250,9 @@ const SellerManagement = () => {
             <div className="ml-5 w-0 flex-1">
               <dl>
                 <dt className="text-sm font-medium text-gray-500 truncate">Total Sellers</dt>
-                <dd className="text-lg font-medium text-gray-900">{sellers.length}</dd>
+                <dd className="text-lg font-medium text-gray-900">
+                  {sellerStatistics?.totalSellers || sellers.length}
+                </dd>
               </dl>
             </div>
           </div>
@@ -238,7 +267,7 @@ const SellerManagement = () => {
               <dl>
                 <dt className="text-sm font-medium text-gray-500 truncate">Verified Sellers</dt>
                 <dd className="text-lg font-medium text-gray-900">
-                  {sellers.filter(s => s.verificationStatus === 'verified').length}
+                  {sellerStatistics?.verifiedSellers || sellers.filter(s => s.verificationStatus === 'verified').length}
                 </dd>
               </dl>
             </div>
@@ -254,7 +283,7 @@ const SellerManagement = () => {
               <dl>
                 <dt className="text-sm font-medium text-gray-500 truncate">Pending Verification</dt>
                 <dd className="text-lg font-medium text-gray-900">
-                  {sellers.filter(s => s.verificationStatus === 'pending').length}
+                  {sellerStatistics?.pendingVerification || sellers.filter(s => s.verificationStatus === 'pending').length}
                 </dd>
               </dl>
             </div>
@@ -270,7 +299,7 @@ const SellerManagement = () => {
               <dl>
                 <dt className="text-sm font-medium text-gray-500 truncate">Total Revenue</dt>
                 <dd className="text-lg font-medium text-gray-900">
-                  ${sellers.reduce((sum, s) => sum + s.totalRevenue, 0).toLocaleString()}
+                  ${(sellerStatistics?.totalRevenue || sellers.reduce((sum, s) => sum + (s.totalRevenue || 0), 0)).toLocaleString()}
                 </dd>
               </dl>
             </div>
@@ -327,7 +356,10 @@ const SellerManagement = () => {
         </div>
 
         <div className="flex gap-2">
-          <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2">
+          <button 
+            onClick={() => handleExport('csv')}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
+          >
             <DocumentArrowDownIcon className="w-5 h-5" />
             Export
           </button>
@@ -376,7 +408,7 @@ const SellerManagement = () => {
                     type="checkbox"
                     onChange={(e) => {
                       if (e.target.checked) {
-                        setSelectedSellers(filteredSellers.map(s => s.id));
+                        setSelectedSellers(filteredSellers.map(s => s._id || s.id));
                       } else {
                         setSelectedSellers([]);
                       }
@@ -425,16 +457,17 @@ const SellerManagement = () => {
                 </tr>
               ) : (
                 filteredSellers.map((seller) => (
-                  <tr key={seller.id} className="hover:bg-gray-50">
+                  <tr key={seller._id || seller.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
                       <input
                         type="checkbox"
-                        checked={selectedSellers.includes(seller.id)}
+                        checked={selectedSellers.includes(seller._id || seller.id)}
                         onChange={(e) => {
+                          const sellerId = seller._id || seller.id;
                           if (e.target.checked) {
-                            setSelectedSellers([...selectedSellers, seller.id]);
+                            setSelectedSellers([...selectedSellers, sellerId]);
                           } else {
-                            setSelectedSellers(selectedSellers.filter(id => id !== seller.id));
+                            setSelectedSellers(selectedSellers.filter(id => id !== sellerId));
                           }
                         }}
                         className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -464,10 +497,10 @@ const SellerManagement = () => {
                       {getVerificationBadge(seller.verificationStatus)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {seller.totalProducts}
+                      {seller.totalProducts || 0}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      ${seller.totalRevenue.toLocaleString()}
+                      ${(seller.totalRevenue || 0).toLocaleString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex space-x-2">
@@ -493,7 +526,7 @@ const SellerManagement = () => {
                           <PencilIcon className="w-5 h-5" />
                         </button>
                         <button
-                          onClick={() => handleDelete(seller.id)}
+                          onClick={() => handleDelete(seller._id || seller.id)}
                           className="text-red-600 hover:text-red-900"
                           title="Delete"
                         >

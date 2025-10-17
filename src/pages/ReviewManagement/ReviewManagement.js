@@ -14,103 +14,51 @@ import {
   CalendarIcon,
   FlagIcon
 } from '@heroicons/react/24/outline';
+import {
+  fetchReviews,
+  fetchReviewById,
+  updateReviewStatus,
+  deleteReview,
+  bulkUpdateReviews,
+  fetchReviewReports
+} from '../../store/slices/reviewSlice';
 
 const ReviewManagement = () => {
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
+  const { 
+    reviews, 
+    loading, 
+    error, 
+    pagination, 
+    selectedReview,
+    reviewReports 
+  } = useSelector((state) => state.reviews);
 
-  // State management
-  const [reviews, setReviews] = useState([]);
-  const [loading, setLoading] = useState(false);
+  // Local state management
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTab, setSelectedTab] = useState('all');
   const [selectedReviews, setSelectedReviews] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState('');
-  const [selectedReview, setSelectedReview] = useState(null);
+  const [selectedReviewLocal, setSelectedReview] = useState(null);
   const [filters, setFilters] = useState({
     rating: '',
     status: '',
     reported: false,
-    dateRange: ''
   });
 
-  // Mock data - replace with actual API calls
-  const mockReviews = [
-    {
-      id: 1,
-      productId: 'prod_001',
-      productName: 'Wireless Headphones',
-      userId: 'user_001',
-      userName: 'John Doe',
-      userEmail: 'john@example.com',
-      rating: 5,
-      title: 'Excellent sound quality!',
-      comment: 'These headphones exceeded my expectations. The sound quality is crystal clear and the battery life is amazing.',
-      status: 'approved',
-      reported: false,
-      reportCount: 0,
-      createdAt: '2024-01-15T10:30:00Z',
-      updatedAt: '2024-01-15T10:30:00Z',
-      helpful: 12,
-      notHelpful: 1
-    },
-    {
-      id: 2,
-      productId: 'prod_002',
-      productName: 'Gaming Mouse',
-      userId: 'user_002',
-      userName: 'Jane Smith',
-      userEmail: 'jane@example.com',
-      rating: 2,
-      title: 'Not as advertised',
-      comment: 'The mouse feels cheap and the buttons are not responsive. Very disappointed with this purchase.',
-      status: 'pending',
-      reported: true,
-      reportCount: 3,
-      reportReasons: ['Inappropriate content', 'Fake review'],
-      createdAt: '2024-01-14T15:45:00Z',
-      updatedAt: '2024-01-14T15:45:00Z',
-      helpful: 2,
-      notHelpful: 8
-    },
-    {
-      id: 3,
-      productId: 'prod_003',
-      productName: 'Smartphone Case',
-      userId: 'user_003',
-      userName: 'Mike Johnson',
-      userEmail: 'mike@example.com',
-      rating: 4,
-      title: 'Good protection',
-      comment: 'Solid case that provides good protection. The design is nice but could be better.',
-      status: 'approved',
-      reported: false,
-      reportCount: 0,
-      createdAt: '2024-01-13T09:20:00Z',
-      updatedAt: '2024-01-13T09:20:00Z',
-      helpful: 8,
-      notHelpful: 2
-    }
-  ];
-
   useEffect(() => {
-    fetchReviews();
-  }, [selectedTab, filters]);
+    const params = {
+      page: pagination?.currentPage || 1,
+      limit: 10,
+      search: searchTerm,
+      status: selectedTab !== 'all' ? selectedTab : '',
+      rating: filters.rating,
+    };
 
-  const fetchReviews = async () => {
-    setLoading(true);
-    try {
-      // Simulate API call
-      setTimeout(() => {
-        setReviews(mockReviews);
-        setLoading(false);
-      }, 1000);
-    } catch (error) {
-      console.error('Error fetching reviews:', error);
-      setLoading(false);
-    }
-  };
+    dispatch(fetchReviews(params));
+  }, [dispatch, selectedTab, filters, searchTerm, pagination?.currentPage]);
 
   const handleSearch = (e) => {
     setSearchTerm(e.target.value);
@@ -130,27 +78,75 @@ const ReviewManagement = () => {
   };
 
   const handleSelectAll = () => {
-    if (selectedReviews.length === filteredReviews.length) {
+    const reviewIds = reviews?.map(review => review._id || review.id) || [];
+    if (selectedReviews.length === reviewIds.length) {
       setSelectedReviews([]);
     } else {
-      setSelectedReviews(filteredReviews.map(review => review.id));
+      setSelectedReviews(reviewIds);
     }
   };
 
-  const handleBulkAction = (action) => {
-    console.log(`Bulk ${action} for reviews:`, selectedReviews);
-    // Implement bulk actions
-    setSelectedReviews([]);
+  const handleBulkAction = async (action) => {
+    if (selectedReviews.length === 0) return;
+
+    try {
+      await dispatch(bulkUpdateReviews({
+        reviewIds: selectedReviews,
+        action,
+        data: { status: action === 'approve' ? 'approved' : 'rejected' }
+      })).unwrap();
+      
+      setSelectedReviews([]);
+      
+      // Refresh reviews
+      const params = {
+        page: pagination?.currentPage || 1,
+        limit: 10,
+        search: searchTerm,
+        status: selectedTab !== 'all' ? selectedTab : '',
+        rating: filters.rating,
+      };
+      dispatch(fetchReviews(params));
+    } catch (error) {
+      console.error(`Error performing bulk ${action}:`, error);
+    }
   };
 
-  const handleReviewAction = (action, reviewId) => {
-    console.log(`${action} review:`, reviewId);
-    // Implement individual review actions
+  const handleReviewAction = async (action, reviewId) => {
+    try {
+      if (action === 'delete') {
+        await dispatch(deleteReview({ reviewId, reason: 'Admin action' })).unwrap();
+      } else {
+        await dispatch(updateReviewStatus({
+          reviewId,
+          status: action === 'approve' ? 'approved' : 'rejected',
+          reason: 'Admin action'
+        })).unwrap();
+      }
+      
+      // Refresh reviews
+      const params = {
+        page: pagination?.currentPage || 1,
+        limit: 10,
+        search: searchTerm,
+        status: selectedTab !== 'all' ? selectedTab : '',
+        rating: filters.rating,
+      };
+      dispatch(fetchReviews(params));
+    } catch (error) {
+      console.error(`Error performing ${action} on review:`, error);
+    }
   };
 
-  const openModal = (type, review = null) => {
+  const openModal = async (type, review = null) => {
     setModalType(type);
-    setSelectedReview(review);
+    if (review && type === 'view') {
+      try {
+        await dispatch(fetchReviewById(review._id || review.id));
+      } catch (error) {
+        console.error('Error fetching review details:', error);
+      }
+    }
     setShowModal(true);
   };
 
@@ -161,10 +157,14 @@ const ReviewManagement = () => {
   };
 
   // Filter reviews based on search and filters
-  const filteredReviews = reviews.filter(review => {
-    const matchesSearch = review.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         review.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         review.comment.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredReviews = (reviews || []).filter(review => {
+    const productName = review.product?.name || review.productName || '';
+    const userName = review.user?.name || review.userName || '';
+    const comment = review.comment || '';
+    
+    const matchesSearch = productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         comment.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesTab = selectedTab === 'all' || 
                       (selectedTab === 'pending' && review.status === 'pending') ||
@@ -172,7 +172,7 @@ const ReviewManagement = () => {
                       (selectedTab === 'rejected' && review.status === 'rejected') ||
                       (selectedTab === 'reported' && review.reported);
     
-    const matchesRating = !filters.rating || review.rating.toString() === filters.rating;
+    const matchesRating = !filters.rating || review.rating?.toString() === filters.rating;
     const matchesStatus = !filters.status || review.status === filters.status;
     const matchesReported = !filters.reported || review.reported;
 
@@ -180,11 +180,11 @@ const ReviewManagement = () => {
   });
 
   const tabs = [
-    { id: 'all', name: 'All Reviews', count: reviews.length },
-    { id: 'pending', name: 'Pending', count: reviews.filter(r => r.status === 'pending').length },
-    { id: 'approved', name: 'Approved', count: reviews.filter(r => r.status === 'approved').length },
-    { id: 'rejected', name: 'Rejected', count: reviews.filter(r => r.status === 'rejected').length },
-    { id: 'reported', name: 'Reported', count: reviews.filter(r => r.reported).length }
+    { id: 'all', name: 'All Reviews', count: reviews?.length || 0 },
+    { id: 'pending', name: 'Pending', count: reviews?.filter(r => r.status === 'pending').length || 0 },
+    { id: 'approved', name: 'Approved', count: reviews?.filter(r => r.status === 'approved').length || 0 },
+    { id: 'rejected', name: 'Rejected', count: reviews?.filter(r => r.status === 'rejected').length || 0 },
+    { id: 'reported', name: 'Reported', count: reviews?.filter(r => r.reported).length || 0 }
   ];
 
   const renderStars = (rating) => {
@@ -290,7 +290,10 @@ const ReviewManagement = () => {
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Avg Rating</dt>
                   <dd className="text-lg font-medium text-gray-900">
-                    {reviews.length > 0 ? (reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1) : '0.0'}
+                    {reviews.length > 0 ? 
+                      (reviews.reduce((acc, r) => acc + (r.rating || 0), 0) / reviews.length).toFixed(1) : 
+                      '0.0'
+                    }
                   </dd>
                 </dl>
               </div>
@@ -423,49 +426,51 @@ const ReviewManagement = () => {
         ) : (
           <ul className="divide-y divide-gray-200">
             {filteredReviews.map((review) => (
-              <li key={review.id} className="px-4 py-4 sm:px-6">
+              <li key={review._id || review.id} className="px-4 py-4 sm:px-6">
                 <div className="flex items-start space-x-4">
                   <input
                     type="checkbox"
-                    checked={selectedReviews.includes(review.id)}
-                    onChange={() => handleSelectReview(review.id)}
+                    checked={selectedReviews.includes(review._id || review.id)}
+                    onChange={() => handleSelectReview(review._id || review.id)}
                     className="mt-1 h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
                   />
                   
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
-                        <h4 className="text-sm font-medium text-gray-900">{review.productName}</h4>
+                        <h4 className="text-sm font-medium text-gray-900">
+                          {review.product?.name || review.productName || 'Unknown Product'}
+                        </h4>
                         {getStatusBadge(review.status)}
                         {review.reported && (
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
                             <FlagIcon className="h-3 w-3 mr-1" />
-                            Reported ({review.reportCount})
+                            Reported ({review.reportCount || 0})
                           </span>
                         )}
                       </div>
                       <div className="flex items-center space-x-2">
-                        {renderStars(review.rating)}
-                        <span className="text-sm text-gray-500">({review.rating})</span>
+                        {renderStars(review.rating || 0)}
+                        <span className="text-sm text-gray-500">({review.rating || 0})</span>
                       </div>
                     </div>
                     
                     <div className="mt-2">
-                      <p className="text-sm font-medium text-gray-900">{review.title}</p>
-                      <p className="text-sm text-gray-600 mt-1">{review.comment}</p>
+                      <p className="text-sm font-medium text-gray-900">{review.title || 'No Title'}</p>
+                      <p className="text-sm text-gray-600 mt-1">{review.comment || 'No comment'}</p>
                     </div>
                     
                     <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
                       <div className="flex items-center space-x-4">
                         <span className="flex items-center">
                           <UserIcon className="h-3 w-3 mr-1" />
-                          {review.userName}
+                          {review.user?.name || review.userName || 'Unknown User'}
                         </span>
                         <span className="flex items-center">
                           <CalendarIcon className="h-3 w-3 mr-1" />
                           {new Date(review.createdAt).toLocaleDateString()}
                         </span>
-                        <span>Helpful: {review.helpful} | Not Helpful: {review.notHelpful}</span>
+                        <span>Helpful: {review.helpful || 0} | Not Helpful: {review.notHelpful || 0}</span>
                       </div>
                     </div>
                   </div>
@@ -482,14 +487,14 @@ const ReviewManagement = () => {
                     {review.status === 'pending' && (
                       <>
                         <button
-                          onClick={() => handleReviewAction('approve', review.id)}
+                          onClick={() => handleReviewAction('approve', review._id || review.id)}
                           className="text-green-400 hover:text-green-600"
                           title="Approve Review"
                         >
                           <CheckCircleIcon className="h-5 w-5" />
                         </button>
                         <button
-                          onClick={() => handleReviewAction('reject', review.id)}
+                          onClick={() => handleReviewAction('reject', review._id || review.id)}
                           className="text-red-400 hover:text-red-600"
                           title="Reject Review"
                         >
@@ -499,7 +504,7 @@ const ReviewManagement = () => {
                     )}
                     
                     <button
-                      onClick={() => handleReviewAction('delete', review.id)}
+                      onClick={() => handleReviewAction('delete', review._id || review.id)}
                       className="text-red-400 hover:text-red-600"
                       title="Delete Review"
                     >

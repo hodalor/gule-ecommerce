@@ -1,41 +1,42 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import axios from 'axios';
+import api from '../../utils/api';
 
 // Async thunk for login
 export const loginAdmin = createAsyncThunk(
   'auth/loginAdmin',
   async ({ email, password }, { rejectWithValue }) => {
     try {
-      // Mock authentication for demo purposes
-      const mockCredentials = {
-        email: 'admin@gule.com',
-        password: 'admin123'
+      const response = await api.post('/auth/login', {
+        email,
+        password,
+        userType: 'admin'
+      });
+
+      const { user, accessToken } = response.data;
+      
+      // Store token in localStorage
+      localStorage.setItem('adminToken', accessToken);
+      
+      const userData = {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        name: `${user.firstName} ${user.lastName}`,
+        fullName: `${user.firstName} ${user.lastName}`,
+        role: user.role,
+        permissions: user.permissions || []
       };
       
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Store user data for auth persistence
+      localStorage.setItem('adminUser', JSON.stringify(userData));
       
-      if (email === mockCredentials.email && password === mockCredentials.password) {
-        const mockResponse = {
-           token: 'mock-admin-token-' + Date.now(),
-           user: {
-             id: 1,
-             email: 'admin@gule.com',
-             name: 'Admin User',
-             fullName: 'Super Admin',
-             role: 'Super Admin'
-           }
-         };
-        
-        // Store token in localStorage
-        localStorage.setItem('adminToken', mockResponse.token);
-        
-        return mockResponse;
-      } else {
-        throw new Error('Invalid credentials');
-      }
+      return {
+        token: accessToken,
+        user: userData
+      };
     } catch (error) {
-      return rejectWithValue(error.message || 'Login failed');
+      const message = error.response?.data?.message || error.message || 'Login failed';
+      return rejectWithValue(message);
     }
   }
 );
@@ -46,6 +47,7 @@ export const logoutAdmin = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       localStorage.removeItem('adminToken');
+      localStorage.removeItem('adminUser');
       return true;
     } catch (error) {
       return rejectWithValue('Logout failed');
@@ -63,19 +65,23 @@ export const checkAuthStatus = createAsyncThunk(
         throw new Error('No token found');
       }
       
-      // Mock user data for demo purposes
-      const mockUser = {
-        id: 1,
-        email: 'admin@gule.com',
-        name: 'Admin User',
-        fullName: 'Super Admin',
-        role: 'Super Admin'
-      };
+      // Get stored user data
+      const storedUser = JSON.parse(localStorage.getItem('adminUser') || '{}');
+      if (!storedUser.id) {
+        throw new Error('No user data found');
+      }
       
-      return mockUser;
+      // Ensure permissions array exists
+      if (!storedUser.permissions) {
+        storedUser.permissions = [];
+      }
+      
+      return storedUser;
     } catch (error) {
       localStorage.removeItem('adminToken');
-      return rejectWithValue('Authentication failed');
+      localStorage.removeItem('adminUser');
+      const message = error.response?.data?.message || 'Authentication failed';
+      return rejectWithValue(message);
     }
   }
 );

@@ -83,7 +83,7 @@ const PrivacySettings = () => {
     }
   };
 
-  const canManageSettings = user?.role === 'Super Admin' || user?.role === 'Admin';
+  const canManageSettings = user?.role === 'super_admin' || user?.role === 'admin';
 
   if (!canManageSettings) {
     return (

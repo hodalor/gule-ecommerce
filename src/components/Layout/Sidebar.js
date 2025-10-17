@@ -19,7 +19,8 @@ import {
   StarIcon,
   BuildingStorefrontIcon,
   ShoppingCartIcon,
-  BanknotesIcon
+  BanknotesIcon,
+  ServerIcon
 } from '@heroicons/react/24/outline';
 
 const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
@@ -141,6 +142,13 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
       roles: ['Super Admin', 'Admin']
     },
     { 
+      name: 'Server Logs', 
+      href: '/admin/server-logs', 
+      icon: ServerIcon, 
+      current: location.pathname.startsWith('/admin/server-logs'),
+      roles: ['Super Admin', 'Admin']
+    },
+    { 
       name: 'Settings', 
       href: '/admin/settings', 
       icon: CogIcon, 
@@ -150,7 +158,11 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
   ];
 
   const hasAccess = (item) => {
-    if (!item.roles) return true;
+    if (!item.roles || item.roles.length === 0) return true;
+    
+    // Super admin has access to everything
+    if (user?.role === 'super_admin') return true;
+    
     return item.roles.includes(user?.role);
   };
 

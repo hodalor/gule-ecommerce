@@ -69,8 +69,20 @@ const ComplaintsManagement = () => {
   ];
 
   useEffect(() => {
-    dispatch(fetchComplaints({ page: 1, limit: 20 }));
-  }, [dispatch]);
+    const fetchData = () => {
+      dispatch(fetchComplaints({ 
+        page: pagination?.currentPage || 1, 
+        limit: pagination?.itemsPerPage || 20,
+        search: searchTerm,
+        status: activeTab !== 'all' ? activeTab : statusFilter,
+        priority: priorityFilter,
+        category: categoryFilter,
+        dateRange: dateRange.start && dateRange.end ? dateRange : undefined
+      }));
+    };
+
+    fetchData();
+  }, [dispatch, activeTab, searchTerm, statusFilter, priorityFilter, categoryFilter, dateRange, pagination?.currentPage]);
 
   const handleViewComplaint = (complaint) => {
     setModalMode('view');
@@ -173,7 +185,7 @@ const ComplaintsManagement = () => {
     }
   };
 
-  const canManageComplaints = currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin' || currentUser?.role === 'Review Officer';
+  const canManageComplaints = currentUser?.role === 'super_admin' || currentUser?.role === 'admin' || currentUser?.role === 'customer_support';
 
   return (
     <div className="space-y-6">

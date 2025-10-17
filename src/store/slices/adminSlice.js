@@ -1,12 +1,24 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../utils/api';
 
+const ADMIN_API = '/admin/admins';
+
 // Async thunks for admin management
 export const fetchAdmins = createAsyncThunk(
-  'admin/fetchAdmins',
-  async (_, { rejectWithValue }) => {
+  'adminManagement/fetchAdmins',
+  async ({ page = 1, limit = 10, search = '', role = '', status = '', department = '' }, { rejectWithValue }) => {
     try {
-      const response = await api.get('/admin/admins');
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+      });
+      
+      if (search) params.append('search', search);
+      if (role) params.append('role', role);
+      if (status) params.append('status', status);
+      if (department) params.append('department', department);
+
+      const response = await api.get(`${ADMIN_API}?${params}`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch admins');
@@ -40,9 +52,9 @@ export const updateAdmin = createAsyncThunk(
 
 export const deleteAdmin = createAsyncThunk(
   'admin/deleteAdmin',
-  async (id, { rejectWithValue }) => {
+  async ({ id, reason }, { rejectWithValue }) => {
     try {
-      await api.delete(`/admin/admins/${id}`);
+      await api.delete(`/admin/admins/${id}`, { data: { reason } });
       return id;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to delete admin');

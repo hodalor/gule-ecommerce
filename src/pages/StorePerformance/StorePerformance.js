@@ -63,11 +63,21 @@ const StorePerformance = () => {
   const storeCategories = ['Electronics', 'Clothing', 'Home & Garden', 'Sports', 'Books', 'Beauty', 'Toys', 'Automotive', 'Other'];
 
   useEffect(() => {
-    dispatch(fetchStorePerformance({ 
-      dateRange: dateRange.start && dateRange.end ? dateRange : null 
-    }));
+    const fetchData = () => {
+      dispatch(fetchStorePerformance({ 
+        search: searchTerm,
+        category: categoryFilter,
+        performance: performanceFilter,
+        dateRange: dateRange.start && dateRange.end ? dateRange : null,
+        sortBy,
+        sortOrder
+      }));
+    };
+
+    fetchData();
     dispatch(fetchStoreAnalytics());
-  }, [dispatch, dateRange]);
+    dispatch(fetchTopPerformingStores());
+  }, [dispatch, searchTerm, categoryFilter, performanceFilter, dateRange, sortBy, sortOrder]);
 
   const handleViewStore = (store) => {
     setModalMode('view');
@@ -156,7 +166,7 @@ const StorePerformance = () => {
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
-  const canManageStores = currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin' || currentUser?.role === 'Store Manager';
+  const canManageStores = currentUser?.role === 'super_admin' || currentUser?.role === 'admin';
 
   return (
     <div className="space-y-6">
@@ -313,7 +323,7 @@ const StorePerformance = () => {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
                   outerRadius={80}
                   fill="#8884d8"
                   dataKey="value"
@@ -657,7 +667,7 @@ const StorePerformance = () => {
                           <label className="block text-sm font-medium text-gray-700">Average Rating</label>
                           <div className="flex items-center">
                             <StarIcon className="h-4 w-4 text-yellow-400 mr-1" />
-                            <span className="text-lg font-semibold text-gray-900">{selectedStore.averageRating?.toFixed(1)}</span>
+                            <span className="text-lg font-semibold text-gray-900">{(selectedStore.averageRating || 0).toFixed(1)}</span>
                             <span className="text-sm text-gray-500 ml-1">({selectedStore.totalReviews})</span>
                           </div>
                         </div>

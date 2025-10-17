@@ -135,7 +135,7 @@ const Settings = () => {
     }
   };
 
-  const canManageSettings = user?.role === 'Super Admin';
+  const canManageSettings = user?.role === 'super_admin' || user?.role === 'admin';
 
   if (!canManageSettings) {
     return (

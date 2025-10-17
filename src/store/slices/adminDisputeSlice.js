@@ -291,12 +291,15 @@ const adminDisputeSlice = createSlice({
       })
       .addCase(fetchDisputes.fulfilled, (state, action) => {
         state.loading.disputes = false;
-        state.disputes = action.payload.disputes || [];
-        state.pagination = {
-          currentPage: action.payload.currentPage || 1,
-          totalPages: action.payload.totalPages || 1,
-          totalItems: action.payload.totalItems || 0,
-          itemsPerPage: action.payload.itemsPerPage || 10
+        // Handle nested response structure from backend
+        const responseData = action.payload.data || action.payload;
+        state.disputes = Array.isArray(responseData.disputes) ? responseData.disputes : 
+                        Array.isArray(responseData) ? responseData : [];
+        state.pagination = responseData.pagination || {
+          currentPage: 1,
+          totalPages: 1,
+          totalItems: 0,
+          itemsPerPage: 10
         };
       })
       .addCase(fetchDisputes.rejected, (state, action) => {

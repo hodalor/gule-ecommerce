@@ -6,7 +6,7 @@ export const fetchRefunds = createAsyncThunk(
   'refunds/fetchRefunds',
   async (params, { rejectWithValue }) => {
     try {
-      const response = await axios.get('/api/admin/refunds', { params });
+      const response = await axios.get('/api/refunds', { params });
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch refunds');
@@ -18,7 +18,7 @@ export const processRefund = createAsyncThunk(
   'refunds/process',
   async ({ id, action, reason, amount }, { rejectWithValue }) => {
     try {
-      const response = await axios.post(`/api/admin/refunds/${id}/process`, {
+      const response = await axios.patch(`/api/refunds/${id}/process`, {
         action,
         reason,
         amount
@@ -34,7 +34,7 @@ export const approveRefund = createAsyncThunk(
   'refunds/approve',
   async ({ id, amount, reason }, { rejectWithValue }) => {
     try {
-      const response = await axios.post(`/api/admin/refunds/${id}/approve`, {
+      const response = await axios.patch(`/api/refunds/${id}/approve`, {
         amount,
         reason
       });
@@ -49,7 +49,7 @@ export const rejectRefund = createAsyncThunk(
   'refunds/reject',
   async ({ id, reason }, { rejectWithValue }) => {
     try {
-      const response = await axios.post(`/api/admin/refunds/${id}/reject`, {
+      const response = await axios.patch(`/api/refunds/${id}/reject`, {
         reason
       });
       return response.data;
@@ -63,7 +63,7 @@ export const escalateRefund = createAsyncThunk(
   'refunds/escalate',
   async ({ id, escalationReason, priority }, { rejectWithValue }) => {
     try {
-      const response = await axios.post(`/api/admin/refunds/${id}/escalate`, {
+      const response = await axios.patch(`/api/refunds/${id}/escalate`, {
         escalationReason,
         priority
       });
@@ -78,7 +78,7 @@ export const addRefundNote = createAsyncThunk(
   'refunds/addNote',
   async ({ id, note }, { rejectWithValue }) => {
     try {
-      const response = await axios.post(`/api/admin/refunds/${id}/notes`, {
+      const response = await axios.post(`/api/refunds/${id}/notes`, {
         note
       });
       return response.data;
@@ -92,7 +92,7 @@ export const bulkUpdateRefunds = createAsyncThunk(
   'refunds/bulkUpdate',
   async ({ refundIds, action, data }, { rejectWithValue }) => {
     try {
-      const response = await axios.post('/api/admin/refunds/bulk', {
+      const response = await axios.patch('/api/refunds/bulk', {
         refundIds,
         action,
         data
