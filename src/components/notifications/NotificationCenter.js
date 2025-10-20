@@ -22,6 +22,7 @@ import NotificationSettings from './NotificationSettings';
 const NotificationCenter = () => {
   const dispatch = useDispatch();
   
+  const { user } = useSelector((state) => state.auth);
   const unreadCount = useSelector(selectUnreadCount);
   const allNotifications = useSelector(selectNotifications);
   const { loading, error } = useSelector((state) => state.notifications);
@@ -59,17 +60,21 @@ const NotificationCenter = () => {
 
   // Fetch notifications on component mount
   useEffect(() => {
-    dispatch(fetchNotifications());
-  }, [dispatch]);
+    if (user?._id) {
+      dispatch(fetchNotifications(user._id));
+    }
+  }, [dispatch, user?._id]);
 
   // Auto-refresh notifications every 30 seconds
   useEffect(() => {
-    const interval = setInterval(() => {
-      dispatch(fetchNotifications());
-    }, 30000);
+    if (user?._id) {
+      const interval = setInterval(() => {
+        dispatch(fetchNotifications(user._id));
+      }, 30000);
 
-    return () => clearInterval(interval);
-  }, [dispatch]);
+      return () => clearInterval(interval);
+    }
+  }, [dispatch, user?._id]);
 
   const handleToggleDropdown = () => {
     setIsOpen(!isOpen);
@@ -77,11 +82,15 @@ const NotificationCenter = () => {
   };
 
   const handleMarkAllAsRead = async () => {
-    await dispatch(markAllAsRead());
+    if (user?._id) {
+      await dispatch(markAllAsRead(user._id));
+    }
   };
 
   const handleClearAll = async () => {
-    await dispatch(clearAllNotifications());
+    if (user?._id) {
+      await dispatch(clearAllNotifications(user._id));
+    }
   };
 
   const handleNotificationClick = async (notification) => {

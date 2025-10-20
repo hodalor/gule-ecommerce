@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
 
 // Async thunks for seller operations
 export const fetchSellers = createAsyncThunk(
@@ -35,7 +35,7 @@ export const fetchSellerById = createAsyncThunk(
   'sellers/fetchSellerById',
   async (sellerId, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/sellers/${sellerId}`, {
+      const response = await fetch(`${API_BASE_URL}/sellers/public/${sellerId}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -173,7 +173,8 @@ const sellerSlice = createSlice({
       })
       .addCase(fetchSellerById.fulfilled, (state, action) => {
         state.loading.currentSeller = false;
-        state.currentSeller = action.payload;
+        // Support both { seller: {...} } and direct seller object responses
+        state.currentSeller = action.payload?.seller || action.payload;
       })
       .addCase(fetchSellerById.rejected, (state, action) => {
         state.loading.currentSeller = false;

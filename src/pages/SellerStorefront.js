@@ -1,96 +1,41 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchSellerById } from '../store/slices/sellerSlice';
+import { fetchProducts } from '../store/slices/productSlice';
 
 const SellerStorefront = () => {
   const { sellerId } = useParams();
   const dispatch = useDispatch();
   const [activeTab, setActiveTab] = useState('products');
-  
-  // TODO: Replace with actual seller slice when implemented
-  // For now, using placeholder data structure
-  const loading = false;
-  const error = null;
 
-  // Temporary mock data - will be replaced with API data
-  const seller = {
-    _id: sellerId || 'techgear-store',
-    businessName: 'TechGear Store',
-    name: 'TechGear Store',
-    description: 'Your trusted source for premium electronics and tech accessories. We specialize in high-quality products with excellent customer service.',
-    rating: 4.8,
-    totalReviews: 1250,
-    totalSales: 5420,
-    joinedDate: '2020-03-15',
-    location: 'San Francisco, CA',
-    avatar: 'https://via.placeholder.com/150x150/4F46E5/FFFFFF?text=TG',
-    banner: 'https://via.placeholder.com/1200x300/6366F1/FFFFFF?text=TechGear+Store',
-    products: [
-      {
-        _id: '1',
-        name: 'Premium Wireless Headphones',
-        price: 199.99,
-        images: ['https://via.placeholder.com/300x300/4F46E5/FFFFFF?text=Headphones'],
-        rating: 4.5,
-        reviewCount: 128
-      },
-      {
-        _id: '2',
-        name: 'Smart Watch Pro',
-        price: 299.99,
-        images: ['https://via.placeholder.com/300x300/7C3AED/FFFFFF?text=Watch'],
-        rating: 4.7,
-        reviewCount: 89
-      },
-      {
-        _id: '3',
-        name: 'Wireless Charging Pad',
-        price: 49.99,
-        images: ['https://via.placeholder.com/300x300/EC4899/FFFFFF?text=Charger'],
-        rating: 4.3,
-        reviewCount: 156
-      },
-      {
-        _id: '4',
-        name: 'Bluetooth Speaker',
-        price: 79.99,
-        images: ['https://via.placeholder.com/300x300/10B981/FFFFFF?text=Speaker'],
-        rating: 4.6,
-        reviewCount: 203
-      }
-    ],
-    reviews: [
-      {
-        _id: '1',
-        customerName: 'John D.',
-        rating: 5,
-        comment: 'Excellent products and fast shipping. Highly recommended!',
-        date: '2024-01-15',
-        product: 'Premium Wireless Headphones'
-      },
-      {
-        _id: '2',
-        customerName: 'Sarah M.',
-        rating: 4,
-        comment: 'Good quality items, but packaging could be better.',
-        date: '2024-01-10',
-        product: 'Smart Watch Pro'
-      },
-      {
-        _id: '3',
-        customerName: 'Mike R.',
-        rating: 5,
-        comment: 'Amazing customer service and product quality!',
-        date: '2024-01-08',
-        product: 'Bluetooth Speaker'
-      }
-    ]
-  };
+  // Select seller and product state from Redux
+  const { currentSeller, loading: sellersLoading, error: sellersError } = useSelector(state => state.sellers);
+  const { products } = useSelector(state => state.products);
+
+  // Normalize seller data shape for the storefront view
+  const seller = currentSeller ? {
+    _id: currentSeller._id || currentSeller.id,
+    businessName: currentSeller.businessDetails?.businessName || currentSeller.fullName || [currentSeller.firstName, currentSeller.lastName].filter(Boolean).join(' '),
+    name: currentSeller.fullName || [currentSeller.firstName, currentSeller.lastName].filter(Boolean).join(' '),
+    description: currentSeller.businessDetails?.businessDescription || currentSeller.description,
+    rating: currentSeller.rating || currentSeller.averageRating || 0,
+    totalReviews: currentSeller.totalReviews || (Array.isArray(currentSeller.reviews) ? currentSeller.reviews.length : 0),
+    totalSales: currentSeller.totalSales || 0,
+    joinedDate: currentSeller.registrationDate || currentSeller.createdAt,
+    location: currentSeller.businessDetails?.businessAddress || currentSeller.address?.city || currentSeller.location,
+    avatar: currentSeller.profilePicture || currentSeller.profileImage || currentSeller.avatar,
+    banner: currentSeller.storeBanner || currentSeller.banner,
+  } : null;
+
+  const loading = sellersLoading?.currentSeller || false;
+  const error = (typeof sellersError === 'string' ? sellersError : sellersError?.currentSeller) || null;
 
   useEffect(() => {
     if (sellerId) {
-      // TODO: Dispatch action to fetch seller data
-      // dispatch(fetchSeller(sellerId));
+      // Fetch seller details and products by sellerId
+      dispatch(fetchSellerById(sellerId));
+      dispatch(fetchProducts({ sellerId }));
     }
   }, [dispatch, sellerId]);
 
@@ -123,9 +68,9 @@ const SellerStorefront = () => {
   }
 
   const tabs = [
-    { id: 'products', name: 'Products', count: seller.products?.length || 0 },
+    { id: 'products', name: 'Products', count: products?.length || 0 },
     { id: 'about', name: 'About' },
-    { id: 'reviews', name: 'Reviews', count: seller.reviews?.length || 0 }
+    { id: 'reviews', name: 'Reviews', count: seller?.reviews?.length || 0 }
   ];
 
   return (
@@ -215,7 +160,7 @@ const SellerStorefront = () => {
           {activeTab === 'products' && (
             <div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {seller.products?.map((product) => (
+                {products?.map((product) => (
                   <div key={product._id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
                     <Link to={`/product/${product._id}`}>
                       <img

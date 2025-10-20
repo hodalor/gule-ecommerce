@@ -1,107 +1,56 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+import api from '../../utils/api';
 
 // Async thunks for review operations
 export const fetchUserReviews = createAsyncThunk(
   'reviews/fetchUserReviews',
-  async ({ page = 1, limit = 10, sort = '-createdAt' } = {}, { getState, rejectWithValue }) => {
+  async ({ page = 1, limit = 10, sort = '-createdAt' } = {}, { rejectWithValue }) => {
     try {
-      const { auth } = getState();
-      const response = await fetch(`${API_URL}/reviews/my-reviews?page=${page}&limit=${limit}&sort=${sort}`, {
-        headers: {
-          'Authorization': `Bearer ${auth.token}`,
-          'Content-Type': 'application/json',
-        },
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+        sort,
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch user reviews');
-      }
-
-      const data = await response.json();
-      return data.data;
+      const response = await api.get(`/reviews/my-reviews?${params}`);
+      return response.data.data;
     } catch (error) {
-      return rejectWithValue(error.message);
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch user reviews');
     }
   }
 );
 
 export const createReview = createAsyncThunk(
   'reviews/createReview',
-  async (reviewData, { getState, rejectWithValue }) => {
+  async (reviewData, { rejectWithValue }) => {
     try {
-      const { auth } = getState();
-      const response = await fetch(`${API_URL}/reviews`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${auth.token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(reviewData),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to create review');
-      }
-
-      const data = await response.json();
-      return data.data.review;
+      const response = await api.post('/reviews', reviewData);
+      return response.data.data.review;
     } catch (error) {
-      return rejectWithValue(error.message);
+      return rejectWithValue(error.response?.data?.message || 'Failed to create review');
     }
   }
 );
 
 export const updateReview = createAsyncThunk(
   'reviews/updateReview',
-  async ({ reviewId, reviewData }, { getState, rejectWithValue }) => {
+  async ({ reviewId, reviewData }, { rejectWithValue }) => {
     try {
-      const { auth } = getState();
-      const response = await fetch(`${API_URL}/reviews/${reviewId}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${auth.token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(reviewData),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to update review');
-      }
-
-      const data = await response.json();
-      return data.data.review;
+      const response = await api.put(`/reviews/${reviewId}`, reviewData);
+      return response.data.data.review;
     } catch (error) {
-      return rejectWithValue(error.message);
+      return rejectWithValue(error.response?.data?.message || 'Failed to update review');
     }
   }
 );
 
 export const deleteReview = createAsyncThunk(
   'reviews/deleteReview',
-  async (reviewId, { getState, rejectWithValue }) => {
+  async (reviewId, { rejectWithValue }) => {
     try {
-      const { auth } = getState();
-      const response = await fetch(`${API_URL}/reviews/${reviewId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${auth.token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to delete review');
-      }
-
+      await api.delete(`/reviews/${reviewId}`);
       return reviewId;
     } catch (error) {
-      return rejectWithValue(error.message);
+      return rejectWithValue(error.response?.data?.message || 'Failed to delete review');
     }
   }
 );

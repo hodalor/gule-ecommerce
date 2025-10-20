@@ -9,6 +9,8 @@ import reportsSlice from './slices/reportsSlice';
 import sellerSlice from './slices/sellerSlice';
 import reviewsSlice from './slices/reviewsSlice';
 import disputeSlice from './slices/disputeSlice';
+import addressSlice from './slices/addressSlice';
+import transactionSlice from './slices/transactionSlice';
 
 export const store = configureStore({
   reducer: {
@@ -22,6 +24,8 @@ export const store = configureStore({
     sellers: sellerSlice,
     reviews: reviewsSlice,
     disputes: disputeSlice,
+    addresses: addressSlice,
+    transactions: transactionSlice,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

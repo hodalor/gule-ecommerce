@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchProducts, fetchCategories } from '../store/slices/productSlice';
 import { addToCart } from '../store/slices/cartSlice';
@@ -14,10 +14,15 @@ const Products = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState('name');
 
+  // Read sellerId from URL query params
+  const [searchParams] = useSearchParams();
+  const sellerIdParam = searchParams.get('sellerId');
+
   useEffect(() => {
-    dispatch(fetchProducts());
+    const initialFilters = sellerIdParam ? { sellerId: sellerIdParam } : {};
+    // Remove duplicate initial product fetch; the next effect handles fetching with filters
     dispatch(fetchCategories());
-  }, [dispatch]);
+  }, [dispatch, sellerIdParam]);
 
   const handleAddToCart = (product) => {
     if (!isAuthenticated) {
@@ -41,11 +46,11 @@ const Products = () => {
   useEffect(() => {
     const filters = {
       search: searchTerm,
-      category: selectedCategory,
-      sortBy: sortBy
+      ...(selectedCategory && selectedCategory !== 'all' ? { category: selectedCategory } : {}),
+      ...(sellerIdParam ? { sellerId: sellerIdParam } : {})
     };
     dispatch(fetchProducts(filters));
-  }, [dispatch, searchTerm, selectedCategory, sortBy]);
+  }, [dispatch, searchTerm, selectedCategory, sortBy, sellerIdParam]);
 
 
 
@@ -66,7 +71,14 @@ const Products = () => {
         <div className="text-center">
           <p className="text-red-600 text-lg">{error}</p>
           <button 
-            onClick={() => dispatch(fetchProducts())}
+            onClick={() => {
+              const retryFilters = {
+                search: searchTerm,
+                ...(selectedCategory && selectedCategory !== 'all' ? { category: selectedCategory } : {}),
+                ...(sellerIdParam ? { sellerId: sellerIdParam } : {})
+              };
+              dispatch(fetchProducts(retryFilters));
+            }}
             className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
           >
             Try Again
@@ -127,6 +139,26 @@ const Products = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {sellerIdParam && (
+          <div className="mb-6 flex items-center justify-between bg-indigo-50 border border-indigo-200 rounded-md p-3">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-1 text-xs font-semibold text-indigo-700 bg-indigo-100 rounded">
+                Seller Filter Active
+              </span>
+              <span className="text-sm text-indigo-800">
+                Showing products from selected seller
+              </span>
+            </div>
+            <div className="flex items-center gap-4">
+              <Link to={`/seller/${sellerIdParam}`} className="text-sm text-indigo-700 hover:text-indigo-900">
+                View seller
+              </Link>
+              <Link to="/products" className="text-sm text-indigo-700 hover:text-indigo-900">
+                Clear
+              </Link>
+            </div>
+          </div>
+        )}
         {/* Filters */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -250,18 +282,11 @@ const Products = () => {
                     >
                       View Details
                     </Link>
-                    <button 
+                    <button
                       onClick={() => handleAddToCart(product)}
-                      className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors duration-200"
+                      className="flex-1 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors duration-200"
                     >
-                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4m0 0L7 13m0 0l-1.5 6M7 13l-1.5 6m0 0h9" />
-                      </svg>
-                    </button>
-                    <button className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors duration-200">
-                      <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                      </svg>
+                      Add to Cart
                     </button>
                   </div>
                 </div>

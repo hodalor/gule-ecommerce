@@ -8,7 +8,8 @@ import {
   UserIcon,
   MapPinIcon,
   ExclamationTriangleIcon,
-  ChartBarIcon
+  ChartBarIcon,
+  CreditCardIcon
 } from '@heroicons/react/24/outline';
 import NotificationCenter from '../../components/notifications/NotificationCenter';
 import BuyerOrders from './BuyerOrders';
@@ -17,6 +18,8 @@ import BuyerProfile from './BuyerProfile';
 import BuyerAddresses from './BuyerAddresses';
 import BuyerReviews from './BuyerReviews';
 import BuyerDisputes from './BuyerDisputes';
+import TransactionList from '../../components/transactions/TransactionList';
+import TransactionDetails from '../../components/transactions/TransactionDetails';
 
 const BuyerDashboard = () => {
   const location = useLocation();
@@ -34,6 +37,11 @@ const BuyerDashboard = () => {
       name: 'Track Orders',
       href: '/buyer/dashboard/tracking',
       icon: TruckIcon
+    },
+    {
+      name: 'Transactions',
+      href: '/buyer/dashboard/transactions',
+      icon: CreditCardIcon
     },
     {
       name: 'Reviews & Ratings',
@@ -173,6 +181,8 @@ const BuyerDashboard = () => {
               <Route path="/" element={<DashboardOverview stats={stats} />} />
               <Route path="/orders/*" element={<BuyerOrders />} />
               <Route path="/tracking/*" element={<OrderTracking />} />
+              <Route path="/transactions" element={<TransactionList />} />
+              <Route path="/transactions/:id" element={<TransactionDetails />} />
               <Route path="/reviews/*" element={<BuyerReviews />} />
               <Route path="/disputes/*" element={<BuyerDisputes />} />
               <Route path="/profile/*" element={<BuyerProfile />} />

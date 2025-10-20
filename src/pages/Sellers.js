@@ -11,14 +11,13 @@ const Sellers = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState('rating');
 
+  // Fetch categories on mount only
   useEffect(() => {
-    // Fetch sellers and categories on component mount
-    dispatch(fetchSellers({ search: searchTerm, category: selectedCategory, sortBy }));
     dispatch(fetchSellerCategories());
-  }, [dispatch, searchTerm, selectedCategory, sortBy]);
+  }, [dispatch]);
 
+  // Fetch sellers when filters change
   useEffect(() => {
-    // Refetch sellers when filters change
     dispatch(fetchSellers({ search: searchTerm, category: selectedCategory, sortBy }));
   }, [dispatch, searchTerm, selectedCategory, sortBy]);
 
@@ -39,53 +38,31 @@ const Sellers = () => {
         case 'reviews':
           return (b.reviewCount || 0) - (a.reviewCount || 0);
         case 'newest':
-          return new Date(b.joinedDate || 0) - new Date(a.joinedDate || 0);
+          return new Date(b.joinedDate) - new Date(a.joinedDate);
         default:
           return 0;
       }
     });
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'long' 
-    });
-  };
-
-  const handleRetry = () => {
-    dispatch(clearError({ type: 'sellers' }));
-    dispatch(fetchSellers({ search: searchTerm, category: selectedCategory, sortBy }));
-  };
-
-  if (loading.sellers && sellers.length === 0) {
+  // Correctly handle loading/error states
+  if (loading?.sellers) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading sellers...</p>
         </div>
       </div>
     );
   }
 
-  if (error.sellers) {
+  const sellersError = typeof error === 'string' ? error : error?.sellers;
+  if (sellersError) {
+    const message = typeof sellersError === 'string' ? sellersError : 'Failed to load sellers';
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="text-red-500 mb-4">
-            <svg className="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Error Loading Sellers</h3>
-          <p className="text-gray-600 mb-4">{error.sellers}</p>
-          <button
-            onClick={handleRetry}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            Try Again
-          </button>
+          <p className="text-red-600 text-lg">{message}</p>
         </div>
       </div>
     );
@@ -94,24 +71,19 @@ const Sellers = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header Section */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="text-center">
-            <h1 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">
-              Our Sellers
-            </h1>
-            <p className="mt-4 text-xl text-gray-600">
-              Discover trusted sellers and their amazing products
-            </p>
-          </div>
-
+      <div className="bg-white shadow">
+        <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+          <h1 className="text-3xl font-bold text-gray-900">Sellers</h1>
+          <p className="mt-2 text-gray-600">Explore top-rated sellers and their stores</p>
+          
           {/* Search and Filters */}
-          <div className="mt-8 flex flex-col sm:flex-row gap-4 items-center justify-center">
-            {/* Search Bar */}
-            <div className="relative flex-1 max-w-md">
+          <div className="mt-6 flex items-center space-x-4">
+            {/* Search Input */}
+            <div className="relative flex-1">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                <svg className="h-5 w-5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M21 21l-4.35-4.35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  <circle cx="10" cy="10" r="7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </div>
               <input
@@ -160,80 +132,26 @@ const Sellers = () => {
                 {/* Seller Header */}
                 <div className="flex items-start space-x-4">
                   <img
-                    src={seller.avatar}
+                    src={seller.avatar || 'https://via.placeholder.com/80x80/6366F1/FFFFFF?text=S'}
                     alt={seller.name}
-                    className="w-16 h-16 rounded-full"
+                    className="h-16 w-16 rounded-full object-cover"
                   />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center space-x-2">
-                      <h3 className="text-lg font-semibold text-gray-900 truncate">
-                        <Link to={`/seller/${seller.id}`} className="hover:text-indigo-600">
-                          {seller.name}
-                        </Link>
-                      </h3>
-                      {seller.verified && (
-                        <svg className="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                        </svg>
-                      )}
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">{seller.businessName || seller.name}</h3>
+                    <p className="text-sm text-gray-600">{seller.description}</p>
+                    <div className="mt-2 flex items-center space-x-2">
+                      <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs">{seller.rating} ★</span>
+                      <span className="text-gray-500 text-xs">{seller.reviewCount} reviews</span>
+                      <span className="text-gray-500 text-xs">{seller.productCount} products</span>
                     </div>
-                    <p className="text-sm text-gray-600 mt-1">
-                      {seller.description}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Rating and Stats */}
-                <div className="mt-4 flex items-center justify-between">
-                  <div className="flex items-center space-x-1">
-                    <div className="flex items-center">
-                      {[...Array(5)].map((_, i) => (
-                        <svg
-                          key={i}
-                          className={`h-4 w-4 ${i < Math.floor(seller.rating) ? 'text-yellow-400' : 'text-gray-300'}`}
-                          fill="currentColor"
-                          viewBox="0 0 20 20"
-                        >
-                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                        </svg>
-                      ))}
-                    </div>
-                    <span className="text-sm text-gray-600">
-                      {seller.rating} ({seller.reviewCount.toLocaleString()})
-                    </span>
-                  </div>
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                    {seller.category}
-                  </span>
-                </div>
-
-                {/* Seller Info */}
-                <div className="mt-4 space-y-2 text-sm text-gray-600">
-                  <div className="flex justify-between">
-                    <span>Products:</span>
-                    <span className="font-medium">{seller.productCount}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Location:</span>
-                    <span className="font-medium">{seller.location}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Joined:</span>
-                    <span className="font-medium">{formatDate(seller.joinedDate)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Response Time:</span>
-                    <span className="font-medium text-green-600">{seller.responseTime}</span>
                   </div>
                 </div>
 
                 {/* Top Products */}
                 <div className="mt-4">
-                  <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
-                    Top Products
-                  </h4>
-                  <div className="flex flex-wrap gap-1">
-                    {seller.topProducts.map((product, index) => (
+                  <h4 className="text-sm font-medium text-gray-700">Top Products</h4>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {(seller.topProducts || []).slice(0, 3).map((product, index) => (
                       <span
                         key={index}
                         className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded-full"
@@ -253,7 +171,7 @@ const Sellers = () => {
                     View Profile
                   </Link>
                   <Link
-                    to={`/products?seller=${seller.id}`}
+                    to={`/products?sellerId=${seller.id}`}
                     className="flex-1 text-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                   >
                     View Products
@@ -268,46 +186,12 @@ const Sellers = () => {
         {filteredSellers.length === 0 && (
           <div className="text-center py-12">
             <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m4 4h-1m-1 4h.01M12 8V4m0 0L8 8m4-4l4 4" />
             </svg>
             <h3 className="mt-2 text-sm font-medium text-gray-900">No sellers found</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              Try adjusting your search terms or filters.
-            </p>
+            <p className="mt-1 text-sm text-gray-500">Try adjusting your search or filters to find sellers.</p>
           </div>
         )}
-      </div>
-
-      {/* Stats Section */}
-      <div className="bg-indigo-50 py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-indigo-600">
-                {stats.totalSellers || 0}
-              </div>
-              <div className="text-sm font-medium text-gray-600">Active Sellers</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-indigo-600">
-                {stats.verifiedSellers || 0}
-              </div>
-              <div className="text-sm font-medium text-gray-600">Verified Sellers</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-indigo-600">
-                {stats.averageRating || '0.0'}
-              </div>
-              <div className="text-sm font-medium text-gray-600">Average Rating</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-indigo-600">
-                {stats.totalProducts?.toLocaleString() || '0'}
-              </div>
-              <div className="text-sm font-medium text-gray-600">Total Products</div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

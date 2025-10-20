@@ -13,7 +13,8 @@ import {
   ExclamationTriangleIcon,
   ArchiveBoxIcon,
   ClipboardDocumentListIcon,
-  CheckCircleIcon
+  CheckCircleIcon,
+  CreditCardIcon
 } from '@heroicons/react/24/outline';
 import { fetchUserOrders } from '../../store/slices/orderSlice';
 import { fetchProducts } from '../../store/slices/productSlice';
@@ -27,6 +28,9 @@ import SellerProfile from './SellerProfile';
 import SellerSettings from './SellerSettings';
 import SellerInventory from './SellerInventory';
 import SellerReports from './SellerReports';
+import TransactionList from '../../components/transactions/TransactionList';
+import TransactionDetails from '../../components/transactions/TransactionDetails';
+import TransactionStats from '../../components/transactions/TransactionStats';
 
 const SellerDashboard = () => {
   const dispatch = useDispatch();
@@ -62,11 +66,12 @@ const SellerDashboard = () => {
     product.stock <= (product.lowStockThreshold || 5)
   ).slice(0, 5) || [];
 
-  const sidebarItems = [
+  const navigation = [
     { path: '/seller/dashboard', icon: HomeIcon, label: 'Overview', exact: true },
     { path: '/seller/dashboard/products', icon: CubeIcon, label: 'My Products' },
     { path: '/seller/dashboard/orders', icon: ShoppingBagIcon, label: 'Orders' },
     { path: '/seller/dashboard/inventory', icon: ArchiveBoxIcon, label: 'Inventory' },
+    { path: '/seller/dashboard/transactions', icon: CreditCardIcon, label: 'Transactions' },
     { path: '/seller/dashboard/analytics', icon: ChartBarIcon, label: 'Analytics' },
     { path: '/seller/dashboard/reports', icon: ClipboardDocumentListIcon, label: 'Reports' },
     { path: '/seller/dashboard/profile', icon: UserIcon, label: 'Profile' },
@@ -110,7 +115,7 @@ const SellerDashboard = () => {
 
           <nav className="px-4 pb-4">
             <ul className="space-y-2">
-              {sidebarItems.map((item) => {
+              {navigation.map((item) => {
                 const IconComponent = item.icon;
                 return (
                   <li key={item.path}>
@@ -144,6 +149,7 @@ const SellerDashboard = () => {
                      location.pathname.includes('/products') ? 'My Products' :
                      location.pathname.includes('/orders') ? 'Orders' :
                      location.pathname.includes('/inventory') ? 'Inventory Management' :
+                     location.pathname.includes('/transactions') ? 'Transaction Management' :
                      location.pathname.includes('/analytics') ? 'Analytics' :
                      location.pathname.includes('/reports') ? 'Reports' :
                      location.pathname.includes('/profile') ? 'Profile' :
@@ -350,6 +356,9 @@ const SellerDashboard = () => {
               <Route path="/products/*" element={<SellerProducts />} />
               <Route path="/orders/*" element={<SellerOrders />} />
               <Route path="/inventory/*" element={<SellerInventory />} />
+              <Route path="/transactions" element={<TransactionList />} />
+              <Route path="/transactions/:id" element={<TransactionDetails />} />
+              <Route path="/transactions/stats" element={<TransactionStats />} />
               <Route path="/analytics/*" element={<SellerAnalytics />} />
               <Route path="/reports/*" element={<SellerReports />} />
               <Route path="/profile/*" element={<SellerProfile />} />
