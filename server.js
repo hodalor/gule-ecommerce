@@ -35,15 +35,27 @@ const userRoutes = require('./routes/users');
 const sellerRoutes = require('./routes/sellers');
 const productRoutes = require('./routes/products');
 const orderRoutes = require('./routes/orders');
+const adminUserRoutes = require('./routes/adminUsers');
+const adminOrderRoutes = require('./routes/adminOrders');
 const adminRoutes = require('./routes/admin');
 const adminProductRoutes = require('./routes/adminProducts');
 const adminSellerRoutes = require('./routes/adminSellers');
 const adminReviewRoutes = require('./routes/adminReviews');
 const adminCategoryRoutes = require('./routes/adminCategories');
 const adminDisputeRoutes = require('./routes/adminDisputes');
+const adminAuditLogRoutes = require('./routes/adminAuditLogs');
+const adminServerLogRoutes = require('./routes/adminServerLogs');
 const escrowRoutes = require('./routes/escrow');
 const reviewRoutes = require('./routes/reviews');
 const settingsRoutes = require('./routes/settings');
+const notificationsRoutes = require('./routes/notifications');
+const complaintsRoutes = require('./routes/complaints');
+const refundsRoutes = require('./routes/refunds');
+const inventoryRoutes = require('./routes/inventory');
+const sessionsRoutes = require('./routes/sessions');
+const financeRoutes = require('./routes/finance');
+const addressRoutes = require('./routes/addresses');
+const transactionRoutes = require('./routes/transactions');
 
 // Import error handler and logger
 const errorHandler = require('./middleware/errorHandler');
@@ -52,33 +64,6 @@ const logger = require('./utils/logger');
 // Create Express app
 const app = express();
 const server = createServer(app);
-
-// Configure Winston logger
-const winstonLogger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.errors({ stack: true }),
-    winston.format.json()
-  ),
-  defaultMeta: { service: 'gule-backend' },
-  transports: [
-    new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'logs/combined.log' }),
-    new winston.transports.MongoDB({
-      db: process.env.MONGODB_URI,
-      collection: 'logs',
-      level: 'error'
-    })
-  ]
-});
-
-// Add console transport in development
-if (process.env.NODE_ENV !== 'production') {
-  winstonLogger.add(new winston.transports.Console({
-    format: winston.format.simple()
-  }));
-}
 
 // Socket.IO setup
 const io = new Server(server, {
@@ -158,11 +143,6 @@ app.use(fileUpload({
   parseNested: true
 }));
 
-// CORS configuration
-app.use(cors({
-  origin: [process.env.FRONTEND_URL, process.env.ADMIN_URL],
-  credentials: true
-}));
 
 // Rate limiting
 const generalLimiter = rateLimit({
@@ -174,11 +154,17 @@ const generalLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => {
+    // Skip rate limiting for super_admin users (god mode)
+    return req.user && req.user.role === 'super_admin';
+  },
   handler: (req, res) => {
-    winstonLogger.warn('Rate limit exceeded', {
+    logger.warn('Rate limit exceeded', {
       ip: req.ip,
       userAgent: req.get('User-Agent'),
-      path: req.path
+      path: req.path,
+      userId: req.user?.id || null,
+      userRole: req.user?.role || null
     });
     res.status(429).json({
       error: 'Too many requests from this IP, please try again later.',
@@ -206,9 +192,9 @@ app.use((req, res, next) => {
     };
 
     if (res.statusCode >= 400) {
-      winstonLogger.error('HTTP Error', logData);
+      logger.error('HTTP Error', logData);
     } else {
-      winstonLogger.info('HTTP Request', logData);
+      logger.info('HTTP Request', logData);
     }
   });
 
@@ -230,15 +216,29 @@ app.use('/api/users', userRoutes);
 app.use('/api/sellers', sellerRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
-app.use('/api/admin', adminRoutes);
+// Mount specific admin routes before the general admin route
+app.use('/api/admin/users', adminUserRoutes);
+app.use('/api/admin/orders', adminOrderRoutes);
 app.use('/api/admin/products', adminProductRoutes);
 app.use('/api/admin/sellers', adminSellerRoutes);
 app.use('/api/admin/reviews', adminReviewRoutes);
 app.use('/api/admin/categories', adminCategoryRoutes);
 app.use('/api/admin/disputes', adminDisputeRoutes);
+app.use('/api/admin/audit-logs', adminAuditLogRoutes);
+app.use('/api/admin/server-logs', adminServerLogRoutes);
+// General admin route must come last to avoid conflicts
+app.use('/api/admin', adminRoutes);
 app.use('/api/escrow', escrowRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/notifications', notificationsRoutes);
+app.use('/api/complaints', complaintsRoutes);
+app.use('/api/refunds', refundsRoutes);
+app.use('/api/inventory', inventoryRoutes);
+app.use('/api/sessions', sessionsRoutes);
+app.use('/api/finance', financeRoutes);
+app.use('/api/addresses', addressRoutes);
+app.use('/api/transactions', transactionRoutes);
 
 // Swagger documentation
 if (process.env.NODE_ENV === 'development') {
@@ -281,7 +281,7 @@ app.get('/health', async (req, res) => {
     
     res.status(200).json(health);
   } catch (error) {
-    winstonLogger.error('Health check failed', error);
+    logger.error('Health check failed', error);
     res.status(503).json({
       status: 'unhealthy',
       timestamp: new Date().toISOString(),
@@ -311,9 +311,57 @@ app.get('/api/docs-info', (req, res) => {
   });
 });
 
+// WebSocket connection handling for real-time features
+io.on('connection', (socket) => {
+  logger.info(`Client connected: ${socket.id}`);
+  
+  // Handle authentication for WebSocket
+  socket.on('authenticate', (token) => {
+    try {
+      // You can add JWT verification here if needed
+      socket.authenticated = true;
+      socket.emit('authenticated', { success: true });
+      logger.info(`Socket ${socket.id} authenticated`);
+    } catch (error) {
+      socket.emit('authentication_error', { error: 'Invalid token' });
+      logger.warn(`Socket ${socket.id} authentication failed`);
+    }
+  });
+  
+  // Join admin room for real-time updates
+  socket.on('join_admin', () => {
+    if (socket.authenticated) {
+      socket.join('admin_room');
+      socket.emit('joined_admin', { success: true });
+      logger.info(`Socket ${socket.id} joined admin room`);
+    } else {
+      socket.emit('join_error', { error: 'Not authenticated' });
+    }
+  });
+  
+  // Handle disconnection
+  socket.on('disconnect', () => {
+    logger.info(`Client disconnected: ${socket.id}`);
+  });
+});
+
+// Function to emit real-time log updates
+const emitLogUpdate = (logData) => {
+  io.to('admin_room').emit('log_update', logData);
+};
+
+// Function to emit real-time audit log updates
+const emitAuditLogUpdate = (auditData) => {
+  io.to('admin_room').emit('audit_log_update', auditData);
+};
+
+// Make these functions available globally
+global.emitLogUpdate = emitLogUpdate;
+global.emitAuditLogUpdate = emitAuditLogUpdate;
+
 // 404 handler
 app.use('*', (req, res) => {
-  winstonLogger.warn('404 Not Found', {
+  logger.warn('404 Not Found', {
     method: req.method,
     url: req.originalUrl,
     ip: req.ip,
@@ -329,7 +377,7 @@ app.use('*', (req, res) => {
 
 // Global error handler
 app.use((error, req, res, next) => {
-  winstonLogger.error('Unhandled Error', {
+  logger.error('Unhandled Error', {
     error: error.message,
     stack: error.stack,
     method: req.method,
@@ -357,7 +405,7 @@ app.use((error, req, res, next) => {
       userAgent: req.get('User-Agent'),
       severity: 'medium'
     }).catch(logError => {
-      winstonLogger.error('Failed to log audit entry', logError);
+      logger.error('Failed to log audit entry', logError);
     });
     */
   }
@@ -401,49 +449,49 @@ app.use(errorHandler);
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
-  winstonLogger.info(`User connected: ${socket.id}`);
+  logger.info(`User connected: ${socket.id}`);
   
   // Join user to their specific room
   socket.on('join', (userId) => {
     socket.join(userId);
-    winstonLogger.info(`User ${userId} joined their room`);
+    logger.info(`User ${userId} joined their room`);
   });
   
   // Handle admin room joining
   socket.on('join-admin', (adminId) => {
     socket.join('admin-room');
     socket.join(adminId);
-    winstonLogger.info(`Admin ${adminId} joined admin room`);
+    logger.info(`Admin ${adminId} joined admin room`);
   });
   
   socket.on('disconnect', () => {
-    winstonLogger.info(`User disconnected: ${socket.id}`);
+    logger.info(`User disconnected: ${socket.id}`);
   });
 });
 
 // Graceful shutdown handler
 const gracefulShutdown = async (signal) => {
-  winstonLogger.info(`Received ${signal}. Starting graceful shutdown...`);
+  logger.info(`Received ${signal}. Starting graceful shutdown...`);
   
   try {
     // Close database connection
     await closeDatabase();
-    winstonLogger.info('Database connection closed');
+    logger.info('Database connection closed');
     
     // Close server
     server.close(() => {
-      winstonLogger.info('HTTP server closed');
+      logger.info('HTTP server closed');
       process.exit(0);
     });
     
     // Force close after 30 seconds
     setTimeout(() => {
-      winstonLogger.error('Could not close connections in time, forcefully shutting down');
+      logger.error('Could not close connections in time, forcefully shutting down');
       process.exit(1);
     }, 30000);
     
   } catch (error) {
-    winstonLogger.error('Error during graceful shutdown', error);
+    logger.error('Error during graceful shutdown', error);
     process.exit(1);
   }
 };
@@ -454,13 +502,13 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
-  winstonLogger.error('Uncaught Exception', error);
+  logger.error('Uncaught Exception', error);
   gracefulShutdown('uncaughtException');
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
-  winstonLogger.error('Unhandled Rejection', { reason, promise });
+  logger.error('Unhandled Rejection', { reason, promise });
   gracefulShutdown('unhandledRejection');
 });
 
@@ -474,31 +522,31 @@ const startServer = async () => {
   try {
     // Initialize database
     await initializeDatabase();
-    winstonLogger.info('Database initialized successfully');
+    logger.info('Database initialized successfully');
     
     // Start HTTP server
     serverInstance = server.listen(PORT, HOST, () => {
-      winstonLogger.info(`Server running on http://${HOST}:${PORT}`);
-      winstonLogger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
-      winstonLogger.info(`Health check: http://${HOST}:${PORT}/health`);
-      winstonLogger.info(`API docs info: http://${HOST}:${PORT}/api/docs-info`);
+      logger.info(`Server running on http://${HOST}:${PORT}`);
+      logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      logger.info(`Health check: http://${HOST}:${PORT}/health`);
+      logger.info(`API docs info: http://${HOST}:${PORT}/api/docs-info`);
       if (process.env.NODE_ENV === 'development') {
-        winstonLogger.info(`API Documentation: http://${HOST}:${PORT}/api/docs`);
+        logger.info(`API Documentation: http://${HOST}:${PORT}/api/docs`);
       }
     });
     
     // Handle server errors
     serverInstance.on('error', (error) => {
       if (error.code === 'EADDRINUSE') {
-        winstonLogger.error(`Port ${PORT} is already in use`);
+        logger.error(`Port ${PORT} is already in use`);
       } else {
-        winstonLogger.error('Server error', error);
+        logger.error('Server error', error);
       }
       process.exit(1);
     });
     
   } catch (error) {
-    winstonLogger.error('Failed to start server', error);
+    logger.error('Failed to start server', error);
     process.exit(1);
   }
 };
@@ -510,15 +558,15 @@ if (require.main === module) {
 
 // Graceful shutdown (updated to use serverInstance)
 process.on('SIGTERM', () => {
-  winstonLogger.info('SIGTERM received, shutting down gracefully');
+  logger.info('SIGTERM received, shutting down gracefully');
   if (serverInstance) {
     serverInstance.close(async () => {
       try {
         await closeDatabase();
-        winstonLogger.info('Database connection closed');
+        logger.info('Database connection closed');
         process.exit(0);
       } catch (error) {
-        winstonLogger.error('Error closing database', error);
+        logger.error('Error closing database', error);
         process.exit(1);
       }
     });

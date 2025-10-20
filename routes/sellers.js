@@ -298,16 +298,24 @@ router.get('/',
   }
 );
 
-// Get seller by ID
-router.get('/:id',
-  authenticate,
+// Public: Get seller by ID without authentication
+router.get('/public/:id',
   async (req, res) => {
     try {
       const { id } = req.params;
-      const requestingUser = req.user;
 
+      // Ensure public profiles are allowed
+      const privacySettings = await getPrivacySettings();
+      if (privacySettings.allowPublicSellerProfiles === 'false') {
+        return res.status(403).json({
+          error: 'Access denied',
+          message: 'Public seller profiles are disabled by admin settings'
+        });
+      }
+
+      // Fetch seller with limited fields for public view
       const seller = await Seller.findById(id)
-        .select('-password -emailVerificationToken -emailVerificationExpires -passwordResetToken -passwordResetExpires');
+        .select('firstName lastName businessDetails profilePicture rating totalSales totalProducts registrationDate isBusinessVerified createdAt');
 
       if (!seller) {
         return res.status(404).json({
@@ -316,51 +324,33 @@ router.get('/:id',
         });
       }
 
-      // Check if user can view this profile
-      const isOwnProfile = requestingUser.userType === 'seller' && requestingUser.id === id;
-      const isAdmin = requestingUser.userType === 'admin';
+      // Apply privacy filtering
+      const filteredSeller = filterSellerData(seller, privacySettings, false, false);
 
-      if (!isOwnProfile && !isAdmin) {
-        // Get privacy settings for public view
-        const privacySettings = await getPrivacySettings();
-        
-        // Check if public seller profiles are allowed
-        if (privacySettings.allowPublicSellerProfiles !== 'true') {
-          return res.status(403).json({
-            error: 'Access denied',
-            message: 'You do not have permission to view this seller profile'
-          });
-        }
+      // Optional: include minimal aggregates for storefront tabs
+      let productsCount = 0;
+      let reviewsCount = 0;
+      try {
+        productsCount = await Product.countDocuments({ sellerId: id, status: 'active' });
+      } catch (e) {
+        logger.warn('Failed to count products for public seller', { sellerId: id, error: e.message });
+      }
+      try {
+        reviewsCount = await Review.countDocuments({ sellerId: id, status: 'approved' });
+      } catch (e) {
+        logger.warn('Failed to count reviews for public seller', { sellerId: id, error: e.message });
       }
 
-      // Get privacy settings and filter data
-      const privacySettings = await getPrivacySettings();
-      const filteredSeller = filterSellerData(seller, privacySettings, isOwnProfile, isAdmin);
-
-      // Log profile access
-      await AuditLog.logAction({
-        action: isOwnProfile ? 'SELLER_VIEW_OWN_PROFILE' : 'USER_VIEW_SELLER_PROFILE',
-        userId: requestingUser.id,
-        userType: requestingUser.userType,
-        resourceType: 'Seller',
-        resourceId: id,
-        details: { 
-          viewedSellerId: id,
-          isOwnProfile,
-          isAdmin
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('User-Agent'),
-        severity: 'low'
+      return res.json({
+        seller: {
+          ...filteredSeller,
+          totalProducts: productsCount,
+          totalReviews: reviewsCount
+        }
       });
-
-      res.json({
-        seller: filteredSeller
-      });
-
     } catch (error) {
-      logger.error('Get seller by ID error', error);
-      res.status(500).json({
+      logger.error('Get public seller by ID error', error);
+      return res.status(500).json({
         error: 'Failed to fetch seller',
         message: 'An error occurred while fetching seller data'
       });

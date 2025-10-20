@@ -544,19 +544,31 @@ router.post('/login',
       }
 
       if (!user) {
-        // Temporarily disabled AuditLog to test login
-        /*
-        await AuditLog.logAction({
-          action: 'LOGIN_ATTEMPT_INVALID_USER',
-          userId: null,
-          userType,
-          resourceType: 'Authentication',
-          details: { email, reason: 'user_not_found' },
-          ipAddress: req.ip,
-          userAgent: req.get('User-Agent'),
-          severity: 'medium'
-        });
-        */
+        // Log failed login attempt - user not found
+        try {
+          await AuditLog.create({
+            action: 'LOGIN_ATTEMPT_INVALID_USER',
+            actionType: 'login',
+            module: 'auth',
+            performedBy: null,
+            userType: userType,
+            targetResource: 'Authentication',
+            description: `Failed login attempt - user not found for email: ${email}`,
+            severity: 'medium',
+            status: 'failure',
+            session: {
+              ipAddress: req.ip,
+              userAgent: req.get('User-Agent')
+            },
+            metadata: { 
+              email, 
+              reason: 'user_not_found',
+              attemptTime: new Date()
+            }
+          });
+        } catch (auditError) {
+          logger.warn('Failed to log audit entry for invalid user', { error: auditError.message });
+        }
 
         return res.status(401).json({
           error: 'Invalid credentials',
@@ -571,19 +583,33 @@ router.post('/login',
       console.log('Stored password hash:', user.password);
 
       if (!isPasswordValid) {
-        // Temporarily disabled AuditLog to test login
-        /*
-        await AuditLog.logAction({
-          action: 'LOGIN_ATTEMPT_INVALID_PASSWORD',
-          userId: user._id,
-          userType,
-          resourceType: 'Authentication',
-          details: { email, reason: 'invalid_password' },
-          ipAddress: req.ip,
-          userAgent: req.get('User-Agent'),
-          severity: 'medium'
-        });
-        */
+        // Log failed login attempt - invalid password
+        try {
+          await AuditLog.create({
+            action: 'LOGIN_ATTEMPT_INVALID_PASSWORD',
+            actionType: 'login',
+            module: 'auth',
+            performedBy: user._id,
+            userType: userType,
+            targetResource: 'Authentication',
+            targetId: user._id,
+            description: `Failed login attempt - invalid password for user: ${email}`,
+            severity: 'medium',
+            status: 'failure',
+            session: {
+              ipAddress: req.ip,
+              userAgent: req.get('User-Agent')
+            },
+            metadata: { 
+              email, 
+              reason: 'invalid_password',
+              attemptTime: new Date(),
+              userId: user._id
+            }
+          });
+        } catch (auditError) {
+          logger.warn('Failed to log audit entry for invalid password', { error: auditError.message });
+        }
 
         return res.status(401).json({
           error: 'Invalid credentials',
@@ -593,19 +619,34 @@ router.post('/login',
 
       // Check account status
       if (user.accountStatus === 'suspended') {
-        // Temporarily disabled AuditLog to test login
-        /*
-        await AuditLog.logAction({
-          action: 'LOGIN_ATTEMPT_SUSPENDED_ACCOUNT',
-          userId: user._id,
-          userType,
-          resourceType: 'Authentication',
-          details: { email, reason: 'account_suspended' },
-          ipAddress: req.ip,
-          userAgent: req.get('User-Agent'),
-          severity: 'medium'
-        });
-        */
+        // Log suspended account login attempt
+        try {
+          await AuditLog.create({
+            action: 'LOGIN_ATTEMPT_SUSPENDED_ACCOUNT',
+            actionType: 'login',
+            module: 'auth',
+            performedBy: user._id,
+            userType: userType,
+            targetResource: 'Authentication',
+            targetId: user._id,
+            description: `Login attempt on suspended account for user: ${email}`,
+            severity: 'high',
+            status: 'failure',
+            session: {
+              ipAddress: req.ip,
+              userAgent: req.get('User-Agent')
+            },
+            metadata: { 
+              email, 
+              reason: 'account_suspended',
+              attemptTime: new Date(),
+              userId: user._id,
+              accountStatus: user.accountStatus
+            }
+          });
+        } catch (auditError) {
+          logger.warn('Failed to log audit entry for suspended account', { error: auditError.message });
+        }
 
         return res.status(403).json({
           error: 'Account suspended',
@@ -649,20 +690,33 @@ router.post('/login',
       });
 
       // Log successful login
-      // Temporarily disabled AuditLog to test login
-      /*
-      await AuditLog.logAction({
-        action: 'USER_LOGIN',
-        userId: user._id,
-        userType,
-        resourceType: 'Authentication',
-        resourceId: user._id,
-        details: { email, loginTime: new Date() },
-        ipAddress: req.ip,
-        userAgent: req.get('User-Agent'),
-        severity: 'low'
-      });
-      */
+      try {
+        await AuditLog.create({
+          action: 'USER_LOGIN_SUCCESS',
+          actionType: 'login',
+          module: 'auth',
+          performedBy: user._id,
+          userType: userType,
+          targetResource: 'Authentication',
+          targetId: user._id,
+          description: `Successful login for user: ${email}`,
+          severity: 'low',
+          status: 'success',
+          session: {
+            ipAddress: req.ip,
+            userAgent: req.get('User-Agent')
+          },
+          metadata: { 
+            email, 
+            loginTime: new Date(),
+            userId: user._id,
+            userType: userType,
+            lastLoginDate: user.lastLoginDate
+          }
+        });
+      } catch (auditError) {
+        logger.warn('Failed to log audit entry for successful login', { error: auditError.message });
+      }
 
       // Prepare user data for response
       const userData = {
@@ -776,20 +830,31 @@ router.post('/logout',
       res.clearCookie('refreshToken');
 
       // Log logout
-      // Temporarily disabled AuditLog to test logout
-      /*
-      await AuditLog.logAction({
-        action: 'USER_LOGOUT',
-        userId: req.user.id,
-        userType: req.user.userType,
-        resourceType: 'Authentication',
-        resourceId: req.user.id,
-        details: { logoutTime: new Date() },
-        ipAddress: req.ip,
-        userAgent: req.get('User-Agent'),
-        severity: 'low'
-      });
-      */
+      try {
+        await AuditLog.create({
+          action: 'USER_LOGOUT',
+          actionType: 'logout',
+          module: 'auth',
+          performedBy: req.user.id,
+          userType: req.user.userType,
+          targetResource: 'Authentication',
+          targetId: req.user.id,
+          description: `User logout for ${req.user.userType}: ${req.user.id}`,
+          severity: 'low',
+          status: 'success',
+          session: {
+            ipAddress: req.ip,
+            userAgent: req.get('User-Agent')
+          },
+          metadata: { 
+            logoutTime: new Date(),
+            userId: req.user.id,
+            userType: req.user.userType
+          }
+        });
+      } catch (auditError) {
+        logger.warn('Failed to log audit entry for logout', { error: auditError.message });
+      }
 
       res.json({
         message: 'Logout successful'

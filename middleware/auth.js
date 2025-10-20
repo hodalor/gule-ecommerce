@@ -237,36 +237,46 @@ const optionalAuth = async (req, res, next) => {
 
 /**
  * Role-based authorization middleware
- * @param {...string} roles - Allowed roles
+ * @param {Array} allowedRoles - Array of allowed roles
  */
-const authorize = (...roles) => {
+const authorize = (allowedRoles) => {
   return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({
+    try {
+      if (!req.user) {
+        return res.status(401).json({
+          success: false,
+          message: 'Authentication required'
+        });
+      }
+
+      // Super admin has access to all role restrictions
+      if (req.user.role === 'super_admin') {
+        return next();
+      }
+
+      if (!allowedRoles.includes(req.user.role)) {
+        logger.warn('Role not authorized', {
+          userId: req.user._id,
+          userRole: req.user.role,
+          allowedRoles,
+          ip: req.ip,
+          path: req.path
+        });
+
+        return res.status(403).json({
+          success: false,
+          message: `Access denied. Required role: ${allowedRoles.join(' or ')}`
+        });
+      }
+
+      next();
+    } catch (error) {
+      logger.error('Role authorization failed', { error: error.message });
+      return res.status(500).json({
         success: false,
-        message: 'Authentication required'
+        message: 'Authorization failed'
       });
     }
-
-    const userRole = req.userRole || req.user.role;
-
-    if (!roles.includes(userRole)) {
-      logger.warn('Unauthorized access attempt', {
-        userId: req.user._id,
-        userType: req.userType,
-        userRole,
-        requiredRoles: roles,
-        ip: req.ip,
-        path: req.path
-      });
-
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied. Insufficient permissions.'
-      });
-    }
-
-    next();
   };
 };
 
@@ -276,29 +286,42 @@ const authorize = (...roles) => {
  */
 const authorizeUserType = (...userTypes) => {
   return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({
+    try {
+      if (!req.user) {
+        return res.status(401).json({
+          success: false,
+          message: 'Authentication required'
+        });
+      }
+
+      // Super admin has access to all user type restrictions
+      if (req.userType === 'admin' && req.user.role === 'super_admin') {
+        return next();
+      }
+
+      if (!userTypes.includes(req.userType)) {
+        logger.warn('User type not authorized', {
+          userId: req.user._id,
+          userType: req.userType,
+          allowedTypes: userTypes,
+          ip: req.ip,
+          path: req.path
+        });
+
+        return res.status(403).json({
+          success: false,
+          message: `Access denied. Required user type: ${userTypes.join(' or ')}`
+        });
+      }
+
+      next();
+    } catch (error) {
+      logger.error('User type authorization failed', { error: error.message });
+      return res.status(500).json({
         success: false,
-        message: 'Authentication required'
+        message: 'Authorization failed'
       });
     }
-
-    if (!userTypes.includes(req.userType)) {
-      logger.warn('Unauthorized user type access attempt', {
-        userId: req.user._id,
-        userType: req.userType,
-        requiredUserTypes: userTypes,
-        ip: req.ip,
-        path: req.path
-      });
-
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied. Invalid user type.'
-      });
-    }
-
-    next();
   };
 };
 
@@ -314,6 +337,11 @@ const requirePermission = (permission) => {
           success: false,
           message: 'Admin access required'
         });
+      }
+
+      // Super admin has all permissions
+      if (req.user.role === 'super_admin') {
+        return next();
       }
 
       const hasPermission = await req.user.hasPermission(permission);

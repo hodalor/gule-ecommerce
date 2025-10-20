@@ -9,13 +9,15 @@ const config = {
       useNewUrlParser: true,
       useUnifiedTopology: true,
       maxPoolSize: 5,
-      serverSelectionTimeoutMS: 5000,
-      socketTimeoutMS: 45000,
-      connectTimeoutMS: 10000,
+      serverSelectionTimeoutMS: 30000,
+      socketTimeoutMS: 60000,
+      connectTimeoutMS: 30000,
       heartbeatFrequencyMS: 10000,
       maxIdleTimeMS: 30000,
       retryWrites: true,
-      w: 'majority'
+      w: 'majority',
+      bufferCommands: false,
+      family: 4
     }
   },
   

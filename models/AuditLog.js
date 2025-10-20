@@ -642,7 +642,22 @@ auditLogSchema.statics.logAction = function(actionData) {
     description: actionData.description
   });
   
-  return log.save();
+  // Save the log and emit real-time update
+  return log.save().then(savedLog => {
+    // Emit real-time audit log update if global function is available
+    if (typeof global.emitAuditLogUpdate === 'function') {
+      const auditData = {
+        timestamp: savedLog.timestamp,
+        action: savedLog.action,
+        user: savedLog.performedBy,
+        description: savedLog.description,
+        severity: savedLog.severity,
+        ipAddress: actionData.ipAddress || 'Unknown'
+      };
+      global.emitAuditLogUpdate(auditData);
+    }
+    return savedLog;
+  });
 };
 
 // Static method to find logs by user

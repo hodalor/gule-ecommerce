@@ -4,7 +4,7 @@ const Product = require('../models/Product');
 const Seller = require('../models/Seller');
 const Review = require('../models/Review');
 const AuditLog = require('../models/AuditLog');
-const { authenticate, requireRole, authorizeUserType, checkOwnership } = require('../middleware/auth');
+const { authenticate, authorize, authorizeUserType, checkOwnership } = require('../middleware/auth');
 const { 
   validateProduct, 
   validateProductUpdate, 
@@ -35,6 +35,41 @@ const createProductRateLimit = rateLimit({
   message: {
     error: 'Too many product creation attempts, please try again later.',
     retryAfter: '1 hour'
+  }
+});
+
+// Get product categories
+router.get('/categories', productRateLimit, async (req, res) => {
+  try {
+    const categories = await Product.distinct('category', { status: 'active' });
+    
+    // Get category counts
+    const categoryCounts = await Product.aggregate([
+      { $match: { status: 'active' } },
+      { $group: { _id: '$category', count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ]);
+
+    const categoriesWithCounts = categoryCounts.map(cat => ({
+      name: cat._id,
+      count: cat.count
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        categories: categoriesWithCounts,
+        totalCategories: categories.length
+      }
+    });
+
+  } catch (error) {
+    logger.error('Error fetching product categories', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch categories',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
@@ -648,40 +683,7 @@ router.get('/seller/:sellerId', productRateLimit, validatePagination, handleVali
   }
 });
 
-// Get product categories
-router.get('/categories/list', productRateLimit, async (req, res) => {
-  try {
-    const categories = await Product.distinct('category', { status: 'active' });
-    
-    // Get category counts
-    const categoryCounts = await Product.aggregate([
-      { $match: { status: 'active' } },
-      { $group: { _id: '$category', count: { $sum: 1 } } },
-      { $sort: { count: -1 } }
-    ]);
 
-    const categoriesWithCounts = categoryCounts.map(cat => ({
-      name: cat._id,
-      count: cat.count
-    }));
-
-    res.json({
-      success: true,
-      data: {
-        categories: categoriesWithCounts,
-        totalCategories: categories.length
-      }
-    });
-
-  } catch (error) {
-    logger.error('Error fetching product categories', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch categories',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-});
 
 // Search products with advanced filters
 router.post('/search', productRateLimit, validateSearch, handleValidationErrors, async (req, res) => {

@@ -1,4 +1,4 @@
-const winstonLogger = require('../config/logger');
+const logger = require('../config/logger');
 
 /**
  * Global error handler middleware

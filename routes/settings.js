@@ -6,7 +6,7 @@ const AdminSettings = require('../models/AdminSettings');
 const AuditLog = require('../models/AuditLog');
 const { authenticate, authorize } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validation');
-const winstonLogger = require('../config/logger');
+const logger = require('../config/logger');
 
 // Rate limiting for settings endpoints
 const settingsRateLimit = rateLimit({
@@ -19,7 +19,7 @@ const settingsRateLimit = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res) => {
-    winstonLogger.warn('Settings rate limit exceeded', {
+    logger.warn('Settings rate limit exceeded', {
       ip: req.ip,
       userAgent: req.get('User-Agent'),
       endpoint: req.originalUrl
@@ -42,7 +42,7 @@ const updateRateLimit = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res) => {
-    winstonLogger.warn('Settings update rate limit exceeded', {
+    logger.warn('Settings update rate limit exceeded', {
       ip: req.ip,
       userAgent: req.get('User-Agent'),
       endpoint: req.originalUrl,
@@ -71,7 +71,7 @@ router.get('/',
         const defaultSettings = new AdminSettings();
         await defaultSettings.save();
         
-        winstonLogger.info('Default admin settings created', {
+        logger.info('Default admin settings created', {
           adminId: req.user.id,
           ip: req.ip
         });
@@ -82,7 +82,7 @@ router.get('/',
         });
       }
 
-      winstonLogger.info('Admin settings retrieved', {
+      logger.info('Admin settings retrieved', {
         adminId: req.user.id,
         ip: req.ip
       });
@@ -92,7 +92,7 @@ router.get('/',
         data: settings
       });
     } catch (error) {
-      winstonLogger.error('Error retrieving admin settings', {
+      logger.error('Error retrieving admin settings', {
         error: error.message,
         stack: error.stack,
         adminId: req.user.id,
@@ -134,7 +134,7 @@ router.get('/public',
         data: settings
       });
     } catch (error) {
-      winstonLogger.error('Error retrieving public settings', {
+      logger.error('Error retrieving public settings', {
         error: error.message,
         stack: error.stack,
         userId: req.user.id,
@@ -316,7 +316,7 @@ router.put('/',
         userAgent: req.get('User-Agent')
       });
 
-      winstonLogger.info('Admin settings updated', {
+      logger.info('Admin settings updated', {
         adminId: req.user.id,
         updatedFields: Object.keys(req.body),
         isSuperAdmin,
@@ -329,7 +329,7 @@ router.put('/',
         data: settings
       });
     } catch (error) {
-      winstonLogger.error('Error updating admin settings', {
+      logger.error('Error updating admin settings', {
         error: error.message,
         stack: error.stack,
         adminId: req.user.id,
@@ -392,7 +392,7 @@ router.put('/privacy',
         userAgent: req.get('User-Agent')
       });
 
-      winstonLogger.info('Privacy settings updated', {
+      logger.info('Privacy settings updated', {
         adminId: req.user.id,
         updatedFields: Object.keys(req.body),
         ip: req.ip
@@ -404,7 +404,7 @@ router.put('/privacy',
         data: settings.privacy
       });
     } catch (error) {
-      winstonLogger.error('Error updating privacy settings', {
+      logger.error('Error updating privacy settings', {
         error: error.message,
         stack: error.stack,
         adminId: req.user.id,
@@ -471,7 +471,7 @@ router.put('/platform',
         userAgent: req.get('User-Agent')
       });
 
-      winstonLogger.info('Platform settings updated', {
+      logger.info('Platform settings updated', {
         adminId: req.user.id,
         updatedFields: Object.keys(req.body),
         ip: req.ip
@@ -483,7 +483,7 @@ router.put('/platform',
         data: settings.platform
       });
     } catch (error) {
-      winstonLogger.error('Error updating platform settings', {
+      logger.error('Error updating platform settings', {
         error: error.message,
         stack: error.stack,
         adminId: req.user.id,
@@ -548,7 +548,7 @@ router.put('/features',
         userAgent: req.get('User-Agent')
       });
 
-      winstonLogger.info('Feature settings updated', {
+      logger.info('Feature settings updated', {
         adminId: req.user.id,
         updatedFields: Object.keys(req.body),
         ip: req.ip
@@ -560,7 +560,7 @@ router.put('/features',
         data: settings.features
       });
     } catch (error) {
-      winstonLogger.error('Error updating feature settings', {
+      logger.error('Error updating feature settings', {
         error: error.message,
         stack: error.stack,
         adminId: req.user.id,
@@ -632,7 +632,7 @@ router.post('/reset',
         userAgent: req.get('User-Agent')
       });
 
-      winstonLogger.warn('Admin settings reset to default', {
+      logger.warn('Admin settings reset to default', {
         adminId: req.user.id,
         ip: req.ip
       });
@@ -643,7 +643,7 @@ router.post('/reset',
         data: defaultSettings
       });
     } catch (error) {
-      winstonLogger.error('Error resetting admin settings', {
+      logger.error('Error resetting admin settings', {
         error: error.message,
         stack: error.stack,
         adminId: req.user.id,
@@ -697,7 +697,7 @@ router.get('/backup',
         userAgent: req.get('User-Agent')
       });
 
-      winstonLogger.info('Settings backup created', {
+      logger.info('Settings backup created', {
         adminId: req.user.id,
         ip: req.ip
       });
@@ -712,7 +712,7 @@ router.get('/backup',
         }
       });
     } catch (error) {
-      winstonLogger.error('Error creating settings backup', {
+      logger.error('Error creating settings backup', {
         error: error.message,
         stack: error.stack,
         adminId: req.user.id,

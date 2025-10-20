@@ -5,7 +5,7 @@ const Order = require('../models/Order');
 const User = require('../models/User');
 const Seller = require('../models/Seller');
 const AuditLog = require('../models/AuditLog');
-const { authenticate, requireRole, authorizeUserType } = require('../middleware/auth');
+const { authenticate, authorize, authorizeUserType } = require('../middleware/auth');
 const { 
   validateEscrow, 
   validatePagination,

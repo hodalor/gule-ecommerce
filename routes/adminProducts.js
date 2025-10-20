@@ -49,8 +49,36 @@ router.get('/',
       // Build filter object
       const filter = {};
       if (status) filter.status = status;
-      if (category) filter.category = category;
-      if (seller) filter.seller = seller;
+      if (category) {
+        // Handle both ObjectId and category name
+        const mongoose = require('mongoose');
+        if (mongoose.Types.ObjectId.isValid(category)) {
+          filter.category = category;
+        } else {
+          // Find category by name
+          const categoryDoc = await Category.findOne({ name: { $regex: category, $options: 'i' } });
+          if (categoryDoc) {
+            filter.category = categoryDoc._id;
+          }
+        }
+      }
+      if (seller) {
+        // Handle both ObjectId and seller name
+        const mongoose = require('mongoose');
+        if (mongoose.Types.ObjectId.isValid(seller)) {
+          filter.seller = seller;
+        } else {
+          // Find seller by business name
+          const User = require('../models/User');
+          const sellerDoc = await User.findOne({ 
+            businessName: { $regex: seller, $options: 'i' },
+            userType: 'seller'
+          });
+          if (sellerDoc) {
+            filter.seller = sellerDoc._id;
+          }
+        }
+      }
       if (search) {
         filter.$or = [
           { name: { $regex: search, $options: 'i' } },
