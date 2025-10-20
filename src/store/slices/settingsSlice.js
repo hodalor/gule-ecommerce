@@ -54,14 +54,14 @@ export const updateSystemSetting = createAsyncThunk(
   }
 );
 
-export const resetSettings = createAsyncThunk(
-  'settings/resetSettings',
-  async (settingsType, { rejectWithValue }) => {
+export const fetchSystemSettings = createAsyncThunk(
+  'settings/fetchSystemSettings',
+  async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.post(`/api/admin/settings/${settingsType}/reset`);
-      return { settingsType, data: response.data };
+      const response = await axios.get('/api/settings/system');
+      return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to reset settings');
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch system settings');
     }
   }
 );
