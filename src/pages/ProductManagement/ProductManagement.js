@@ -433,17 +433,30 @@ const ProductManagement = () => {
     setModalMode(mode);
     setSelectedProduct(product);
     if (product) {
-      setFormData({
-        name: product.name,
-        description: product.description,
-        price: product.price,
-        category: product.category,
-        stock: product.stock,
-        images: product.images,
-        status: product.status,
-        featured: product.featured,
-        sellerId: product.sellerId
-      });
+      setFormData(prev => ({
+        ...prev,
+        name: product?.name || '',
+        description: product?.description || '',
+        price: product?.price ?? '',
+        category: product?.category || '',
+        stock: product?.stock ?? '',
+        images: Array.isArray(product?.images) ? product.images : [],
+        status: product?.status || prev.status || 'active',
+        isFeatured: !!(product?.isFeatured ?? prev.isFeatured),
+        sellerId: product?.sellerId || '',
+        attributes: Array.isArray(product?.attributes)
+          ? product.attributes.map(a => ({
+              id: a.id || a._id || Date.now(),
+              name: a.name || '',
+              values: Array.isArray(a.values) ? a.values : [],
+              variation: !!a.variation,
+              visible: 'visible' in a ? !!a.visible : true
+            }))
+          : [],
+        variants: Array.isArray(product?.variants) ? product.variants : [],
+        specifications: Array.isArray(product?.specifications) ? product.specifications : [],
+        tags: Array.isArray(product?.tags) ? product.tags : []
+      }));
     } else {
       resetForm();
     }
@@ -515,7 +528,7 @@ const ProductManagement = () => {
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="">All Categories</option>
-            {categories.map(category => (
+            {(Array.isArray(categories) ? categories : []).map(category => (
               <option key={category.id} value={category.name}>{category.name}</option>
             ))}
           </select>

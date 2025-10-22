@@ -13,13 +13,25 @@ export const fetchSellers = createAsyncThunk(
         limit: limit.toString(),
       });
       
+      // Normalize verified filter: backend expects boolean string 'true'/'false'
+      const normalizedVerified = (() => {
+        if (typeof verified === 'boolean') return verified ? 'true' : 'false';
+        if (typeof verified === 'string') {
+          if (verified === 'verified') return 'true';
+          if (['pending', 'under_review', 'rejected'].includes(verified)) return 'false';
+          if (verified === 'true' || verified === 'false') return verified; // already normalized
+        }
+        return '';
+      })();
+
       if (search) params.append('search', search);
       if (status) params.append('status', status);
-      if (verified) params.append('verified', verified);
+      if (normalizedVerified !== '') params.append('verified', normalizedVerified);
       if (businessType) params.append('businessType', businessType);
 
       const response = await api.get(`/admin/sellers?${params}`);
-      return response.data;
+      // Backend returns { success, data: { sellers, pagination } }
+      return response.data?.data || { sellers: [], pagination: { currentPage: 1, totalPages: 1, totalItems: 0, itemsPerPage: limit } };
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch sellers');
     }
@@ -31,7 +43,8 @@ export const fetchSellerById = createAsyncThunk(
   async (sellerId, { rejectWithValue }) => {
     try {
       const response = await api.get(`/admin/sellers/${sellerId}`);
-      return response.data;
+      // Backend returns { success, data: { seller } }
+      return response.data?.data?.seller || null;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch seller');
     }
@@ -46,7 +59,8 @@ export const updateSellerStatus = createAsyncThunk(
         status,
         reason
       });
-      return response.data;
+      // Backend returns { success, message, data: { seller } }
+      return response.data?.data?.seller || null;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to update seller status');
     }
@@ -57,11 +71,13 @@ export const verifySellerBusiness = createAsyncThunk(
   'adminSellers/verifySellerBusiness',
   async ({ sellerId, verified, reason }, { rejectWithValue }) => {
     try {
-      const response = await api.patch(`/admin/sellers/${sellerId}/verify-business`, {
+      // Backend route is /:id/verify
+      const response = await api.patch(`/admin/sellers/${sellerId}/verify`, {
         verified,
         reason
       });
-      return response.data;
+      // Backend returns { success, message, data: { seller } }
+      return response.data?.data?.seller || null;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to verify seller business');
     }
@@ -73,7 +89,8 @@ export const fetchSellerStatistics = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await api.get(`/admin/sellers/stats/summary`);
-      return response.data;
+      // Backend returns { success, data }
+      return response.data?.data || {};
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch seller statistics');
     }
@@ -96,14 +113,15 @@ export const deleteSeller = createAsyncThunk(
 
 export const bulkUpdateSellers = createAsyncThunk(
   'adminSellers/bulkUpdateSellers',
-  async ({ sellerIds, action, data }, { rejectWithValue }) => {
+  async ({ sellerIds, action, reason }, { rejectWithValue }) => {
     try {
-      const response = await api.patch(`/admin/sellers/bulk`, {
+      // Backend route is /bulk/update and expects { sellerIds, action, reason }
+      const response = await api.patch(`/admin/sellers/bulk/update`, {
         sellerIds,
         action,
-        data
+        reason
       });
-      return response.data;
+      return response.data?.data || { affectedCount: 0 };
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to bulk update sellers');
     }
@@ -211,12 +229,13 @@ const sellerSlice = createSlice({
       })
       .addCase(fetchSellers.fulfilled, (state, action) => {
         state.loading = false;
-        state.sellers = action.payload.sellers || [];
+        state.sellers = action.payload?.sellers || [];
+        const p = action.payload?.pagination || {};
         state.pagination = {
-          currentPage: action.payload.currentPage || 1,
-          totalPages: action.payload.totalPages || 1,
-          totalItems: action.payload.totalItems || 0,
-          itemsPerPage: action.payload.itemsPerPage || 10
+          currentPage: p.currentPage || 1,
+          totalPages: p.totalPages || 1,
+          totalItems: p.totalItems || 0,
+          itemsPerPage: p.itemsPerPage || state.pagination.itemsPerPage
         };
       })
       .addCase(fetchSellers.rejected, (state, action) => {
@@ -246,12 +265,13 @@ const sellerSlice = createSlice({
       .addCase(updateSellerStatus.fulfilled, (state, action) => {
         state.loading = false;
         const updatedSeller = action.payload;
-        const index = state.sellers.findIndex(s => s._id === updatedSeller._id);
-        if (index !== -1) {
-          state.sellers[index] = updatedSeller;
+        const updatedId = String(updatedSeller?._id || updatedSeller?.id || '');
+        const index = state.sellers.findIndex(s => String(s._id || s.id || '') === updatedId);
+        if (index !== -1 && updatedSeller) {
+          state.sellers[index] = { ...state.sellers[index], ...updatedSeller };
         }
-        if (state.selectedSeller && state.selectedSeller._id === updatedSeller._id) {
-          state.selectedSeller = updatedSeller;
+        if (state.selectedSeller && String(state.selectedSeller._id || state.selectedSeller.id || '') === updatedId) {
+          state.selectedSeller = { ...state.selectedSeller, ...updatedSeller };
         }
       })
       .addCase(updateSellerStatus.rejected, (state, action) => {
@@ -267,12 +287,13 @@ const sellerSlice = createSlice({
       .addCase(verifySellerBusiness.fulfilled, (state, action) => {
         state.loading = false;
         const updatedSeller = action.payload;
-        const index = state.sellers.findIndex(s => s._id === updatedSeller._id);
-        if (index !== -1) {
-          state.sellers[index] = updatedSeller;
+        const updatedId = String(updatedSeller?._id || updatedSeller?.id || '');
+        const index = state.sellers.findIndex(s => String(s._id || s.id || '') === updatedId);
+        if (index !== -1 && updatedSeller) {
+          state.sellers[index] = { ...state.sellers[index], ...updatedSeller };
         }
-        if (state.selectedSeller && state.selectedSeller._id === updatedSeller._id) {
-          state.selectedSeller = updatedSeller;
+        if (state.selectedSeller && String(state.selectedSeller._id || state.selectedSeller.id || '') === updatedId) {
+          state.selectedSeller = { ...state.selectedSeller, ...updatedSeller };
         }
       })
       .addCase(verifySellerBusiness.rejected, (state, action) => {
@@ -301,8 +322,8 @@ const sellerSlice = createSlice({
       })
       .addCase(deleteSeller.fulfilled, (state, action) => {
         state.loading = false;
-        state.sellers = state.sellers.filter(s => s._id !== action.payload);
-        if (state.selectedSeller && state.selectedSeller._id === action.payload) {
+        state.sellers = state.sellers.filter(s => (s._id || s.id) !== action.payload);
+        if (state.selectedSeller && (state.selectedSeller._id || state.selectedSeller.id) === action.payload) {
           state.selectedSeller = null;
           state.sellerStatistics = null;
         }
@@ -317,9 +338,9 @@ const sellerSlice = createSlice({
         state.loading = true;
         state.error = null;
       })
-      .addCase(bulkUpdateSellers.fulfilled, (state, action) => {
+      .addCase(bulkUpdateSellers.fulfilled, (state) => {
         state.loading = false;
-        // Refresh sellers list after bulk update
+        // Consider refetching list after bulk updates if needed
       })
       .addCase(bulkUpdateSellers.rejected, (state, action) => {
         state.loading = false;

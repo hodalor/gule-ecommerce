@@ -12,7 +12,7 @@ class SocketService {
       return this.socket;
     }
 
-    const serverUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+    const serverUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
     
     this.socket = io(serverUrl, {
       transports: ['websocket', 'polling'],

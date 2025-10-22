@@ -7,7 +7,8 @@ import {
   verifySellerBusiness,
   bulkUpdateSellers,
   fetchSellerStatistics,
-  exportSellers
+  exportSellers,
+  setSelectedSeller
 } from '../../store/slices/sellerSlice';
 import {
   PlusIcon,
@@ -49,12 +50,27 @@ const SellerManagement = () => {
   const [selectedDocuments, setSelectedDocuments] = useState([]);
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
 
+  // New local state for edit modal controls
+  const [statusSelection, setStatusSelection] = useState('pending');
+  const [statusReason, setStatusReason] = useState('');
+  const [verificationSelection, setVerificationSelection] = useState('pending');
+  const [verificationReason, setVerificationReason] = useState('');
+  const [updateMessage, setUpdateMessage] = useState({ type: '', text: '' });
+
+  // Derived pagination values for rendering controls
+  const currentPage = pagination?.currentPage || 1;
+  const totalPages = pagination?.totalPages || 1;
+  const perPage = pagination?.itemsPerPage || 10;
+  const totalItems = (pagination?.totalItems ?? sellers.length) || 0;
+  const startItem = totalItems ? (currentPage - 1) * perPage + 1 : 0;
+  const endItem = Math.min(currentPage * perPage, totalItems);
+
   // Load sellers and statistics on component mount
   useEffect(() => {
     const fetchData = () => {
       dispatch(fetchSellers({
         page: pagination?.currentPage || 1,
-        limit: pagination?.itemsPerPage || 20,
+        limit: perPage,
         search: searchTerm,
         status: statusFilter,
         verified: verificationFilter
@@ -75,10 +91,10 @@ const SellerManagement = () => {
       // Refresh sellers list
       dispatch(fetchSellers({ 
         page: pagination?.currentPage || 1, 
-        limit: pagination?.itemsPerPage || 20,
+        limit: perPage,
         search: searchTerm,
         status: statusFilter,
-        verificationStatus: verificationFilter,
+        verified: verificationFilter,
         dateRange: dateRange.start && dateRange.end ? dateRange : undefined
       }));
     } catch (err) {
@@ -86,26 +102,80 @@ const SellerManagement = () => {
     }
   };
 
-  const handleVerificationChange = async (sellerId, verified, reason = '') => {
+  const handleVerificationChange = async (sellerId, value, reason = '') => {
+    // Map dropdown value to boolean expected by backend
+    const verified = value === 'verified';
     try {
-      await dispatch(verifySellerBusiness({ 
+      const action = await dispatch(verifySellerBusiness({ 
         sellerId, 
         verified, 
-        reason: reason || `Verification ${verified ? 'approved' : 'rejected'}` 
+        reason: reason || (verified ? 'Verification approved' : 'Verification set to pending') 
       }));
+      const updated = action?.payload;
+      if (updated) {
+        // Optimistically sync selectedSeller in modal view
+        dispatch(setSelectedSeller({ ...(selectedSeller || {}), ...updated }));
+      }
       // Refresh sellers list
       dispatch(fetchSellers({ 
         page: pagination?.currentPage || 1, 
-        limit: pagination?.itemsPerPage || 20,
+        limit: perPage,
         search: searchTerm,
         status: statusFilter,
-        verificationStatus: verificationFilter,
+        verified: verificationFilter,
         dateRange: dateRange.start && dateRange.end ? dateRange : undefined
       }));
     } catch (err) {
       console.error('Failed to update verification status:', err);
     }
   };
+
+  // New handlers for modal save buttons
+  const saveStatus = async () => {
+    try {
+      if (!selectedSeller) return;
+      await handleStatusChange(
+        selectedSeller._id || selectedSeller.id,
+        statusSelection,
+        statusReason.trim()
+      );
+      setUpdateMessage({ type: 'success', text: `Status updated to ${statusSelection}` });
+    } catch (err) {
+      console.error('Save status failed:', err);
+      setUpdateMessage({ type: 'error', text: 'Failed to update status' });
+    }
+  };
+
+  const saveVerification = async () => {
+    try {
+      if (!selectedSeller) return;
+      // Require reason when rejecting or setting under review
+      if ((verificationSelection === 'rejected' || verificationSelection === 'under_review') && !verificationReason.trim()) {
+        setUpdateMessage({ type: 'error', text: 'Reason is required when rejecting or under review.' });
+        return;
+      }
+      await handleVerificationChange(
+        selectedSeller._id || selectedSeller.id,
+        verificationSelection,
+        verificationReason.trim()
+      );
+      setUpdateMessage({ type: 'success', text: `Verification updated to ${verificationSelection}` });
+    } catch (err) {
+      console.error('Save verification failed:', err);
+      setUpdateMessage({ type: 'error', text: 'Failed to update verification' });
+    }
+  };
+
+  // Prefill selections when opening edit modal
+  useEffect(() => {
+    if (selectedSeller && modalMode === 'edit') {
+      setStatusSelection(selectedSeller.accountStatus || selectedSeller.status || 'pending');
+      setVerificationSelection((selectedSeller.isBusinessVerified ?? selectedSeller.isVerified) ? 'verified' : ((selectedSeller.businessVerificationStatus ?? selectedSeller.verificationStatus) || 'pending'));
+      setStatusReason('');
+      setVerificationReason('');
+      setUpdateMessage({ type: '', text: '' });
+    }
+  }, [selectedSeller, modalMode]);
 
   const handleBulkAction = async (action) => {
     if (selectedSellers.length === 0) return;
@@ -121,10 +191,10 @@ const SellerManagement = () => {
         // Refresh sellers list
         dispatch(fetchSellers({ 
           page: pagination?.currentPage || 1, 
-          limit: pagination?.itemsPerPage || 20,
+          limit: perPage,
           search: searchTerm,
           status: statusFilter,
-          verificationStatus: verificationFilter,
+          verified: verificationFilter,
           dateRange: dateRange.start && dateRange.end ? dateRange : undefined
         }));
       } catch (err) {
@@ -146,6 +216,33 @@ const SellerManagement = () => {
     } catch (err) {
       console.error('Failed to export sellers:', err);
     }
+  };
+
+  // Pagination handlers
+  const handlePageChange = (page) => {
+    const safePage = Math.max(1, Math.min(page, totalPages));
+    dispatch(
+      fetchSellers({
+        page: safePage,
+        limit: perPage,
+        search: searchTerm,
+        status: statusFilter,
+        verified: verificationFilter,
+      })
+    );
+  };
+
+  const handleItemsPerPageChange = (e) => {
+    const newLimit = parseInt(e.target.value, 10) || 10;
+    dispatch(
+      fetchSellers({
+        page: 1,
+        limit: newLimit,
+        search: searchTerm,
+        status: statusFilter,
+        verified: verificationFilter,
+      })
+    );
   };
 
   const openModal = (mode, seller = null) => {
@@ -188,8 +285,13 @@ const SellerManagement = () => {
     const matchesSearch = seller.businessName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          seller.ownerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          seller.email?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = !statusFilter || seller.status === statusFilter;
-    const matchesVerification = !verificationFilter || seller.verificationStatus === verificationFilter;
+    const matchesStatus = !statusFilter || (seller.accountStatus || seller.status) === statusFilter;
+    const isVerifiedFlag = (seller.isBusinessVerified !== undefined) ? seller.isBusinessVerified : seller.isVerified;
+    const statusFlag = (seller.businessVerificationStatus !== undefined) ? seller.businessVerificationStatus : seller.verificationStatus;
+    const derivedVerification = isVerifiedFlag ? 'verified' : (statusFlag || 'pending');
+    const matchesVerification = !verificationFilter || (
+      derivedVerification === verificationFilter
+    );
     
     return matchesSearch && matchesStatus && matchesVerification;
   });
@@ -267,7 +369,7 @@ const SellerManagement = () => {
               <dl>
                 <dt className="text-sm font-medium text-gray-500 truncate">Verified Sellers</dt>
                 <dd className="text-lg font-medium text-gray-900">
-                  {sellerStatistics?.verifiedSellers || sellers.filter(s => s.verificationStatus === 'verified').length}
+                  {sellerStatistics?.verifiedSellers || sellers.filter(s => (s.isBusinessVerified ?? s.isVerified)).length}
                 </dd>
               </dl>
             </div>
@@ -283,7 +385,7 @@ const SellerManagement = () => {
               <dl>
                 <dt className="text-sm font-medium text-gray-500 truncate">Pending Verification</dt>
                 <dd className="text-lg font-medium text-gray-900">
-                  {sellerStatistics?.pendingVerification || sellers.filter(s => s.verificationStatus === 'pending').length}
+                  {sellerStatistics?.pendingVerification || sellers.filter(s => !(s.isBusinessVerified ?? s.isVerified) && ((s.businessVerificationStatus ?? s.verificationStatus) || 'pending') === 'pending').length}
                 </dd>
               </dl>
             </div>
@@ -299,7 +401,7 @@ const SellerManagement = () => {
               <dl>
                 <dt className="text-sm font-medium text-gray-500 truncate">Total Revenue</dt>
                 <dd className="text-lg font-medium text-gray-900">
-                  ${(sellerStatistics?.totalRevenue || sellers.reduce((sum, s) => sum + (s.totalRevenue || 0), 0)).toLocaleString()}
+                  ${Number(sellerStatistics?.totalRevenue ?? sellers.reduce((sum, s) => sum + (s.totalRevenue || 0), 0)).toLocaleString()}
                 </dd>
               </dl>
             </div>
@@ -491,10 +593,10 @@ const SellerManagement = () => {
                       <div className="text-sm text-gray-500">{seller.email}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {getStatusBadge(seller.status)}
+                      {getStatusBadge(seller.accountStatus || seller.status)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {getVerificationBadge(seller.verificationStatus)}
+                      {getVerificationBadge(((seller.isBusinessVerified ?? seller.isVerified)) ? 'verified' : (((seller.businessVerificationStatus ?? seller.verificationStatus) || 'pending')))}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {seller.totalProducts || 0}
@@ -539,6 +641,61 @@ const SellerManagement = () => {
               )}
             </tbody>
           </table>
+
+          {/* Pagination Controls */}
+          <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 px-4">
+            <div className="text-sm text-gray-600">
+              {totalItems > 0 ? (
+                <>Showing {startItem}-{endItem} of {totalItems}</>
+              ) : (
+                <>No results</>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600">Rows per page:</label>
+              <select
+                value={perPage}
+                onChange={handleItemsPerPageChange}
+                className="px-2 py-1 border rounded bg-white"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  className="px-3 py-1 border rounded disabled:opacity-50 bg-white text-gray-700"
+                >
+                  Previous
+                </button>
+                {Array.from({ length: totalPages || 1 }, (_, i) => i + 1).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => handlePageChange(p)}
+                    className={`px-3 py-1 border rounded ${
+                      p === currentPage
+                        ? 'bg-primary-600 text-white border-primary-600'
+                        : 'bg-white text-gray-700'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  className="px-3 py-1 border rounded disabled:opacity-50 bg-white text-gray-700"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -550,7 +707,12 @@ const SellerManagement = () => {
               <h3 className="text-lg font-medium text-gray-900 mb-4">
                 Seller Details - {selectedSeller.businessName}
               </h3>
-              
+              {updateMessage.type === 'error' && (
+                <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">{updateMessage.text}</div>
+              )}
+              {updateMessage.type === 'success' && (
+                <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md">{updateMessage.text}</div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <div>
@@ -595,8 +757,8 @@ const SellerManagement = () => {
                     <div className="mt-1">
                       {modalMode === 'edit' ? (
                         <select
-                          value={selectedSeller.status}
-                          onChange={(e) => handleStatusChange(selectedSeller.id, e.target.value)}
+                          value={statusSelection}
+                          onChange={(e) => setStatusSelection(e.target.value)}
                           className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
                           <option value="active">Active</option>
@@ -605,9 +767,26 @@ const SellerManagement = () => {
                           <option value="suspended">Suspended</option>
                         </select>
                       ) : (
-                        getStatusBadge(selectedSeller.status)
+                        getStatusBadge((selectedSeller.accountStatus || selectedSeller.status))
                       )}
                     </div>
+                    {modalMode === 'edit' && (
+                      <div className="mt-2">
+                        <input
+                          type="text"
+                          value={statusReason}
+                          onChange={(e) => setStatusReason(e.target.value)}
+                          placeholder="Reason (optional)"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                        />
+                        <button
+                          onClick={saveStatus}
+                          className="mt-2 inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+                        >
+                          Save Status
+                        </button>
+                      </div>
+                    )}
                   </div>
                   
                   <div>
@@ -615,8 +794,8 @@ const SellerManagement = () => {
                     <div className="mt-1">
                       {modalMode === 'edit' ? (
                         <select
-                          value={selectedSeller.verificationStatus}
-                          onChange={(e) => handleVerificationChange(selectedSeller.id, e.target.value)}
+                          value={verificationSelection}
+                          onChange={(e) => setVerificationSelection(e.target.value)}
                           className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
                           <option value="verified">Verified</option>
@@ -625,9 +804,29 @@ const SellerManagement = () => {
                           <option value="rejected">Rejected</option>
                         </select>
                       ) : (
-                        getVerificationBadge(selectedSeller.verificationStatus)
+                        getVerificationBadge(((selectedSeller.isBusinessVerified ?? selectedSeller.isVerified)) ? 'verified' : (((selectedSeller.businessVerificationStatus ?? selectedSeller.verificationStatus) || 'pending')))
                       )}
                     </div>
+                    {modalMode === 'edit' && (
+                      <div className="mt-2">
+                        <input
+                          type="text"
+                          value={verificationReason}
+                          onChange={(e) => setVerificationReason(e.target.value)}
+                          placeholder="Reason (optional; required when rejecting)"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                        />
+                        <button
+                          onClick={saveVerification}
+                          className="mt-2 inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
+                        >
+                          Save Verification
+                        </button>
+                        <p className="mt-1 text-xs text-gray-500">
+                          Note: backend supports Verified or Pending; Rejected/Under Review will be recorded as Pending with a reason.
+                        </p>
+                      </div>
+                    )}
                   </div>
                   
                   <div className="grid grid-cols-2 gap-4">
@@ -644,7 +843,7 @@ const SellerManagement = () => {
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Total Revenue</label>
-                    <p className="mt-1 text-sm text-gray-900">${selectedSeller.totalRevenue.toLocaleString()}</p>
+                    <p className="mt-1 text-sm text-gray-900">${Number(selectedSeller?.totalRevenue ?? 0).toLocaleString()}</p>
                   </div>
                   
                   <div>
