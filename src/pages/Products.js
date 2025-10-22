@@ -90,15 +90,15 @@ const Products = () => {
   // Categories for filter dropdown
   const categoryOptions = [
     { value: 'all', label: 'All Categories' },
-    ...(categories || []).map(cat => ({ value: cat._id, label: cat.name }))
+    ...(categories || []).map(cat => ({ value: cat.name, label: cat.name }))
   ];
 
   // Filter and sort products
   const filteredProducts = (products || []).filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          product.description?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
-    return matchesSearch && matchesCategory;
+    // Rely on server-side category filtering to avoid mismatches between name vs ObjectId
+    return matchesSearch;
   });
 
   const sortedProducts = [...filteredProducts].sort((a, b) => {

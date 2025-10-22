@@ -18,13 +18,14 @@ import {
   createProduct, 
   updateProduct, 
   deleteProduct, 
-  fetchProducts 
+  fetchProducts,
+  fetchCategories
 } from '../../store/slices/productSlice';
 
 const SellerProducts = () => {
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
-  const { products, loading, error } = useSelector((state) => state.products);
+  const { products, loading, error, categories: categoriesFromStore } = useSelector((state) => state.products);
   
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -37,6 +38,25 @@ const SellerProducts = () => {
   const [imageFiles, setImageFiles] = useState([]);
   const [imagePreview, setImagePreview] = useState([]);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [formErrors, setFormErrors] = useState({});
+  const hasError = (field) => {
+    if (!formErrors) return false;
+    if (formErrors[field]) return true;
+    return Object.keys(formErrors).some(k => k === field || k.startsWith(field + '.') || k.startsWith(field + '['));
+  };
+  const getFieldErrors = (field) => {
+    if (!formErrors) return [];
+    if (formErrors[field]) return Array.isArray(formErrors[field]) ? formErrors[field] : [formErrors[field]];
+    const matches = Object.keys(formErrors).filter(k => k === field || k.startsWith(field + '.') || k.startsWith(field + '['));
+    return matches.flatMap(k => Array.isArray(formErrors[k]) ? formErrors[k] : [formErrors[k]]);
+  };
+  const renderError = (field) => {
+    const errs = getFieldErrors(field);
+    if (!errs.length) return null;
+    return (
+      <p className="mt-1 text-sm text-red-600">{errs.join(' ')}</p>
+    );
+  };
 
   // Handle image file selection
   const handleImageSelect = (files) => {
@@ -232,7 +252,7 @@ const SellerProducts = () => {
     subcategory: '',
     brand: '',
     stock: '',
-    minStock: '',
+    lowStockThreshold: '',
     sku: '',
     barcode: '',
     status: 'active',
@@ -254,7 +274,7 @@ const SellerProducts = () => {
     specifications: []
   });
 
-  const categories = ['Electronics', 'Accessories', 'Clothing', 'Home & Garden', 'Sports', 'Books'];
+  const categories = (categoriesFromStore || []).map(c => c.displayName || c.name);
   const statusOptions = [
     { value: 'active', label: 'Active', color: 'bg-green-100 text-green-800' },
     { value: 'draft', label: 'Draft', color: 'bg-gray-100 text-gray-800' },
@@ -267,6 +287,7 @@ const SellerProducts = () => {
     if (user?.id) {
       dispatch(fetchProducts({ sellerId: user.id }));
     }
+    dispatch(fetchCategories());
   }, [dispatch, user?.id]);
 
   // Filter and sort products
@@ -290,7 +311,12 @@ const SellerProducts = () => {
 
     // Category filter
     if (categoryFilter !== 'all') {
-      filtered = filtered.filter(product => product.category === categoryFilter);
+      filtered = filtered.filter(product => {
+        const categoryName = typeof product.category === 'object'
+          ? (product.category?.name || '')
+          : product.category;
+        return categoryName === categoryFilter;
+      });
     }
 
     // Sort
@@ -393,6 +419,7 @@ const SellerProducts = () => {
     setEditingProduct(null);
     setImageFiles([]);
     setImagePreview([]);
+    setFormErrors({});
     setProductForm({
       name: '',
       description: '',
@@ -403,7 +430,7 @@ const SellerProducts = () => {
       subcategory: '',
       brand: '',
       stock: '',
-      minStock: '',
+      lowStockThreshold: '',
       sku: '',
       barcode: '',
       status: 'active',
@@ -431,6 +458,7 @@ const SellerProducts = () => {
     setEditingProduct(product);
     setImageFiles([]);
     setImagePreview([]);
+    setFormErrors({});
     
     // If product has existing images, create preview from URLs
     if (product.images && product.images.length > 0) {
@@ -452,7 +480,7 @@ const SellerProducts = () => {
       subcategory: product.subcategory || '',
       brand: product.brand || '',
       stock: product.stock.toString(),
-      minStock: product.minStock?.toString() || product.lowStockThreshold?.toString() || '',
+      lowStockThreshold: (product.lowStockThreshold?.toString() || product.minStock?.toString() || ''),
       sku: product.sku,
       barcode: product.barcode || '',
       status: product.status,
@@ -504,7 +532,7 @@ const SellerProducts = () => {
         price: parseFloat(productForm.price),
         comparePrice: productForm.comparePrice ? parseFloat(productForm.comparePrice) : null,
         stock: parseInt(productForm.stock),
-        minStock: parseInt(productForm.minStock),
+        lowStockThreshold: parseInt(productForm.lowStockThreshold),
         sellerId: user?.id
       };
 
@@ -556,7 +584,27 @@ const SellerProducts = () => {
         dispatch(fetchProducts({ sellerId: user.id }));
       }
     } catch (error) {
-      toast.error(editingProduct ? 'Failed to update product' : 'Failed to create product');
+      const errData = error?.payload || error;
+      const errorsArray = Array.isArray(errData?.errors) ? errData.errors : [];
+
+      if (errorsArray.length > 0) {
+        const fieldErrorMap = {};
+        errorsArray.forEach(err => {
+          const field = err.field || err.param || err.path || '';
+          const msg = err.message || err.msg || errData?.message || 'Validation error';
+          const key = field || 'form';
+          if (!fieldErrorMap[key]) fieldErrorMap[key] = [];
+          fieldErrorMap[key].push(msg);
+        });
+        setFormErrors(fieldErrorMap);
+
+        const firstMsg = errorsArray[0]?.message || errorsArray[0]?.msg || 'Please fix the highlighted fields';
+        toast.error(firstMsg);
+      } else {
+        const genericMsg = (typeof errData === 'string' ? errData : errData?.message) || (editingProduct ? 'Failed to update product' : 'Failed to create product');
+        setFormErrors({ form: [genericMsg] });
+        toast.error(genericMsg);
+      }
     } finally {
       setUploadingImages(false);
     }
@@ -764,7 +812,7 @@ const SellerProducts = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredProducts.map((product) => {
-                const stockStatus = getStockStatus(product.stock, product.minStock);
+                const stockStatus = getStockStatus(product.stock, (product.lowStockThreshold ?? product.minStock));
                 return (
                   <tr key={product.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
@@ -785,7 +833,7 @@ const SellerProducts = () => {
                         <div>
                           <p className="font-medium text-gray-900">{product.name}</p>
                           <p className="text-sm text-gray-600">SKU: {product.sku}</p>
-                          <p className="text-sm text-gray-600">{product.category}</p>
+                          <p className="text-sm text-gray-600">{typeof product.category === 'object' ? (product.category?.name || '') : product.category}</p>
                         </div>
                       </div>
                     </td>
@@ -802,7 +850,7 @@ const SellerProducts = () => {
                         <p className={`font-medium ${stockStatus.color}`}>
                           {product.stock} units
                         </p>
-                        <p className="text-sm text-gray-600">Min: {product.minStock}</p>
+                        <p className="text-sm text-gray-600">Min: {product.lowStockThreshold ?? product.minStock}</p>
                         <p className={`text-xs ${stockStatus.color}`}>{stockStatus.label}</p>
                       </div>
                     </td>
@@ -899,13 +947,14 @@ const SellerProducts = () => {
                 <select
                   value={productForm.productType}
                   onChange={(e) => setProductForm(prev => ({ ...prev, productType: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 ${hasError('productType') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'}`}
                 >
                   <option value="simple">Simple Product</option>
                   <option value="variable">Variable Product</option>
                   <option value="grouped">Grouped Product</option>
                   <option value="external">External/Affiliate Product</option>
                 </select>
+                {renderError('productType')}
               </div>
 
               {/* Product Name */}
@@ -918,9 +967,10 @@ const SellerProducts = () => {
                   value={productForm.name}
                   onChange={(e) => setProductForm(prev => ({ ...prev, name: e.target.value }))}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 ${hasError('name') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'}`}
                   placeholder="Enter product name"
                 />
+                {renderError('name')}
               </div>
 
               {/* Short Description */}
@@ -947,9 +997,10 @@ const SellerProducts = () => {
                   onChange={(e) => setProductForm(prev => ({ ...prev, description: e.target.value }))}
                   required
                   rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 ${hasError('description') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'}`}
                   placeholder="Enter detailed product description"
                 />
+                {renderError('description')}
               </div>
 
               {/* Product Images */}
@@ -1026,9 +1077,10 @@ const SellerProducts = () => {
                     value={productForm.price}
                     onChange={(e) => setProductForm(prev => ({ ...prev, price: e.target.value }))}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 ${hasError('price') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'}`}
                     placeholder="0.00"
                   />
+                  {renderError('price')}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1055,13 +1107,14 @@ const SellerProducts = () => {
                     value={productForm.category}
                     onChange={(e) => setProductForm(prev => ({ ...prev, category: e.target.value }))}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 ${hasError('category') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'}`}
                   >
                     <option value="">Select category</option>
                     {categories.map(category => (
                       <option key={category} value={category}>{category}</option>
                     ))}
                   </select>
+                  {renderError('category')}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1100,9 +1153,10 @@ const SellerProducts = () => {
                     value={productForm.sku}
                     onChange={(e) => setProductForm(prev => ({ ...prev, sku: e.target.value }))}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 ${hasError('sku') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'}`}
                     placeholder="Enter SKU"
                   />
+                  {renderError('sku')}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1130,9 +1184,10 @@ const SellerProducts = () => {
                     onChange={(e) => setProductForm(prev => ({ ...prev, stock: e.target.value }))}
                     required
                     min="0"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 ${hasError('stock') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'}`}
                     placeholder="0"
                   />
+                  {renderError('stock')}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1140,9 +1195,9 @@ const SellerProducts = () => {
                   </label>
                   <input
                     type="number"
-                    value={productForm.minStock}
-                    onChange={(e) => setProductForm(prev => ({ ...prev, minStock: e.target.value }))}
-                    min="0"
+                    value={productForm.lowStockThreshold}
+        onChange={(e) => setProductForm(prev => ({ ...prev, lowStockThreshold: e.target.value }))}
+        min="0"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     placeholder="0"
                   />
@@ -1166,7 +1221,7 @@ const SellerProducts = () => {
                           ...prev, 
                           weight: { ...prev.weight, value: e.target.value }
                         }))}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-l-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className={`flex-1 px-3 py-2 border rounded-l-lg focus:ring-2 ${hasError('weight') || hasError('weight.value') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'}`}
                         placeholder="0.00"
                       />
                       <select
@@ -1183,6 +1238,7 @@ const SellerProducts = () => {
                         <option value="oz">oz</option>
                       </select>
                     </div>
+                    {renderError('weight')}
                   </div>
                 </div>
                 
@@ -1238,6 +1294,7 @@ const SellerProducts = () => {
                       <option value="ft">ft</option>
                     </select>
                   </div>
+                  {renderError('dimensions')}
                 </div>
               </div>
 
@@ -1379,6 +1436,7 @@ const SellerProducts = () => {
                       Add Variant
                     </button>
                   </div>
+                  {renderError('variants')}
                   
                   {productForm.variants.map((variant, variantIndex) => (
                     <div key={variant.id} className="border border-gray-200 rounded-lg p-4">
@@ -1469,6 +1527,7 @@ const SellerProducts = () => {
                     Add Attribute
                   </button>
                 </div>
+                {renderError('attributes')}
                 
                 {productForm.attributes.map((attribute, attributeIndex) => (
                   <div key={attribute.id} className="border border-gray-200 rounded-lg p-4">

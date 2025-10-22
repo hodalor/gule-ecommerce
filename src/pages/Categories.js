@@ -91,7 +91,7 @@ const Categories = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredCategories.map((category) => (
-            <div key={category._id || category.id} className="group relative bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
+            <div key={category.name} className="group relative bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
               <div className="aspect-w-16 aspect-h-12">
                 <img
                   src={category.image || `https://via.placeholder.com/400x300/3B82F6/FFFFFF?text=${encodeURIComponent(category.name)}`}
@@ -102,7 +102,7 @@ const Categories = () => {
               
               <div className="p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  <Link to={`/products?category=${category._id || category.name.toLowerCase().replace(/\s+/g, '-')}`} className="hover:text-indigo-600">
+                  <Link to={`/products?category=${encodeURIComponent(category.name)}`} className="hover:text-indigo-600">
                     {category.name}
                   </Link>
                 </h3>
@@ -113,7 +113,7 @@ const Categories = () => {
                 
                 <div className="flex items-center justify-between mb-4">
                   <span className="text-sm font-medium text-indigo-600">
-                    {(category.productCount || 0).toLocaleString()} products
+                    {(category.count || 0).toLocaleString()} products
                   </span>
                 </div>
 
@@ -142,7 +142,7 @@ const Categories = () => {
                 )}
 
                 <Link
-                  to={`/products?category=${category._id || category.name.toLowerCase().replace(/\s+/g, '-')}`}
+                  to={`/products?category=${encodeURIComponent(category.name)}`}
                   className="block w-full text-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200"
                 >
                   Browse Products
@@ -178,7 +178,7 @@ const Categories = () => {
             </div>
             <div className="text-center">
               <div className="text-3xl font-bold text-indigo-600">
-                {categories.reduce((sum, cat) => sum + (cat.productCount || 0), 0).toLocaleString()}
+                {categories.reduce((sum, cat) => sum + (cat.count || 0), 0).toLocaleString()}
               </div>
               <div className="text-sm font-medium text-gray-600">Total Products</div>
             </div>

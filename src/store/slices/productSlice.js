@@ -57,7 +57,8 @@ export const fetchCategories = createAsyncThunk(
   'products/fetchCategories',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await api.get(`/products/categories/list`);
+      // Correct backend route is /products/categories
+      const response = await api.get(`/products/categories`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch categories');
@@ -68,24 +69,59 @@ export const fetchCategories = createAsyncThunk(
 // Seller actions
 export const createProduct = createAsyncThunk(
   'products/createProduct',
-  async (productData, { rejectWithValue }) => {
+  async (payload, { rejectWithValue }) => {
     try {
-      const response = await api.post(`/products`, productData);
+      // Support both raw productData and FormData-based uploads
+      let body = payload;
+      let config = {};
+
+      if (payload instanceof FormData) {
+        body = payload;
+        config.headers = { 'Content-Type': 'multipart/form-data' };
+      } else if (payload?.formData) {
+        body = payload.formData;
+        config.headers = { 'Content-Type': 'multipart/form-data' };
+      } else if (payload?.productData) {
+        body = payload.productData;
+      }
+
+      const response = await api.post(`/products`, body, config);
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to create product');
+      const data = error?.response?.data;
+      if (data?.errors && Array.isArray(data.errors) && data.errors.length) {
+        return rejectWithValue({ message: data.message || 'Validation failed', errors: data.errors });
+      }
+      return rejectWithValue(data?.message || 'Failed to create product');
     }
   }
 );
 
 export const updateProduct = createAsyncThunk(
   'products/updateProduct',
-  async ({ productId, productData }, { rejectWithValue }) => {
+  async ({ productId, payload }, { rejectWithValue }) => {
     try {
-      const response = await api.put(`/products/${productId}`, productData);
+      let body = payload;
+      let config = {};
+
+      if (payload instanceof FormData) {
+        body = payload;
+        config.headers = { 'Content-Type': 'multipart/form-data' };
+      } else if (payload?.formData) {
+        body = payload.formData;
+        config.headers = { 'Content-Type': 'multipart/form-data' };
+      } else if (payload?.productData) {
+        body = payload.productData;
+      }
+
+      const response = await api.put(`/products/${productId}`, body, config);
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to update product');
+      const data = error?.response?.data;
+      if (data?.errors && Array.isArray(data.errors) && data.errors.length) {
+        return rejectWithValue({ message: data.message || 'Validation failed', errors: data.errors });
+      }
+      return rejectWithValue(data?.message || 'Failed to update product');
     }
   }
 );
@@ -102,30 +138,28 @@ export const deleteProduct = createAsyncThunk(
   }
 );
 
-const initialState = {
-  products: [],
-  featuredProducts: [],
-  categories: [],
-  currentProduct: null,
-  loading: false,
-  error: null,
-  pagination: {
-    currentPage: 1,
-    totalPages: 1,
-    totalProducts: 0,
-    hasNextPage: false,
-    hasPrevPage: false,
-  },
-  filters: {
-    category: '',
-    search: '',
-    seller: '',
-  },
-};
-
 const productSlice = createSlice({
   name: 'products',
-  initialState,
+  initialState: {
+    products: [],
+    featuredProducts: [],
+    currentProduct: null,
+    categories: [],
+    filters: {
+      category: '',
+      search: '',
+      seller: '',
+    },
+    pagination: {
+      currentPage: 1,
+      totalPages: 1,
+      totalProducts: 0,
+      hasNext: false,
+      hasPrev: false
+    },
+    loading: false,
+    error: null
+  },
   reducers: {
     clearError: (state) => {
       state.error = null;
@@ -183,22 +217,27 @@ const productSlice = createSlice({
       })
       // Create product
       .addCase(createProduct.fulfilled, (state, action) => {
-        state.products.unshift(action.payload.product);
+        const created = action.payload.data?.product || action.payload.product;
+        if (created) {
+          state.products.unshift(created);
+        }
       })
       // Update product
       .addCase(updateProduct.fulfilled, (state, action) => {
-        const index = state.products.findIndex(p => p._id === action.payload.product._id);
+        const updated = action.payload.data?.product || action.payload.product;
+        if (!updated) return;
+        const index = state.products.findIndex(p => (p._id || p.id) === (updated._id || updated.id));
         if (index !== -1) {
-          state.products[index] = action.payload.product;
+          state.products[index] = updated;
         }
-        if (state.currentProduct?._id === action.payload.product._id) {
-          state.currentProduct = action.payload.product;
+        if ((state.currentProduct?._id || state.currentProduct?.id) === (updated._id || updated.id)) {
+          state.currentProduct = updated;
         }
       })
       // Delete product
       .addCase(deleteProduct.fulfilled, (state, action) => {
-        state.products = state.products.filter(p => p._id !== action.payload);
-        if (state.currentProduct?._id === action.payload) {
+        state.products = state.products.filter(p => (p._id || p.id) !== action.payload);
+        if ((state.currentProduct?._id || state.currentProduct?.id) === action.payload) {
           state.currentProduct = null;
         }
       });

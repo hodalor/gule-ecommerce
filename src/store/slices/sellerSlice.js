@@ -58,7 +58,8 @@ export const fetchSellerCategories = createAsyncThunk(
   'sellers/fetchSellerCategories',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/sellers/categories`, {
+      // Reuse product categories endpoint and map to names
+      const response = await fetch(`${API_BASE_URL}/products/categories`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -70,7 +71,10 @@ export const fetchSellerCategories = createAsyncThunk(
       }
 
       const data = await response.json();
-      return data;
+      const categories = Array.isArray(data?.data?.categories)
+        ? data.data.categories.map((c) => c.name).filter(Boolean)
+        : [];
+      return categories;
     } catch (error) {
       return rejectWithValue(error.message);
     }
@@ -139,7 +143,7 @@ const sellerSlice = createSlice({
           lastName: seller.lastName,
           description: seller.businessDetails?.businessDescription || 'Professional seller',
           avatar: seller.profileImage || 'https://via.placeholder.com/64x64/6366F1/FFFFFF?text=' + (seller.firstName?.[0] || 'S'),
-          verified: seller.isVerified || false,
+          verified: (seller.isVerified === true) || (seller.verificationStatus === 'verified') || false,
           rating: seller.rating || seller.averageRating || 0,
           reviewCount: seller.totalReviews || 0,
           productCount: seller.totalProducts || 0,

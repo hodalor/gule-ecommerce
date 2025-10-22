@@ -137,7 +137,14 @@ const Sellers = () => {
                     className="h-16 w-16 rounded-full object-cover"
                   />
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">{seller.businessName || seller.name}</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                      {seller.businessName || seller.name}
+                      {seller.verified && (
+                        <svg className="ml-2 h-5 w-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.707a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </h3>
                     <p className="text-sm text-gray-600">{seller.description}</p>
                     <div className="mt-2 flex items-center space-x-2">
                       <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs">{seller.rating} ★</span>
