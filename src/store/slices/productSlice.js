@@ -89,8 +89,16 @@ export const createProduct = createAsyncThunk(
       return response.data;
     } catch (error) {
       const data = error?.response?.data;
-      if (data?.errors && Array.isArray(data.errors) && data.errors.length) {
-        return rejectWithValue({ message: data.message || 'Validation failed', errors: data.errors });
+      const valErrors = Array.isArray(data?.validationErrors)
+        ? data.validationErrors
+        : (Array.isArray(data?.errors) ? data.errors : []);
+      if (valErrors.length) {
+        return rejectWithValue({
+          message: data?.message || 'Validation failed',
+          errors: valErrors,
+          details: data?.details,
+          totalErrors: data?.totalErrors
+        });
       }
       return rejectWithValue(data?.message || 'Failed to create product');
     }
@@ -118,8 +126,16 @@ export const updateProduct = createAsyncThunk(
       return response.data;
     } catch (error) {
       const data = error?.response?.data;
-      if (data?.errors && Array.isArray(data.errors) && data.errors.length) {
-        return rejectWithValue({ message: data.message || 'Validation failed', errors: data.errors });
+      const valErrors = Array.isArray(data?.validationErrors)
+        ? data.validationErrors
+        : (Array.isArray(data?.errors) ? data.errors : []);
+      if (valErrors.length) {
+        return rejectWithValue({
+          message: data?.message || 'Validation failed',
+          errors: valErrors,
+          details: data?.details,
+          totalErrors: data?.totalErrors
+        });
       }
       return rejectWithValue(data?.message || 'Failed to update product');
     }

@@ -561,18 +561,14 @@ const SellerProducts = () => {
 
       if (editingProduct) {
         // Update existing product
-        await dispatch(updateProduct({ 
-          id: editingProduct._id || editingProduct.id, 
-          updates: productData,
-          formData: formData
+        await dispatch(updateProduct({
+          productId: editingProduct._id || editingProduct.id,
+          payload: formData
         })).unwrap();
         toast.success('Product updated successfully');
       } else {
         // Add new product
-        await dispatch(createProduct({ 
-          productData,
-          formData: formData
-        })).unwrap();
+        await dispatch(createProduct(formData)).unwrap();
         toast.success('Product created successfully');
       }
 
@@ -585,21 +581,42 @@ const SellerProducts = () => {
       }
     } catch (error) {
       const errData = error?.payload || error;
-      const errorsArray = Array.isArray(errData?.errors) ? errData.errors : [];
+      const errorsArray = Array.isArray(errData?.validationErrors)
+        ? errData.validationErrors
+        : (Array.isArray(errData?.errors) ? errData.errors : []);
 
       if (errorsArray.length > 0) {
         const fieldErrorMap = {};
+        const messages = [];
+
         errorsArray.forEach(err => {
           const field = err.field || err.param || err.path || '';
-          const msg = err.message || err.msg || errData?.message || 'Validation error';
-          const key = field || 'form';
-          if (!fieldErrorMap[key]) fieldErrorMap[key] = [];
-          fieldErrorMap[key].push(msg);
+          const msg = err.message || err.msg || 'Validation error';
+          if (field) {
+            const key = field;
+            if (!fieldErrorMap[key]) fieldErrorMap[key] = [];
+            fieldErrorMap[key].push(msg);
+          }
+          messages.push(msg);
         });
+
         setFormErrors(fieldErrorMap);
 
-        const firstMsg = errorsArray[0]?.message || errorsArray[0]?.msg || 'Please fix the highlighted fields';
-        toast.error(firstMsg);
+        const summaryTitle = errData?.message || 'Please correct the highlighted fields';
+        const detailMsgs = messages.filter(m => m && m.trim() && m.trim() !== summaryTitle);
+
+        if (detailMsgs.length) {
+          toast.custom((t) => (
+            <div className="bg-gray-900 text-white p-4 rounded-lg shadow-lg max-w-md">
+              <div className="font-semibold mb-2">{summaryTitle}</div>
+              <ul className="text-sm list-disc pl-5 space-y-1">
+                {detailMsgs.slice(0, 5).map((m, i) => <li key={i}>{m}</li>)}
+              </ul>
+            </div>
+          ), { duration: 7000 });
+        } else {
+          toast.error(summaryTitle);
+        }
       } else {
         const genericMsg = (typeof errData === 'string' ? errData : errData?.message) || (editingProduct ? 'Failed to update product' : 'Failed to create product');
         setFormErrors({ form: [genericMsg] });
