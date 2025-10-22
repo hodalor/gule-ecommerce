@@ -86,7 +86,7 @@ router.get('/',
         .populate('buyer', 'firstName lastName email phone')
         .populate('items.product', 'name sku images')
         .populate('items.seller', 'businessName email')
-        .populate('reviewOfficer', 'firstName lastName email')
+        .populate({ path: 'reviewOfficer', select: 'firstName lastName email', strictPopulate: false })
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit);
@@ -144,8 +144,8 @@ router.get('/:id',
         .populate('buyer', 'firstName lastName email phone')
         .populate('items.product', 'name sku images price')
         .populate('items.seller', 'businessName email phone')
-        .populate('reviewOfficer', 'firstName lastName email')
-        .populate('escrowTransactions')
+        .populate({ path: 'reviewOfficer', select: 'firstName lastName email', strictPopulate: false })
+        .populate('escrow')
         .populate('refunds.requestedBy', 'firstName lastName email')
         .populate('refunds.processedBy', 'firstName lastName email');
 

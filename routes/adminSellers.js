@@ -132,6 +132,89 @@ router.get('/',
   }
 );
 
+// Export sellers (Admin only)
+router.get('/export',
+  authenticate,
+  authorizeUserType(['admin']),
+  requirePermission(['super_admin', 'seller_management']),
+  async (req, res) => {
+    try {
+      const { format = 'csv', search = '', status = '', verified = '' } = req.query;
+
+      // Build filter query similar to list route
+      const filter = {};
+      if (search) {
+        filter.$or = [
+          { firstName: { $regex: search, $options: 'i' } },
+          { lastName: { $regex: search, $options: 'i' } },
+          { email: { $regex: search, $options: 'i' } },
+          { businessName: { $regex: search, $options: 'i' } },
+          { 'contactInfo.phone': { $regex: search, $options: 'i' } }
+        ];
+      }
+      if (status) filter.accountStatus = status;
+      if (verified !== '') filter.isBusinessVerified = verified === 'true';
+
+      const sellers = await Seller.find(filter)
+        .select('-password')
+        .sort({ createdAt: -1 })
+        .lean();
+
+      // Log export action
+      await AuditLog.logAction({
+        action: 'ADMIN_EXPORT_SELLERS',
+        userId: req.user.id,
+        userType: 'admin',
+        resourceType: 'Seller',
+        details: {
+          format,
+          filters: { search, status, verified },
+          exportedCount: sellers.length
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+        severity: 'medium'
+      });
+
+      if (format === 'json') {
+        res.setHeader('Content-Type', 'application/json');
+        return res.status(200).json({ success: true, data: sellers });
+      }
+
+      // Default: CSV export
+      const headers = [
+        'ID',
+        'Business Name',
+        'Email',
+        'Account Status',
+        'Business Verified',
+        'Registration Date'
+      ];
+      const rows = sellers.map(s => [
+        s._id,
+        s.businessName || `${s.firstName || ''} ${s.lastName || ''}`.trim(),
+        s.email || '',
+        s.accountStatus || '',
+        s.isBusinessVerified ? 'true' : 'false',
+        (s.registrationDate || s.createdAt || new Date()).toISOString()
+      ]);
+      const csv = [headers.join(','), ...rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))].join('\n');
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="sellers_export.csv"');
+      return res.status(200).send(csv);
+
+    } catch (error) {
+      logger.error('Admin export sellers error', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to export sellers',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+);
+
 // Get single seller by ID (Admin only)
 router.get('/:id',
   authenticate,
@@ -325,6 +408,7 @@ router.patch('/:id/verify',
 
       const wasVerified = seller.isBusinessVerified;
       seller.isBusinessVerified = verified;
+      seller.businessVerificationStatus = verified ? 'verified' : 'pending';
       seller.verificationDate = verified ? new Date() : null;
       seller.updatedAt = new Date();
 
@@ -362,7 +446,9 @@ router.patch('/:id/verify',
             businessName: seller.businessName,
             email: seller.email,
             isBusinessVerified: seller.isBusinessVerified,
-            verificationDate: seller.verificationDate
+            businessVerificationStatus: seller.businessVerificationStatus,
+            verificationDate: seller.verificationDate,
+            verificationRejectionReason: seller.verificationRejectionReason || ''
           }
         }
       });
@@ -494,6 +580,7 @@ router.patch('/bulk/update',
         case 'verify':
           updateData = { 
             isBusinessVerified: true, 
+            businessVerificationStatus: 'verified',
             verificationDate: new Date(),
             updatedAt: new Date() 
           };
@@ -502,6 +589,7 @@ router.patch('/bulk/update',
         case 'unverify':
           updateData = { 
             isBusinessVerified: false, 
+            businessVerificationStatus: 'pending',
             verificationDate: null,
             verificationRejectionReason: reason || 'Unverified by admin',
             updatedAt: new Date() 

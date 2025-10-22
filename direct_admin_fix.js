@@ -37,7 +37,7 @@ async function directAdminFix() {
     const Admin = mongoose.models.Admin || mongoose.model('Admin', adminSchema);
 
     // Find the existing admin user
-    const existingAdmin = await Admin.findOne({ email: 'admin@gule.com' }).select('+password');
+    const existingAdmin = await Admin.findOne({ email: 'superadmin@gule.com' }).select('+password');
     
     if (existingAdmin) {
       console.log('👤 Found existing admin user');
@@ -52,7 +52,7 @@ async function directAdminFix() {
       
       // Update the password directly
       await Admin.updateOne(
-        { email: 'admin@gule.com' },
+        { email: 'superadmin@gule.com' },
         { 
           $set: { 
             password: hashedPassword,
@@ -64,7 +64,7 @@ async function directAdminFix() {
       console.log('✅ Password updated successfully');
       
       // Verify the update
-      const updatedAdmin = await Admin.findOne({ email: 'admin@gule.com' }).select('+password');
+      const updatedAdmin = await Admin.findOne({ email: 'superadmin@gule.com' }).select('+password');
       const isMatch = await bcrypt.compare(newPassword, updatedAdmin.password);
       console.log('🔍 Password verification:', isMatch ? '✅ Success' : '❌ Failed');
       

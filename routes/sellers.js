@@ -134,8 +134,7 @@ router.get('/public',
       // Build query - only show active sellers publicly
       const query = {
         status: 'active',
-        isActive: true,
-        isVerified: true
+        isActive: true
       };
       
       if (search) {
@@ -156,7 +155,7 @@ router.get('/public',
 
       // Fetch sellers with limited public information
       const sellers = await Seller.find(query)
-        .select('firstName lastName businessDetails profilePicture rating totalSales totalProducts registrationDate isBusinessVerified')
+        .select('firstName lastName businessDetails profilePicture rating totalSales totalProducts registrationDate isVerified verificationStatus')
         .sort({ rating: -1, totalSales: -1 })
         .skip(skip)
         .limit(limit);
@@ -315,7 +314,7 @@ router.get('/public/:id',
 
       // Fetch seller with limited fields for public view
       const seller = await Seller.findById(id)
-        .select('firstName lastName businessDetails profilePicture rating totalSales totalProducts registrationDate isBusinessVerified createdAt');
+        .select('firstName lastName businessDetails profilePicture rating totalSales totalProducts registrationDate isVerified verificationStatus createdAt');
 
       if (!seller) {
         return res.status(404).json({

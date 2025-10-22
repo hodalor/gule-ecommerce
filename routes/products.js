@@ -4,6 +4,7 @@ const Product = require('../models/Product');
 const Seller = require('../models/Seller');
 const Review = require('../models/Review');
 const AuditLog = require('../models/AuditLog');
+const Category = require('../models/Category');
 const { authenticate, authorize, authorizeUserType, checkOwnership } = require('../middleware/auth');
 const { 
   validateProduct, 
@@ -15,6 +16,7 @@ const {
 const { uploadToCloudinary, deleteFromCloudinary, uploadMultipleToCloudinary } = require('../utils/cloudinary');
 const logger = require('../utils/logger');
 const rateLimit = require('express-rate-limit');
+const mongoose = require('mongoose');
 
 // Rate limiting for product operations
 const productRateLimit = rateLimit({
@@ -50,10 +52,23 @@ router.get('/categories', productRateLimit, async (req, res) => {
       { $sort: { count: -1 } }
     ]);
 
-    const categoriesWithCounts = categoryCounts.map(cat => ({
-      name: cat._id,
-      count: cat.count
-    }));
+    const categoriesWithCounts = await Promise.all(
+      categoryCounts.map(async (cat) => {
+        let displayName = cat._id;
+        try {
+          const idStr = typeof cat._id === 'string' ? cat._id : (cat._id?._id || cat._id?.toString?.());
+          if (idStr && mongoose.Types.ObjectId.isValid(idStr)) {
+            const categoryDoc = await Category.findById(idStr).lean();
+            if (categoryDoc?.name) {
+              displayName = categoryDoc.name;
+            }
+          }
+        } catch (e) {
+          // Fallback to raw id as name on error
+        }
+        return { name: displayName, count: cat.count };
+      })
+    );
 
     res.json({
       success: true,
@@ -93,7 +108,21 @@ router.get('/', productRateLimit, validatePagination, validateSearch, handleVali
     // Build filter object
     const filter = { status };
 
-    if (category) filter.category = new RegExp(category, 'i');
+    if (category) {
+      try {
+        const categoryDoc = await Category.findOne({ name: new RegExp(`^${category}$`, 'i') }).lean();
+        if (categoryDoc) {
+          filter.$or = [
+            { category: categoryDoc._id },
+            { category: new RegExp(category, 'i') }
+          ];
+        } else {
+          filter.category = new RegExp(category, 'i');
+        }
+      } catch (e) {
+        filter.category = new RegExp(category, 'i');
+      }
+    }
     if (condition) filter.condition = condition;
     if (location) filter.location = new RegExp(location, 'i');
     if (sellerId) filter.seller = sellerId;
@@ -312,6 +341,33 @@ router.post('/',
         parsedBody.tags = JSON.parse(parsedBody.tags);
       }
 
+      // Normalize lowStockThreshold from minStock if provided
+      if (parsedBody.minStock !== undefined && parsedBody.lowStockThreshold === undefined) {
+        const minStockNum = Number(parsedBody.minStock);
+        if (!Number.isNaN(minStockNum)) {
+          parsedBody.lowStockThreshold = minStockNum;
+        }
+        delete parsedBody.minStock;
+      }
+
+      // Normalize category: accept name or ObjectId string
+      if (parsedBody.category) {
+        const catInput = parsedBody.category;
+        if (typeof catInput === 'string' && !mongoose.Types.ObjectId.isValid(catInput)) {
+          try {
+            const existingCategory = await Category.findOne({ name: new RegExp(`^${catInput}$`, 'i') }).lean();
+            if (existingCategory) {
+              parsedBody.category = existingCategory._id;
+            } else {
+              const createdCategory = await Category.create({ name: catInput, status: 'active' });
+              parsedBody.category = createdCategory._id;
+            }
+          } catch (e) {
+            logger.warn('Category normalization failed', { category: catInput, error: e.message });
+          }
+        }
+      }
+
       // Map SEO fields to the correct structure
       const seoInfo = {};
       if (parsedBody.seoTitle) seoInfo.metaTitle = parsedBody.seoTitle;
@@ -469,6 +525,33 @@ router.put('/:id',
       }
       if (parsedBody.tags && typeof parsedBody.tags === 'string') {
         parsedBody.tags = JSON.parse(parsedBody.tags);
+      }
+
+      // Normalize lowStockThreshold from minStock if provided
+      if (parsedBody.minStock !== undefined && parsedBody.lowStockThreshold === undefined) {
+        const minStockNum = Number(parsedBody.minStock);
+        if (!Number.isNaN(minStockNum)) {
+          parsedBody.lowStockThreshold = minStockNum;
+        }
+        delete parsedBody.minStock;
+      }
+
+      // Normalize category: accept name or ObjectId string
+      if (parsedBody.category) {
+        const catInput = parsedBody.category;
+        if (typeof catInput === 'string' && !mongoose.Types.ObjectId.isValid(catInput)) {
+          try {
+            const existingCategory = await Category.findOne({ name: new RegExp(`^${catInput}$`, 'i') }).lean();
+            if (existingCategory) {
+              parsedBody.category = existingCategory._id;
+            } else {
+              const createdCategory = await Category.create({ name: catInput, status: 'active' });
+              parsedBody.category = createdCategory._id;
+            }
+          } catch (e) {
+            logger.warn('Category normalization failed', { category: catInput, error: e.message });
+          }
+        }
       }
 
       // Handle SEO fields mapping

@@ -288,9 +288,15 @@ const validateProduct = [
     .toFloat(),
   
   body('category')
-    .trim()
-    .isLength({ min: 2, max: 50 })
-    .withMessage('Category must be between 2 and 50 characters'),
+    .custom((value) => {
+      const mongoose = require('mongoose');
+      if (mongoose.Types.ObjectId.isValid(value)) return true;
+      if (typeof value === 'string') {
+        const v = value.trim();
+        if (v.length >= 2 && v.length <= 50) return true;
+      }
+      throw new Error('Category must be a valid ObjectId or name between 2 and 50 characters');
+    }),
   
   body('subcategory')
     .optional()
@@ -461,9 +467,15 @@ const validateProductUpdate = [
   
   body('category')
     .optional()
-    .trim()
-    .isLength({ min: 2, max: 50 })
-    .withMessage('Category must be between 2 and 50 characters'),
+    .custom((value) => {
+      const mongoose = require('mongoose');
+      if (mongoose.Types.ObjectId.isValid(value)) return true;
+      if (typeof value === 'string') {
+        const v = value.trim();
+        if (v.length >= 2 && v.length <= 50) return true;
+      }
+      throw new Error('Category must be a valid ObjectId or name between 2 and 50 characters');
+    }),
   
   body('subcategory')
     .optional()

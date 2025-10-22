@@ -63,6 +63,8 @@ const logger = require('./utils/logger');
 
 // Create Express app
 const app = express();
+// Disable ETag to avoid 304 Not Modified on API responses
+app.set('etag', false);
 const server = createServer(app);
 
 // Socket.IO setup
@@ -174,6 +176,14 @@ const generalLimiter = rateLimit({
 });
 
 app.use('/api/', generalLimiter);
+
+// Disable client caching for API responses to ensure JSON body is returned
+app.use('/api', (req, res, next) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  next();
+});
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -513,7 +523,7 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 // Start server
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 8000;
 const HOST = process.env.HOST || 'localhost';
 
 let serverInstance;

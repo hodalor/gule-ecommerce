@@ -226,7 +226,12 @@ const sellerSchema = new mongoose.Schema({
       values: ['pending', 'verified', 'rejected', 'suspended'],
       message: 'Verification status must be pending, verified, rejected, or suspended'
     },
-    default: 'pending'
+    default: 'pending',
+    set: v => {
+      if (typeof v !== 'string') return v;
+      const normalized = v.toLowerCase().trim();
+      return normalized === 'approved' ? 'verified' : normalized;
+    }
   },
   verificationNotes: {
     type: String,
@@ -408,5 +413,14 @@ sellerSchema.statics.findTopSellers = function(limit = 10) {
     .sort({ totalSales: -1, rating: -1 })
     .limit(limit);
 };
+
+// Normalize verificationStatus before validation to avoid enum mismatches
+sellerSchema.pre('validate', function(next) {
+  if (this.verificationStatus && typeof this.verificationStatus === 'string') {
+    const normalized = this.verificationStatus.toLowerCase().trim();
+    this.verificationStatus = normalized === 'approved' ? 'verified' : normalized;
+  }
+  next();
+});
 
 module.exports = mongoose.model('Seller', sellerSchema);

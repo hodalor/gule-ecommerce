@@ -435,6 +435,11 @@ const orderSchema = new mongoose.Schema({
   userAgent: {
     type: String,
     trim: true
+  },
+  reviewOfficer: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Admin',
+    default: null
   }
 }, {
   timestamps: true,

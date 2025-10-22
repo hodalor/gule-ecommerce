@@ -674,7 +674,8 @@ router.post('/login',
       */
 
       // Update last login
-      user.lastLoginDate = new Date();
+      // ...
+      user.lastLogin = new Date();
       await user.save();
 
       // Generate tokens
@@ -711,7 +712,8 @@ router.post('/login',
             loginTime: new Date(),
             userId: user._id,
             userType: userType,
-            lastLoginDate: user.lastLoginDate
+            lastLogin: user.lastLogin,
+            lastLoginDate: user.lastLogin
           }
         });
       } catch (auditError) {
@@ -729,7 +731,8 @@ router.post('/login',
         isEmailVerified: user.isEmailVerified,
         isPhoneVerified: user.isPhoneVerified,
         accountStatus: user.accountStatus,
-        lastLoginDate: user.lastLoginDate
+        lastLogin: user.lastLogin,
+        lastLoginDate: user.lastLogin
       };
 
       // Add type-specific data
@@ -752,16 +755,23 @@ router.post('/login',
     } catch (error) {
       logger.error('Login error', error);
       
-      await AuditLog.logAction({
-        action: 'LOGIN_ERROR',
-        userId: null,
-        userType: req.body.userType || 'unknown',
-        resourceType: 'Authentication',
-        details: { error: error.message, email: req.body.email },
-        ipAddress: req.ip,
-        userAgent: req.get('User-Agent'),
-        severity: 'high'
-      });
+      try {
+        await AuditLog.logAction({
+          action: 'LOGIN_ERROR',
+          userId: null,
+          userType: req.body.userType || 'unknown',
+          resourceType: 'Authentication',
+          details: { error: error.message, email: req.body.email },
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent'),
+          severity: 'high',
+          status: 'failure',
+          actionType: 'login',
+          module: 'auth'
+        });
+      } catch (auditError) {
+        logger.warn('Failed to log audit entry for login error', { error: auditError.message });
+      }
 
       res.status(500).json({
         error: 'Login failed',

@@ -299,18 +299,21 @@ const authorizeUserType = (...userTypes) => {
         return next();
       }
 
-      if (!userTypes.includes(req.userType)) {
+      // Support both authorizeUserType('admin') and authorizeUserType(['admin'])
+      const allowedTypes = userTypes.flat();
+
+      if (!allowedTypes.includes(req.userType)) {
         logger.warn('User type not authorized', {
           userId: req.user._id,
           userType: req.userType,
-          allowedTypes: userTypes,
+          allowedTypes,
           ip: req.ip,
           path: req.path
         });
 
         return res.status(403).json({
           success: false,
-          message: `Access denied. Required user type: ${userTypes.join(' or ')}`
+          message: `Access denied. Required user type: ${allowedTypes.join(' or ')}`
         });
       }
 
@@ -339,14 +342,38 @@ const requirePermission = (permission) => {
         });
       }
 
-      // Super admin has all permissions
+      // Super admin has all permissions (God mode)
       if (req.user.role === 'super_admin') {
         return next();
       }
 
-      const hasPermission = await req.user.hasPermission(permission);
+      // Normalize permission input to an array
+      const permissionList = Array.isArray(permission) ? permission : [permission];
 
-      if (!hasPermission) {
+      // Helper: check module/action permissions and legacy tokens
+      const hasAnyPermission = permissionList.some((perm) => {
+        if (typeof perm === 'string' && perm.includes(':')) {
+          const [module, action] = perm.split(':');
+          return req.user.hasPermission(module, action);
+        }
+        // Legacy permission tokens mapping to module/actions
+        const legacyMap = {
+          seller_management: ['sellers:approve', 'sellers:reject', 'sellers:update'],
+          user_management: ['users:create', 'users:update', 'users:delete', 'admins:create', 'admins:update', 'admins:delete'],
+          product_management: ['products:create', 'products:update', 'products:delete', 'products:approve', 'products:reject'],
+          escrow_management: ['escrow:update', 'escrow:approve', 'escrow:reject'],
+          refunds_management: ['refunds:update', 'refunds:approve', 'refunds:reject'],
+          audit_logs: ['audit_logs:read'],
+          settings_write: ['settings:create', 'settings:update', 'settings:delete']
+        };
+        const mapped = legacyMap[perm];
+        return mapped ? mapped.some((m) => {
+          const [module, action] = m.split(':');
+          return req.user.hasPermission(module, action);
+        }) : false;
+      });
+
+      if (!hasAnyPermission) {
         logger.warn('Permission denied', {
           userId: req.user._id,
           permission,
@@ -357,7 +384,7 @@ const requirePermission = (permission) => {
 
         return res.status(403).json({
           success: false,
-          message: `Permission denied. Required permission: ${permission}`
+          message: `Permission denied. Required: ${Array.isArray(permission) ? permission.join(', ') : permission}`
         });
       }
 
