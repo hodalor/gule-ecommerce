@@ -58,20 +58,7 @@ const transports = [
   }),
 ];
 
-// Add MongoDB transport if connection string is available
-if (process.env.MONGODB_URI) {
-  transports.push(
-    new winston.transports.MongoDB({
-      db: process.env.MONGODB_URI,
-      collection: 'logs',
-      level: 'error',
-      options: {
-        useUnifiedTopology: true,
-      },
-      format: logFormat,
-    })
-  );
-}
+// MongoDB transport will be attached lazily after DB connection via attachMongoTransport(dbOrUri)
 
 // Create logger instance
 const logger = winston.createLogger({
@@ -87,6 +74,40 @@ if (process.env.NODE_ENV !== 'production') {
   logger.add(new winston.transports.Console({
     format: consoleFormat
   }));
+}
+
+// Attach MongoDB transport lazily after DB connection
+function attachMongoTransport(dbOrUri) {
+  try {
+    // Skip if already attached
+    const alreadyAttached = logger.transports.some(t => t.name === 'mongodb');
+    if (alreadyAttached) return true;
+
+    const baseOptions = {
+      collection: 'logs',
+      level: 'error',
+      format: logFormat,
+      options: { useUnifiedTopology: true }
+    };
+
+    const transportOptions = typeof dbOrUri === 'string'
+      ? { db: dbOrUri, ...baseOptions }
+      : { db: dbOrUri, ...baseOptions };
+
+    const mongoTransport = new winston.transports.MongoDB(transportOptions);
+
+    // Prevent transport errors from crashing the app
+    mongoTransport.on('error', (err) => {
+      logger.warn('MongoDB log transport error', { error: err.message });
+    });
+
+    logger.add(mongoTransport);
+    logger.info('MongoDB log transport attached');
+    return true;
+  } catch (err) {
+    logger.warn('Failed to attach MongoDB log transport', { error: err.message });
+    return false;
+  }
 }
 
 // Override logger methods to emit real-time updates
@@ -110,3 +131,4 @@ logger.log = function(level, message, meta = {}) {
 };
 
 module.exports = logger;
+module.exports.attachMongoTransport = attachMongoTransport;

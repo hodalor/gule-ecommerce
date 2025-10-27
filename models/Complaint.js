@@ -115,12 +115,9 @@ const complaintSchema = new mongoose.Schema({
 });
 
 // Indexes
-complaintSchema.index({ complaintId: 1 });
+// Removed duplicate index; unique path-level index on complaintId exists
 complaintSchema.index({ userId: 1 });
 complaintSchema.index({ status: 1 });
-complaintSchema.index({ priority: 1 });
-complaintSchema.index({ type: 1 });
-complaintSchema.index({ category: 1 });
 complaintSchema.index({ createdAt: -1 });
 complaintSchema.index({ assignedTo: 1 });
 

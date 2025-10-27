@@ -19,8 +19,6 @@ class Database {
     try {
       // Default connection options
       const defaultOptions = {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
         maxPoolSize: 5, // Maintain up to 5 socket connections
         serverSelectionTimeoutMS: 5000, // Keep trying to send operations for 5 seconds
         socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity

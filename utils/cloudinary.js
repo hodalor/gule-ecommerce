@@ -1,13 +1,26 @@
 const cloudinary = require('cloudinary').v2;
 const logger = require('./logger');
 
-// Configure Cloudinary
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-  secure: true
-});
+// Configure Cloudinary (supports CLOUDINARY_URL or individual vars)
+(() => {
+  const { CLOUDINARY_URL, CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET } = process.env;
+
+  if (CLOUDINARY_URL) {
+    // If CLOUDINARY_URL is set, let the SDK read it and just enforce secure URLs
+    cloudinary.config({ secure: true });
+    logger.info('Cloudinary configured via CLOUDINARY_URL');
+  } else if (CLOUDINARY_CLOUD_NAME && CLOUDINARY_API_KEY && CLOUDINARY_API_SECRET) {
+    cloudinary.config({
+      cloud_name: CLOUDINARY_CLOUD_NAME,
+      api_key: CLOUDINARY_API_KEY,
+      api_secret: CLOUDINARY_API_SECRET,
+      secure: true
+    });
+    logger.info('Cloudinary configured via individual environment variables');
+  } else {
+    logger.error('Cloudinary configuration missing. Set CLOUDINARY_URL or CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET.');
+  }
+})();
 
 /**
  * Upload file buffer to Cloudinary
@@ -211,63 +224,39 @@ const getFileInfo = (publicId) => {
 };
 
 /**
- * Search files in Cloudinary
+ * Search files on Cloudinary
  * @param {string} expression - Search expression
  * @param {Object} options - Search options
  * @returns {Promise<Object>} Search results
  */
 const searchFiles = (expression, options = {}) => {
   return new Promise((resolve, reject) => {
-    cloudinary.search
-      .expression(expression)
-      .with_field('context')
-      .with_field('tags')
-      .max_results(options.maxResults || 30)
-      .next_cursor(options.nextCursor)
-      .execute((error, result) => {
-        if (error) {
-          logger.error('Cloudinary search error', error);
-          reject(new Error(`Search failed: ${error.message}`));
-        } else {
-          logger.info('Cloudinary search completed', {
-            expression,
-            totalCount: result.total_count,
-            resultCount: result.resources.length
-          });
-          resolve(result);
-        }
-      });
+    cloudinary.search.expression(expression).execute((error, result) => {
+      if (error) {
+        logger.error('Failed to search files on Cloudinary', error);
+        reject(new Error(`Failed to search files: ${error.message}`));
+      } else {
+        logger.info('Cloudinary search executed successfully', { expression });
+        resolve(result);
+      }
+    });
   });
 };
 
 /**
- * Create upload preset for specific use cases
+ * Create an upload preset on Cloudinary
  * @param {string} name - Preset name
  * @param {Object} settings - Preset settings
  * @returns {Promise<Object>} Preset creation result
  */
 const createUploadPreset = (name, settings = {}) => {
   return new Promise((resolve, reject) => {
-    const defaultSettings = {
-      unsigned: false,
-      folder: 'gule',
-      resource_type: 'auto',
-      allowed_formats: 'jpg,png,gif,pdf,doc,docx',
-      ...settings
-    };
-
-    cloudinary.api.create_upload_preset({
-      name,
-      ...defaultSettings
-    }, (error, result) => {
+    cloudinary.api.create_upload_preset({ name, ...settings }, (error, result) => {
       if (error) {
-        logger.error('Failed to create upload preset', error);
-        reject(new Error(`Failed to create preset: ${error.message}`));
+        logger.error('Failed to create Cloudinary upload preset', error);
+        reject(new Error(`Failed to create upload preset: ${error.message}`));
       } else {
-        logger.info('Upload preset created successfully', {
-          name,
-          settings: defaultSettings
-        });
+        logger.info('Cloudinary upload preset created successfully', { name });
         resolve(result);
       }
     });
@@ -279,22 +268,20 @@ const createUploadPreset = (name, settings = {}) => {
  * @returns {boolean} Configuration validity
  */
 const validateCloudinaryConfig = () => {
-  const requiredEnvVars = [
-    'CLOUDINARY_CLOUD_NAME',
-    'CLOUDINARY_API_KEY',
-    'CLOUDINARY_API_SECRET'
-  ];
+  const hasUrl = !!process.env.CLOUDINARY_URL;
+  const hasIndividual = !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET);
 
-  const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
-
-  if (missingVars.length > 0) {
+  if (!hasUrl && !hasIndividual) {
     logger.error('Missing Cloudinary configuration', {
-      missingVariables: missingVars
+      expected: ['CLOUDINARY_URL'],
+      alternatives: ['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET']
     });
     return false;
   }
 
-  logger.info('Cloudinary configuration validated successfully');
+  logger.info('Cloudinary configuration validated successfully', {
+    mode: hasUrl ? 'url' : 'vars'
+  });
   return true;
 };
 

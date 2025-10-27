@@ -171,12 +171,11 @@ const sessionSchema = new mongoose.Schema({
 });
 
 // Indexes
-sessionSchema.index({ sessionId: 1 });
+// Removed duplicate index; unique path-level index on sessionId exists
 sessionSchema.index({ userId: 1 });
 sessionSchema.index({ sellerId: 1 });
 sessionSchema.index({ adminId: 1 });
 sessionSchema.index({ status: 1 });
-sessionSchema.index({ expiresAt: 1 });
 sessionSchema.index({ lastActivity: 1 });
 sessionSchema.index({ ipAddress: 1 });
 sessionSchema.index({ 'securityFlags.isSuspicious': 1 });

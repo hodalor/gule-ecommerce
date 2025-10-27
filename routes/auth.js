@@ -512,6 +512,12 @@ router.post('/login',
   async (req, res) => {
     try {
       const { email, password, userType } = req.body;
+      logger.info('Login attempt', {
+        email,
+        userType,
+        ip: req.ip,
+        userAgent: req.get('User-Agent')
+      });
 
       let user;
       let Model;

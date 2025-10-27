@@ -1,13 +1,12 @@
 const database = require('../utils/database');
 const logger = require('../utils/logger');
+const mongoose = require('mongoose');
 
 // Database configuration based on environment
 const config = {
   development: {
     uri: process.env.MONGODB_URI || 'mongodb://localhost:27017/gule_marketplace_dev',
     options: {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
       maxPoolSize: 5,
       serverSelectionTimeoutMS: 30000,
       socketTimeoutMS: 60000,
@@ -24,8 +23,6 @@ const config = {
   test: {
     uri: process.env.MONGODB_TEST_URI || 'mongodb://localhost:27017/gule_marketplace_test',
     options: {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
       maxPoolSize: 2,
       serverSelectionTimeoutMS: 3000,
       socketTimeoutMS: 30000,
@@ -40,8 +37,6 @@ const config = {
   production: {
     uri: process.env.MONGODB_URI,
     options: {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
       maxPoolSize: 20,
       serverSelectionTimeoutMS: 10000,
       socketTimeoutMS: 60000,
@@ -73,6 +68,13 @@ async function initializeDatabase() {
     
     // Connect to database
     await database.connect(dbConfig.uri, dbConfig.options);
+
+    // Attach MongoDB log transport to active mongoose connection (safe, lazy)
+    try {
+      logger.attachMongoTransport(mongoose.connection);
+    } catch (e) {
+      logger.warn('Skipping MongoDB log transport attachment', { error: e.message });
+    }
     
     // Load all models to ensure they are registered
     require('../models/User');
@@ -87,8 +89,11 @@ async function initializeDatabase() {
     require('../models/AuditLog');
     
     // Create indexes for better performance
-    await database.createIndexes();
-    
+    // Run index creation in background to avoid blocking startup
+    database.createIndexes()
+      .then(() => logger.info('Index creation completed'))
+      .catch(e => logger.warn('Index creation skipped due to error', { error: e.message }));
+
     // Initialize default data (only in development and production)
     if (env !== 'test') {
       await database.initializeDefaults();

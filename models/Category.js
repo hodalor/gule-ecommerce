@@ -122,7 +122,6 @@ categorySchema.virtual('products', {
 
 // Index for better performance
 categorySchema.index({ name: 1 });
-categorySchema.index({ slug: 1 });
 categorySchema.index({ parentCategory: 1 });
 categorySchema.index({ status: 1 });
 categorySchema.index({ order: 1 });

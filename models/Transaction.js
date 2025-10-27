@@ -275,7 +275,7 @@ const transactionSchema = new mongoose.Schema({
 });
 
 // Indexes
-transactionSchema.index({ transactionId: 1 });
+// Removed duplicate index; unique path-level index on transactionId exists
 transactionSchema.index({ orderId: 1 });
 transactionSchema.index({ userId: 1 });
 transactionSchema.index({ sellerId: 1 });

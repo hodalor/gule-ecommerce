@@ -318,28 +318,28 @@ router.post('/',
         }));
       }
 
-      // Parse complex fields that come as JSON strings
+      // Prepare body using safe parsing; validators already sanitize JSON-like fields
       const parsedBody = { ...req.body };
-      
-      // Parse JSON fields
-      if (parsedBody.dimensions && typeof parsedBody.dimensions === 'string') {
-        parsedBody.dimensions = JSON.parse(parsedBody.dimensions);
-      }
-      if (parsedBody.weight && typeof parsedBody.weight === 'string') {
-        parsedBody.weight = JSON.parse(parsedBody.weight);
-      }
-      if (parsedBody.variants && typeof parsedBody.variants === 'string') {
-        parsedBody.variants = JSON.parse(parsedBody.variants);
-      }
-      if (parsedBody.attributes && typeof parsedBody.attributes === 'string') {
-        parsedBody.attributes = JSON.parse(parsedBody.attributes);
-      }
-      if (parsedBody.specifications && typeof parsedBody.specifications === 'string') {
-        parsedBody.specifications = JSON.parse(parsedBody.specifications);
-      }
-      if (parsedBody.tags && typeof parsedBody.tags === 'string') {
-        parsedBody.tags = JSON.parse(parsedBody.tags);
-      }
+
+      const safeParse = (value, fallback) => {
+        if (typeof value !== 'string') return value;
+        try {
+          const t = value.trim();
+          if (t.startsWith('{') || t.startsWith('[')) {
+            return JSON.parse(t);
+          }
+        } catch (e) {
+          // swallow parse error; keep fallback
+        }
+        return fallback;
+      };
+
+      parsedBody.dimensions = safeParse(parsedBody.dimensions, parsedBody.dimensions);
+      parsedBody.weight = safeParse(parsedBody.weight, parsedBody.weight);
+      parsedBody.variants = safeParse(parsedBody.variants, parsedBody.variants);
+      parsedBody.attributes = safeParse(parsedBody.attributes, parsedBody.attributes);
+      parsedBody.specifications = safeParse(parsedBody.specifications, parsedBody.specifications);
+      parsedBody.tags = safeParse(parsedBody.tags, Array.isArray(parsedBody.tags) ? parsedBody.tags : []);
 
       // Normalize lowStockThreshold from minStock if provided
       if (parsedBody.minStock !== undefined && parsedBody.lowStockThreshold === undefined) {
@@ -504,28 +504,28 @@ router.put('/:id',
         product.images = [...product.images, ...newImageUrls];
       }
 
-      // Parse complex fields that come as JSON strings
+      // Prepare body using safe parsing; validators already sanitize JSON-like fields
       const parsedBody = { ...req.body };
-      
-      // Parse JSON fields
-      if (parsedBody.dimensions && typeof parsedBody.dimensions === 'string') {
-        parsedBody.dimensions = JSON.parse(parsedBody.dimensions);
-      }
-      if (parsedBody.weight && typeof parsedBody.weight === 'string') {
-        parsedBody.weight = JSON.parse(parsedBody.weight);
-      }
-      if (parsedBody.variants && typeof parsedBody.variants === 'string') {
-        parsedBody.variants = JSON.parse(parsedBody.variants);
-      }
-      if (parsedBody.attributes && typeof parsedBody.attributes === 'string') {
-        parsedBody.attributes = JSON.parse(parsedBody.attributes);
-      }
-      if (parsedBody.specifications && typeof parsedBody.specifications === 'string') {
-        parsedBody.specifications = JSON.parse(parsedBody.specifications);
-      }
-      if (parsedBody.tags && typeof parsedBody.tags === 'string') {
-        parsedBody.tags = JSON.parse(parsedBody.tags);
-      }
+
+      const safeParse = (value, fallback) => {
+        if (typeof value !== 'string') return value;
+        try {
+          const t = value.trim();
+          if (t.startsWith('{') || t.startsWith('[')) {
+            return JSON.parse(t);
+          }
+        } catch (e) {
+          // swallow parse error; keep fallback
+        }
+        return fallback;
+      };
+
+      parsedBody.dimensions = safeParse(parsedBody.dimensions, parsedBody.dimensions);
+      parsedBody.weight = safeParse(parsedBody.weight, parsedBody.weight);
+      parsedBody.variants = safeParse(parsedBody.variants, parsedBody.variants);
+      parsedBody.attributes = safeParse(parsedBody.attributes, parsedBody.attributes);
+      parsedBody.specifications = safeParse(parsedBody.specifications, parsedBody.specifications);
+      parsedBody.tags = safeParse(parsedBody.tags, Array.isArray(parsedBody.tags) ? parsedBody.tags : []);
 
       // Normalize lowStockThreshold from minStock if provided
       if (parsedBody.minStock !== undefined && parsedBody.lowStockThreshold === undefined) {

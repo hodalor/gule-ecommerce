@@ -75,6 +75,10 @@ const io = new Server(server, {
   }
 });
 
+logger.info('Socket.IO initialized', {
+  origins: [process.env.FRONTEND_URL, process.env.ADMIN_URL]
+});
+
 // Make io accessible to routes
 app.set('io', io);
 
@@ -518,8 +522,8 @@ process.on('uncaughtException', (error) => {
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled Rejection', { reason, promise });
-  gracefulShutdown('unhandledRejection');
+  logger.error('Unhandled Rejection', { reason });
+  // Keep server running; log and continue. Consider monitoring to restart if needed.
 });
 
 // Start server
@@ -543,6 +547,7 @@ const startServer = async () => {
       if (process.env.NODE_ENV === 'development') {
         logger.info(`API Documentation: http://${HOST}:${PORT}/api/docs`);
       }
+      logger.info('Socket.IO ready (attached to HTTP server)');
     });
     
     // Handle server errors
@@ -552,12 +557,12 @@ const startServer = async () => {
       } else {
         logger.error('Server error', error);
       }
-      process.exit(1);
+      gracefulShutdown('server_error');
     });
     
   } catch (error) {
     logger.error('Failed to start server', error);
-    process.exit(1);
+    await gracefulShutdown('startup_error');
   }
 };
 

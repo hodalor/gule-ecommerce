@@ -174,9 +174,9 @@ const inventorySchema = new mongoose.Schema({
 });
 
 // Indexes
-inventorySchema.index({ productId: 1 });
+// Removed duplicate index; unique path-level index on productId exists
+// Removed duplicate index; unique path-level index on sku exists
 inventorySchema.index({ sellerId: 1 });
-inventorySchema.index({ sku: 1 });
 inventorySchema.index({ currentStock: 1 });
 inventorySchema.index({ status: 1 });
 inventorySchema.index({ 'alerts.isActive': 1 });

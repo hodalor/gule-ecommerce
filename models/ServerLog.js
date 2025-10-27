@@ -114,7 +114,7 @@ const serverLogSchema = new mongoose.Schema({
 });
 
 // Indexes
-serverLogSchema.index({ logId: 1 });
+// Removed duplicate index; unique path-level index on logId exists
 serverLogSchema.index({ level: 1 });
 serverLogSchema.index({ source: 1 });
 serverLogSchema.index({ createdAt: -1 });

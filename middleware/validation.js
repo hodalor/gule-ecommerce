@@ -276,8 +276,8 @@ const validateProduct = [
   body('shortDescription')
     .optional()
     .trim()
-    .isLength({ max: 500 })
-    .withMessage('Short description must not exceed 500 characters'),
+    .isLength({ max: 300 })
+    .withMessage('Short description must not exceed 300 characters'),
   
   commonValidations.price(),
   
@@ -285,7 +285,18 @@ const validateProduct = [
     .optional()
     .isFloat({ min: 0 })
     .withMessage('Compare price must be a positive number')
-    .toFloat(),
+    .toFloat()
+    .custom((value, { req }) => {
+      const priceVal = req.body.price;
+      if (value !== undefined && priceVal !== undefined) {
+        const compare = Number(value);
+        const price = Number(priceVal);
+        if (!Number.isNaN(compare) && !Number.isNaN(price) && compare < price) {
+          throw new Error('Compare price must be greater than or equal to selling price');
+        }
+      }
+      return true;
+    }),
   
   body('category')
     .custom((value) => {
@@ -340,10 +351,32 @@ const validateProduct = [
   
   body('weight')
     .optional()
+    .customSanitizer((value) => {
+      if (value === '' || value === null) return undefined;
+      if (typeof value === 'string') {
+        try { return JSON.parse(value); } catch { return undefined; }
+      }
+      return value;
+    }),
+  body('weight.value')
+    .optional()
     .isFloat({ min: 0 })
     .withMessage('Weight must be a positive number')
     .toFloat(),
+  body('weight.unit')
+    .optional()
+    .isIn(['kg', 'g', 'lb', 'oz'])
+    .withMessage('Weight unit must be kg, g, lb, or oz'),
   
+  body('dimensions')
+    .optional()
+    .customSanitizer((value) => {
+      if (value === '' || value === null) return undefined;
+      if (typeof value === 'string') {
+        try { return JSON.parse(value); } catch { return undefined; }
+      }
+      return value;
+    }),
   body('dimensions.length')
     .optional()
     .isFloat({ min: 0 })
@@ -364,6 +397,18 @@ const validateProduct = [
   
   body('tags')
     .optional()
+    .customSanitizer((value) => {
+      if (value === '' || value === null) return [];
+      if (typeof value === 'string') {
+        try {
+          const parsed = JSON.parse(value);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      }
+      return Array.isArray(value) ? value : [];
+    })
     .isArray()
     .withMessage('Tags must be an array'),
   
@@ -375,6 +420,18 @@ const validateProduct = [
   
   body('variants')
     .optional()
+    .customSanitizer((value) => {
+      if (value === '' || value === null) return [];
+      if (typeof value === 'string') {
+        try {
+          const parsed = JSON.parse(value);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      }
+      return Array.isArray(value) ? value : [];
+    })
     .isArray()
     .withMessage('Variants must be an array'),
   
@@ -386,11 +443,35 @@ const validateProduct = [
   
   body('variants.*.options')
     .optional()
+    .customSanitizer((value) => {
+      if (value === '' || value === null) return [];
+      if (typeof value === 'string') {
+        try {
+          const parsed = JSON.parse(value);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      }
+      return Array.isArray(value) ? value : [];
+    })
     .isArray()
     .withMessage('Variant options must be an array'),
   
   body('attributes')
     .optional()
+    .customSanitizer((value) => {
+      if (value === '' || value === null) return [];
+      if (typeof value === 'string') {
+        try {
+          const parsed = JSON.parse(value);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      }
+      return Array.isArray(value) ? value : [];
+    })
     .isArray()
     .withMessage('Attributes must be an array'),
   
@@ -402,11 +483,35 @@ const validateProduct = [
   
   body('attributes.*.values')
     .optional()
+    .customSanitizer((value) => {
+      if (value === '' || value === null) return [];
+      if (typeof value === 'string') {
+        try {
+          const parsed = JSON.parse(value);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      }
+      return Array.isArray(value) ? value : [];
+    })
     .isArray()
     .withMessage('Attribute values must be an array'),
   
   body('specifications')
     .optional()
+    .customSanitizer((value) => {
+      if (value === '' || value === null) return [];
+      if (typeof value === 'string') {
+        try {
+          const parsed = JSON.parse(value);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      }
+      return Array.isArray(value) ? value : [];
+    })
     .isArray()
     .withMessage('Specifications must be an array'),
   
@@ -503,10 +608,32 @@ const validateProductUpdate = [
   
   body('weight')
     .optional()
+    .customSanitizer((value) => {
+      if (value === '' || value === null) return undefined;
+      if (typeof value === 'string') {
+        try { return JSON.parse(value); } catch { return undefined; }
+      }
+      return value;
+    }),
+  body('weight.value')
+    .optional()
     .isFloat({ min: 0 })
     .withMessage('Weight must be a positive number')
     .toFloat(),
+  body('weight.unit')
+    .optional()
+    .isIn(['kg', 'g', 'lb', 'oz'])
+    .withMessage('Weight unit must be kg, g, lb, or oz'),
   
+  body('dimensions')
+    .optional()
+    .customSanitizer((value) => {
+      if (value === '' || value === null) return undefined;
+      if (typeof value === 'string') {
+        try { return JSON.parse(value); } catch { return undefined; }
+      }
+      return value;
+    }),
   body('dimensions.length')
     .optional()
     .isFloat({ min: 0 })
@@ -527,6 +654,18 @@ const validateProductUpdate = [
   
   body('tags')
     .optional()
+    .customSanitizer((value) => {
+      if (value === '' || value === null) return [];
+      if (typeof value === 'string') {
+        try {
+          const parsed = JSON.parse(value);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      }
+      return Array.isArray(value) ? value : [];
+    })
     .isArray()
     .withMessage('Tags must be an array'),
   
@@ -540,14 +679,25 @@ const validateProductUpdate = [
   body('shortDescription')
     .optional()
     .trim()
-    .isLength({ max: 500 })
-    .withMessage('Short description must not exceed 500 characters'),
+    .isLength({ max: 300 })
+    .withMessage('Short description must not exceed 300 characters'),
 
   body('comparePrice')
     .optional()
     .isFloat({ min: 0 })
     .withMessage('Compare price must be a positive number')
-    .toFloat(),
+    .toFloat()
+    .custom((value, { req }) => {
+      const priceVal = req.body.price;
+      if (value !== undefined && priceVal !== undefined) {
+        const compare = Number(value);
+        const price = Number(priceVal);
+        if (!Number.isNaN(compare) && !Number.isNaN(price) && compare < price) {
+          throw new Error('Compare price must be greater than or equal to selling price');
+        }
+      }
+      return true;
+    }),
 
   body('barcode')
     .optional()
@@ -568,6 +718,18 @@ const validateProductUpdate = [
 
   body('variants')
     .optional()
+    .customSanitizer((value) => {
+      if (value === '' || value === null) return [];
+      if (typeof value === 'string') {
+        try {
+          const parsed = JSON.parse(value);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      }
+      return Array.isArray(value) ? value : [];
+    })
     .isArray()
     .withMessage('Variants must be an array'),
 
@@ -579,11 +741,35 @@ const validateProductUpdate = [
 
   body('variants.*.options')
     .optional()
+    .customSanitizer((value) => {
+      if (value === '' || value === null) return [];
+      if (typeof value === 'string') {
+        try {
+          const parsed = JSON.parse(value);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      }
+      return Array.isArray(value) ? value : [];
+    })
     .isArray()
     .withMessage('Variant options must be an array'),
 
   body('attributes')
     .optional()
+    .customSanitizer((value) => {
+      if (value === '' || value === null) return [];
+      if (typeof value === 'string') {
+        try {
+          const parsed = JSON.parse(value);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      }
+      return Array.isArray(value) ? value : [];
+    })
     .isArray()
     .withMessage('Attributes must be an array'),
 
@@ -595,11 +781,35 @@ const validateProductUpdate = [
 
   body('attributes.*.values')
     .optional()
+    .customSanitizer((value) => {
+      if (value === '' || value === null) return [];
+      if (typeof value === 'string') {
+        try {
+          const parsed = JSON.parse(value);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      }
+      return Array.isArray(value) ? value : [];
+    })
     .isArray()
     .withMessage('Attribute values must be an array'),
 
   body('specifications')
     .optional()
+    .customSanitizer((value) => {
+      if (value === '' || value === null) return [];
+      if (typeof value === 'string') {
+        try {
+          const parsed = JSON.parse(value);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      }
+      return Array.isArray(value) ? value : [];
+    })
     .isArray()
     .withMessage('Specifications must be an array'),
 

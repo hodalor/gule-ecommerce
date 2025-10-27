@@ -86,7 +86,7 @@ financeSchema.index({ type: 1, createdAt: -1 });
 financeSchema.index({ status: 1 });
 financeSchema.index({ relatedOrder: 1 });
 financeSchema.index({ relatedSeller: 1 });
-financeSchema.index({ transactionId: 1 });
+// financeSchema.index({ transactionId: 1 });
 financeSchema.index({ isReconciled: 1 });
 financeSchema.index({ createdAt: -1 });
 

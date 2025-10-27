@@ -192,7 +192,7 @@ const addressSchema = new mongoose.Schema({
 });
 
 // Indexes
-addressSchema.index({ addressId: 1 });
+// Removed duplicate index; unique path-level index on addressId exists
 addressSchema.index({ userId: 1 });
 addressSchema.index({ type: 1 });
 addressSchema.index({ isDefault: 1 });

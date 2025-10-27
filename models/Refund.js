@@ -141,7 +141,7 @@ const refundSchema = new mongoose.Schema({
 });
 
 // Indexes
-refundSchema.index({ refundId: 1 });
+// Removed duplicate index; unique path-level index on refundId exists
 refundSchema.index({ orderId: 1 });
 refundSchema.index({ userId: 1 });
 refundSchema.index({ sellerId: 1 });
