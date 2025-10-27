@@ -497,8 +497,17 @@ const SellerProducts = () => {
       seoKeywords: product.seoKeywords || '',
       tags: product.tags || [],
       images: product.images || [],
-      variants: product.variants || [],
-      attributes: product.attributes || [],
+      variants: (Array.isArray(product.variants) ? product.variants.map(v => ({
+        ...v,
+        options: Array.isArray(v.options) ? v.options : []
+      })) : []),
+      attributes: (Array.isArray(product.attributes) ? product.attributes.map((a, idx) => ({
+        id: a.id ?? a._id ?? idx,
+        name: a.name ?? '',
+        values: Array.isArray(a.values) ? a.values : (a.value ? [a.value] : []),
+        variation: !!a.variation,
+        visible: a.visible !== false
+      })) : []),
       specifications: product.specifications || []
     });
     setShowProductModal(true);
@@ -1319,14 +1328,14 @@ const SellerProducts = () => {
               <div className="space-y-4">
                 <h3 className="text-lg font-medium text-gray-900">Attributes</h3>
                 <div className="space-y-2">
-                  {productForm.attributes.map((attr, index) => (
+                  {(Array.isArray(productForm.attributes) ? productForm.attributes : []).map((attr, index) => (
                     <div key={index} className="flex gap-2">
                       <input
                         type="text"
-                        value={attr.name}
+                        value={attr.name ?? ''}
                         onChange={(e) => {
-                          const newAttrs = [...productForm.attributes];
-                          newAttrs[index].name = e.target.value;
+                          const newAttrs = [...(Array.isArray(productForm.attributes) ? productForm.attributes : [])];
+                          newAttrs[index] = { ...(newAttrs[index] || {}), name: e.target.value };
                           setProductForm(prev => ({ ...prev, attributes: newAttrs }));
                         }}
                         className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -1334,10 +1343,10 @@ const SellerProducts = () => {
                       />
                       <input
                         type="text"
-                        value={attr.value}
+                        value={attr.value ?? ''}
                         onChange={(e) => {
-                          const newAttrs = [...productForm.attributes];
-                          newAttrs[index].value = e.target.value;
+                          const newAttrs = [...(Array.isArray(productForm.attributes) ? productForm.attributes : [])];
+                          newAttrs[index] = { ...(newAttrs[index] || {}), value: e.target.value };
                           setProductForm(prev => ({ ...prev, attributes: newAttrs }));
                         }}
                         className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -1346,7 +1355,7 @@ const SellerProducts = () => {
                       <button
                         type="button"
                         onClick={() => {
-                          const newAttrs = productForm.attributes.filter((_, i) => i !== index);
+                          const newAttrs = (Array.isArray(productForm.attributes) ? productForm.attributes : []).filter((_, i) => i !== index);
                           setProductForm(prev => ({ ...prev, attributes: newAttrs }));
                         }}
                         className="px-3 py-2 text-red-600 hover:text-red-800"
@@ -1546,13 +1555,13 @@ const SellerProducts = () => {
                 </div>
                 {renderError('attributes')}
                 
-                {productForm.attributes.map((attribute, attributeIndex) => (
-                  <div key={attribute.id} className="border border-gray-200 rounded-lg p-4">
+                {(Array.isArray(productForm.attributes) ? productForm.attributes : []).map((attribute, attributeIndex) => (
+                  <div key={attribute.id ?? attributeIndex} className="border border-gray-200 rounded-lg p-4">
                     <div className="grid grid-cols-2 gap-4 mb-3">
                       <input
                         type="text"
-                        value={attribute.name}
-                        onChange={(e) => updateAttribute(attribute.id, 'name', e.target.value)}
+                        value={attribute.name ?? ''}
+                        onChange={(e) => updateAttribute(attribute.id ?? attributeIndex, 'name', e.target.value)}
                         placeholder="Attribute name (e.g., Material, Brand)"
                         className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
@@ -1560,8 +1569,8 @@ const SellerProducts = () => {
                         <label className="flex items-center">
                           <input
                             type="checkbox"
-                            checked={attribute.variation}
-                            onChange={(e) => updateAttribute(attribute.id, 'variation', e.target.checked)}
+                            checked={!!attribute.variation}
+                            onChange={(e) => updateAttribute(attribute.id ?? attributeIndex, 'variation', e.target.checked)}
                             className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                           />
                           <span className="ml-2 text-sm text-gray-700">Used for variations</span>
@@ -1569,15 +1578,15 @@ const SellerProducts = () => {
                         <label className="flex items-center">
                           <input
                             type="checkbox"
-                            checked={attribute.visible}
-                            onChange={(e) => updateAttribute(attribute.id, 'visible', e.target.checked)}
+                            checked={attribute.visible !== false}
+                            onChange={(e) => updateAttribute(attribute.id ?? attributeIndex, 'visible', e.target.checked)}
                             className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                           />
                           <span className="ml-2 text-sm text-gray-700">Visible on product page</span>
                         </label>
                         <button
                           type="button"
-                          onClick={() => removeAttribute(attribute.id)}
+                          onClick={() => removeAttribute(attribute.id ?? attributeIndex)}
                           className="text-red-600 hover:text-red-800"
                         >
                           <XMarkIcon className="h-5 w-5" />
@@ -1590,25 +1599,25 @@ const SellerProducts = () => {
                         <span className="text-sm font-medium text-gray-700">Values</span>
                         <button
                           type="button"
-                          onClick={() => addAttributeValue(attribute.id)}
+                          onClick={() => addAttributeValue(attribute.id ?? attributeIndex)}
                           className="text-blue-600 text-sm hover:text-blue-800"
                         >
                           Add Value
                         </button>
                       </div>
                       
-                      {attribute.values.map((value, valueIndex) => (
+                      {(Array.isArray(attribute.values) ? attribute.values : (attribute.value ? [attribute.value] : [])).map((value, valueIndex) => (
                         <div key={valueIndex} className="flex gap-2 items-center">
                           <input
                             type="text"
                             value={value}
-                            onChange={(e) => updateAttributeValue(attribute.id, valueIndex, e.target.value)}
+                            onChange={(e) => updateAttributeValue(attribute.id ?? attributeIndex, valueIndex, e.target.value)}
                             placeholder="Attribute value"
                             className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500"
                           />
                           <button
                             type="button"
-                            onClick={() => removeAttributeValue(attribute.id, valueIndex)}
+                            onClick={() => removeAttributeValue(attribute.id ?? attributeIndex, valueIndex)}
                             className="text-red-600 hover:text-red-800"
                           >
                             <XMarkIcon className="h-4 w-4" />
