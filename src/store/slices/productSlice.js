@@ -8,20 +8,38 @@ export const fetchProducts = createAsyncThunk(
   'products/fetchProducts',
   async (args = {}, { rejectWithValue }) => {
     try {
-      const { page = 1, limit = 12, category, search, sellerId, seller } = args;
+      const {
+        page = 1,
+        limit = 12,
+        category,
+        search,
+        sellerId,
+        seller,
+        status,
+        sortBy,
+        order
+      } = args;
 
       const params = new URLSearchParams({
-        page: page.toString(),
-        limit: limit.toString(),
+        page: String(page),
+        limit: String(limit),
       });
-      
+
       if (category) params.append('category', category);
       if (search) params.append('search', search);
-      // Prefer sellerId; fall back to seller for backward compatibility
-      const sellerFilter = sellerId || seller;
-      if (sellerFilter) params.append('sellerId', sellerFilter);
+      if (status) params.append('status', status);
+      if (sortBy) params.append('sortBy', sortBy);
+      if (order) params.append('order', order);
 
-      const response = await api.get(`/products?${params}`);
+      const sellerFilter = sellerId || seller;
+
+      let response;
+      if (sellerFilter) {
+        // Use seller-specific route to access non-active statuses too
+        response = await api.get(`/products/seller/${sellerFilter}?${params.toString()}`);
+      } else {
+        response = await api.get(`/products?${params.toString()}`);
+      }
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch products');
