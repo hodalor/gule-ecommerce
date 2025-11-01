@@ -83,7 +83,9 @@ router.get('/', authenticate, authorize(['admin']), async (req, res) => {
     const logs = await AuditLog.find(filter)
       .sort(sort)
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(parseInt(limit))
+      // Populate admin/seller/user basic identity fields for clearer UI display
+      .populate('performedBy', 'email role firstName lastName');
 
     const total = await AuditLog.countDocuments(filter);
 

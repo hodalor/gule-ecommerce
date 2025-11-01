@@ -138,24 +138,21 @@ router.get('/', authenticate, authorize(['admin']), async (req, res) => {
     }));
 
     // Log the server logs access
-    await AuditLog.create({
-      performedBy: req.user.id,
-      userType: 'Admin',
+    await AuditLog.logAction({
+      action: 'SERVER_LOGS_ACCESS',
       actionType: 'read',
       module: 'system',
-      action: 'SERVER_LOGS_ACCESS',
-      description: `Accessed server logs (${formattedLogs.length} entries)`,
+      userId: req.user.id,
+      userType: 'admin',
+      description: `Accessed server logs (${paginatedLogs.length} entries)`,
       severity: 'low',
       status: 'success',
-      session: {
-        ipAddress: req.ip,
-        userAgent: req.get('User-Agent')
-      },
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent'),
       metadata: {
-        level: level,
-        limit: limit,
-        offset: offset,
-        resultCount: formattedLogs.length
+        level,
+        offset: parseInt(offset),
+        limit: parseInt(limit)
       }
     });
 
@@ -327,23 +324,21 @@ router.delete('/clear', authenticate, authorize(['admin']), async (req, res) => 
     }
 
     // Log the clear action
-    await AuditLog.create({
-      performedBy: req.user.id,
-      userType: 'Admin',
+    await AuditLog.logAction({
+      action: 'SERVER_LOGS_CLEARED',
       actionType: 'delete',
       module: 'system',
-      action: 'SERVER_LOGS_CLEARED',
+      userId: req.user.id,
+      userType: 'admin',
       description: `Cleared server logs: ${clearedFiles.join(', ')}`,
       severity: 'medium',
       status: 'success',
-      session: {
-        ipAddress: req.ip,
-        userAgent: req.get('User-Agent')
-      },
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent'),
       metadata: {
-        logType: logType,
-        createBackup: createBackup,
-        clearedFiles: clearedFiles
+        logType,
+        createBackup,
+        clearedFiles
       }
     });
 
@@ -400,19 +395,17 @@ router.get('/download/:type', authenticate, authorize(['admin']), async (req, re
     }
 
     // Log the download action
-    await AuditLog.create({
-      performedBy: req.user.id,
-      userType: 'Admin',
+    await AuditLog.logAction({
+      action: 'SERVER_LOGS_DOWNLOAD',
       actionType: 'export',
       module: 'system',
-      action: 'SERVER_LOGS_DOWNLOAD',
+      userId: req.user.id,
+      userType: 'admin',
       description: `Downloaded ${type} server logs`,
       severity: 'low',
       status: 'success',
-      session: {
-        ipAddress: req.ip,
-        userAgent: req.get('User-Agent')
-      },
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent'),
       metadata: {
         logType: type,
         filePath: path.basename(filePath)

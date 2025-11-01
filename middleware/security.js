@@ -257,7 +257,8 @@ const sessionSecurity = (req, res, next) => {
  */
 const corsOptions = {
   origin: (origin, callback) => {
-    const allowedOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:3000'];
+    const defaultOrigins = ['http://localhost:3000', 'http://localhost:3034'];
+    const allowedOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : defaultOrigins;
     
     // Allow requests with no origin (mobile apps, etc.)
     if (!origin) return callback(null, true);

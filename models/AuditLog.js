@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const net = require('net');
 
 /**
  * @swagger
@@ -237,9 +238,15 @@ const auditLogSchema = new mongoose.Schema({
     },
     ipAddress: {
       type: String,
-      required: false, // Temporarily disabled for testing
+      required: false,
       trim: true,
-      match: [/^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$|^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/, 'Invalid IP address format']
+      validate: {
+        validator: function(v) {
+          if (!v) return true;
+          return net.isIP(v) !== 0;
+        },
+        message: 'Invalid IP address format'
+      }
     },
     userAgent: {
       type: String,
@@ -500,7 +507,7 @@ auditLogSchema.index({ timestamp: -1 });
 auditLogSchema.index({ 'session.ipAddress': 1 });
 auditLogSchema.index({ isArchived: 1 });
 
-// Compound indexes for common queries
+// Correlation indexes for common queries
 auditLogSchema.index({ performedBy: 1, timestamp: -1 });
 auditLogSchema.index({ module: 1, actionType: 1 });
 auditLogSchema.index({ severity: 1, timestamp: -1 });
@@ -621,27 +628,82 @@ auditLogSchema.methods.sendNotification = function(type, recipient) {
 
 // Static method to log action
 auditLogSchema.statics.logAction = function(actionData) {
+  // Backward-compatible field mapping for legacy callers
+  const performedBy = actionData.performedBy ?? actionData.userId ?? null;
+  const userType = actionData.userType ?? 'system';
+  const userModel = actionData.userModel ?? (userType === 'admin' ? 'Admin' : userType === 'seller' ? 'Seller' : userType === 'user' ? 'User' : 'System');
+  const targetResource = actionData.targetResource ?? actionData.resourceType ?? undefined;
+  const targetId = actionData.targetId ?? actionData.resourceId ?? undefined;
+  const session = actionData.session ?? {
+    ipAddress: actionData.ipAddress,
+    userAgent: actionData.userAgent
+  };
+
+  const inferActionType = (act) => {
+    const a = (act || '').toLowerCase();
+    if (a.includes('login')) return 'login';
+    if (a.includes('logout')) return 'logout';
+    if (a.includes('create')) return 'create';
+    if (a.includes('update') || a.includes('change')) return 'update';
+    if (a.includes('delete') || a.includes('remove')) return 'delete';
+    if (a.includes('approve')) return 'approve';
+    if (a.includes('reject')) return 'reject';
+    if (a.includes('suspend')) return 'suspend';
+    if (a.includes('activate')) return 'activate';
+    if (a.includes('assign')) return 'assign';
+    if (a.includes('release')) return 'release';
+    if (a.includes('refund')) return 'refund';
+    if (a.includes('export')) return 'export';
+    if (a.includes('import')) return 'import';
+    if (a.includes('configure') || a.includes('settings')) return 'configure';
+    if (a.includes('verify')) return 'verify';
+    return undefined;
+  };
+
+  const inferModule = (act, resType) => {
+    const a = (act || '').toLowerCase();
+    const r = (resType || '').toLowerCase();
+    if (a.includes('auth') || a.includes('login') || a.includes('logout')) return 'auth';
+    if (r.includes('user') || a.includes('admin')) return 'admin';
+    if (r.includes('seller')) return 'sellers';
+    if (r.includes('product')) return 'products';
+    if (r.includes('order') || a.includes('order')) return 'orders';
+    if (r.includes('escrow') || a.includes('escrow')) return 'escrow';
+    if (r.includes('review')) return 'reviews';
+    if (a.includes('settings') || r.includes('settings')) return 'settings';
+    return actionData.module;
+  };
+
+  const description = actionData.description ?? (() => {
+    try {
+      const detailsStr = actionData.details ? JSON.stringify(actionData.details).slice(0, 200) : '';
+      return `${actionData.action || 'ACTION'}${detailsStr ? ' - ' + detailsStr : ''}`;
+    } catch {
+      return actionData.action || 'ACTION';
+    }
+  })();
+
   const log = new this({
     action: actionData.action,
-    actionType: actionData.actionType,
-    module: actionData.module,
-    performedBy: actionData.performedBy,
-    userModel: actionData.userModel,
-    userType: actionData.userType,
+    actionType: actionData.actionType ?? inferActionType(actionData.action),
+    module: actionData.module ?? inferModule(actionData.action, targetResource),
+    performedBy,
+    userModel,
+    userType,
     userRole: actionData.userRole,
-    targetResource: actionData.targetResource,
-    targetId: actionData.targetId,
+    targetResource,
+    targetId,
     targetModel: actionData.targetModel,
     changes: actionData.changes,
     request: actionData.request,
     response: actionData.response,
-    session: actionData.session,
-    severity: actionData.severity,
-    status: actionData.status,
-    metadata: actionData.metadata,
-    description: actionData.description
+    session,
+    severity: actionData.severity ?? 'medium',
+    status: actionData.status ?? 'success',
+    metadata: actionData.metadata ?? actionData.details,
+    description
   });
-  
+
   // Save the log and emit real-time update
   return log.save().then(savedLog => {
     // Emit real-time audit log update if global function is available
@@ -652,7 +714,7 @@ auditLogSchema.statics.logAction = function(actionData) {
         user: savedLog.performedBy,
         description: savedLog.description,
         severity: savedLog.severity,
-        ipAddress: actionData.ipAddress || 'Unknown'
+        ipAddress: session?.ipAddress || 'Unknown'
       };
       global.emitAuditLogUpdate(auditData);
     }
@@ -761,25 +823,8 @@ auditLogSchema.statics.cleanupExpired = function() {
   });
 };
 
-// Temporarily disabled AuditLog methods during testing
-auditLogSchema.statics.logAction = function() {
-  return Promise.resolve();
-};
-
-auditLogSchema.statics.create = function() {
-  return Promise.resolve();
-};
-
-// Override the model constructor to prevent validation
-auditLogSchema.pre('save', function(next) {
-  // Skip validation during testing
-  next();
-});
-
-auditLogSchema.pre('validate', function(next) {
-  // Skip validation during testing
-  next();
-});
+// Removed temporary test overrides to re-enable audit logging.
+// The real implementations above handle log persistence and real-time emission.
 
 const AuditLog = mongoose.model('AuditLog', auditLogSchema);
 

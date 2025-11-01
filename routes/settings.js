@@ -119,7 +119,7 @@ router.get('/public',
         'security.sessionTimeout security.maxLoginAttempts security.accountLockoutDuration ' +
         'notifications.emailNotifications notifications.smsNotifications notifications.pushNotifications ' +
         'features.escrowEnabled features.reviewsEnabled features.ratingsEnabled features.wishlistEnabled ' +
-        'features.compareEnabled features.recommendationsEnabled -_id -__v'
+        'features.compareEnabled features.recommendationsEnabled features.autoApproveProducts -_id -__v'
       );
 
       if (!settings) {
@@ -300,11 +300,11 @@ router.put('/',
       await settings.save();
 
       // Create audit log
-      await AuditLog.create({
-        userId: req.user.id,
-        userType: 'Admin',
+      await AuditLog.logAction({
         action: 'SETTINGS_UPDATE',
-        resource: 'AdminSettings',
+        userId: req.user.id,
+        userType: 'admin',
+        resourceType: 'AdminSettings',
         resourceId: settings._id,
         details: {
           updatedFields: Object.keys(req.body),
@@ -313,7 +313,9 @@ router.put('/',
           isSuperAdmin
         },
         ipAddress: req.ip,
-        userAgent: req.get('User-Agent')
+        userAgent: req.get('User-Agent'),
+        severity: 'medium',
+        status: 'success'
       });
 
       logger.info('Admin settings updated', {
@@ -511,6 +513,7 @@ router.put('/features',
     body('wishlistEnabled').optional().isBoolean().withMessage('wishlistEnabled must be a boolean'),
     body('compareEnabled').optional().isBoolean().withMessage('compareEnabled must be a boolean'),
     body('recommendationsEnabled').optional().isBoolean().withMessage('recommendationsEnabled must be a boolean'),
+    body('autoApproveProducts').optional().isBoolean().withMessage('autoApproveProducts must be a boolean'),
   ],
   handleValidationErrors,
   async (req, res) => {

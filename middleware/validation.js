@@ -190,7 +190,7 @@ const validateOrderUpdate = [
     .withMessage('Tracking number must be between 1 and 100 characters'),
   
   body('notes')
-    .optional()
+    .optional()                                             
     .trim()
     .isLength({ max: 500 })
     .withMessage('Notes must not exceed 500 characters'),

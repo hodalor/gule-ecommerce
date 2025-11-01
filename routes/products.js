@@ -5,6 +5,7 @@ const Seller = require('../models/Seller');
 const Review = require('../models/Review');
 const AuditLog = require('../models/AuditLog');
 const Category = require('../models/Category');
+const AdminSettings = require('../models/AdminSettings');
 const { authenticate, authorize, authorizeUserType, checkOwnership } = require('../middleware/auth');
 const { 
   validateProduct, 
@@ -382,9 +383,20 @@ router.post('/',
         ...parsedBody,
         seller: req.user.id,
         images: imageUrls,
-        status: 'pending', // Products need approval
+        status: 'pending',
         seoInfo: Object.keys(seoInfo).length > 0 ? seoInfo : undefined
       };
+
+      // Determine auto-approve behavior from admin settings
+      try {
+        const settingDoc = await AdminSettings.findOne().select('features.autoApproveProducts').lean();
+        const autoApproveEnabled = settingDoc?.features?.autoApproveProducts === true;
+        if (autoApproveEnabled) {
+          productData.status = 'active';
+        }
+      } catch (e) {
+        logger.warn('Auto-approve check failed; defaulting to pending', { error: e.message });
+      }
 
       // Remove the original SEO fields as they're now in seoInfo
       delete productData.seoTitle;

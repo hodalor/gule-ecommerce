@@ -20,7 +20,22 @@ async function fixAdminPassword() {
       email: 'admin@gule.com',
       password: 'admin123', // This will be hashed by the pre-save middleware
       role: 'super_admin',
-      department: 'IT',
+      department: 'administration',
+      jobTitle: 'System Administrator',
+      phone: '+260123456789',
+      address: {
+        street: '123 Admin Street',
+        city: 'Lusaka',
+        state: 'Lusaka Province',
+        zipCode: '10101',
+        country: 'Zambia'
+      },
+      employment: {
+        hireDate: new Date(),
+        salary: 0,
+        currency: 'ZMW',
+        contractType: 'full_time'
+      },
       isActive: true,
       accountStatus: 'active'
     };
