@@ -167,25 +167,33 @@ router.post('/',
       // Generate employee ID
       const employeeId = await generateEmployeeId();
 
-      // Hash password
-      const saltRounds = parseInt(process.env.BCRYPT_ROUNDS) || 12;
-      const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-      // Create new admin
+      // Create new admin (password will be hashed by model pre-save)
       const newAdmin = new Admin({
+        employeeId,
         firstName,
         lastName,
         email,
-        phone,
-        password: hashedPassword,
-        employeeId,
+        password: password,
         role,
-        department,
-        permissions: permissions || [],
-        hireDate: hireDate ? new Date(hireDate) : new Date(),
-        status: 'active',
-        createdBy: req.user.id,
-        registrationDate: new Date()
+        department: department || 'administration',
+        jobTitle: req.body.jobTitle || (role === 'super_admin' ? 'Super Admin' : 'Admin'),
+        phone,
+        address: {
+          street: req.body.address?.street || 'Unknown Street',
+          city: req.body.address?.city || 'Lusaka',
+          state: req.body.address?.state || 'Lusaka Province',
+          zipCode: req.body.address?.zipCode || '00000',
+          country: req.body.address?.country || 'Zambia'
+        },
+        permissions: Array.isArray(permissions) ? permissions.filter(p => p && typeof p === 'object' && p.module && Array.isArray(p.actions)) : [],
+        employment: {
+          hireDate: hireDate ? new Date(hireDate) : new Date(),
+          contractType: req.body.employment?.contractType || 'full_time',
+          currency: req.body.employment?.currency || 'ZMW',
+          salary: req.body.employment?.salary,
+          probationPeriod: req.body.employment?.probationPeriod || 90,
+          manager: req.body.employment?.manager
+        }
       });
 
       await newAdmin.save();
@@ -206,7 +214,6 @@ router.post('/',
         },
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
-        severity: 'high'
       });
 
       // Remove password from response
@@ -214,7 +221,7 @@ router.post('/',
       delete adminResponse.password;
 
       res.status(201).json({
-        message: 'Admin created successfully',
+        message: 'Admin account created successfully',
         admin: adminResponse
       });
 

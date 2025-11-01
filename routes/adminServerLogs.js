@@ -23,36 +23,50 @@ router.get('/', authenticate, authorize(['admin']), async (req, res) => {
       combined: path.join(logsDir, 'combined.log'),
       error: path.join(logsDir, 'error.log')
     };
+    // Include possible alternate/rotated combined log files
+    const combinedCandidates = [
+      logFiles.combined,
+      path.join(logsDir, 'combined1.log'),
+      path.join(logsDir, 'combined.log.0'),
+      path.join(logsDir, 'combined.log.1'),
+      path.join(logsDir, 'combined.log.2')
+    ];
 
     let logs = [];
 
-    // Read log files based on level filter
-    if (level === 'all' || level === 'combined') {
+    // Read combined logs (and rotated variants) based on level
+    if (level === 'all' || level === 'combined' || ['warn','info','debug','http'].includes(level)) {
       try {
-        const combinedData = await fs.readFile(logFiles.combined, 'utf8');
-        const combinedLogs = combinedData.split('\n')
-          .filter(line => line.trim())
-          .map(line => {
-            try {
-              const parsed = JSON.parse(line);
-              return {
-                ...parsed,
-                source: 'combined',
-                id: `combined_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-              };
-            } catch (e) {
-              return {
-                level: 'info',
-                message: line,
-                timestamp: new Date().toISOString(),
-                source: 'combined',
-                id: `combined_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-              };
-            }
-          });
-        logs = logs.concat(combinedLogs);
+        for (const filePath of combinedCandidates) {
+          try {
+            const combinedData = await fs.readFile(filePath, 'utf8');
+            const combinedLogs = combinedData.split('\n')
+              .filter(line => line.trim())
+              .map(line => {
+                try {
+                  const parsed = JSON.parse(line);
+                  return {
+                    ...parsed,
+                    source: 'combined',
+                    id: `combined_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+                  };
+                } catch (e) {
+                  return {
+                    level: 'info',
+                    message: line,
+                    timestamp: new Date().toISOString(),
+                    source: 'combined',
+                    id: `combined_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+                  };
+                }
+              });
+            logs = logs.concat(combinedLogs);
+          } catch (err) {
+            // Candidate file may not exist; continue
+          }
+        }
       } catch (error) {
-        // File might not exist yet
+        // Files might not exist yet
       }
     }
 
@@ -104,6 +118,13 @@ router.get('/', authenticate, authorize(['admin']), async (req, res) => {
         log.message?.toLowerCase().includes(search.toLowerCase()) ||
         log.level?.toLowerCase().includes(search.toLowerCase()) ||
         JSON.stringify(log).toLowerCase().includes(search.toLowerCase())
+      );
+    }
+
+    // Level filter (for non-error specific levels)
+    if (['warn','info','debug','http'].includes(level)) {
+      filteredLogs = filteredLogs.filter(log =>
+        (log.level || '').toLowerCase() === level
       );
     }
 

@@ -1,5 +1,4 @@
 const express = require('express');
-const bcrypt = require('bcryptjs');
 const { body, query, validationResult } = require('express-validator');
 const { User, AuditLog } = require('../models');
 const { authenticate, authorizeUserType, requirePermission } = require('../middleware/auth');
@@ -141,9 +140,6 @@ router.post('/',
       const firstName = nameParts[0];
       const lastName = nameParts.slice(1).join(' ') || '';
 
-      // Hash password
-      const saltRounds = parseInt(process.env.BCRYPT_ROUNDS) || 12;
-      const hashedPassword = await bcrypt.hash(password, saltRounds);
 
       // Create new user
       const newUser = new User({
@@ -151,7 +147,7 @@ router.post('/',
         lastName,
         email,
         phone,
-        password: hashedPassword,
+        password: password,
         userType: role,
         status,
         address,

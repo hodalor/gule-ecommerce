@@ -955,10 +955,12 @@ router.post('/forgot-password',
     try {
       const { email, userType } = req.body;
 
-      const Model = userType === 'buyer' ? Buyer : 
+      const Model = userType === 'buyer' ? User : 
                    userType === 'seller' ? Seller : Admin;
       
-      const user = await Model.findOne({ email });
+      const user = await Model.findOne({
+        email
+      });
 
       // Always return success to prevent email enumeration
       const successResponse = {
@@ -986,8 +988,15 @@ router.post('/forgot-password',
 
       // Generate reset token
       const resetToken = crypto.randomBytes(32).toString('hex');
-      user.passwordResetToken = resetToken;
-      user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+      if (userType === 'admin') {
+        user.set('security.passwordResetToken', resetToken);
+        user.set('security.passwordResetExpires', new Date(Date.now() + 60 * 60 * 1000)); // 1 hour
+      } else {
+        user.passwordResetToken = resetToken;
+        user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+      }
+
       await user.save();
 
       // Send reset email
@@ -1033,19 +1042,39 @@ router.post('/forgot-password',
 // Reset Password
 router.post('/reset-password',
   strictAuthLimiter,
-  validatePasswordUpdate,
+  body('token').notEmpty().withMessage('Reset token is required'),
+  body('userType').isIn(['buyer', 'seller', 'admin']).withMessage('Valid user type is required'),
+  body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
+  body('confirmPassword').custom((value, { req }) => {
+    if (value !== req.body.password) {
+      throw new Error('Passwords do not match');
+    }
+    return true;
+  }),
   handleValidationErrors,
   async (req, res) => {
     try {
       const { token, password, userType } = req.body;
 
-      const Model = userType === 'buyer' ? Buyer : 
-                   userType === 'seller' ? Seller : Admin;
-      
-      const user = await Model.findOne({
-        passwordResetToken: token,
-        passwordResetExpires: { $gt: new Date() }
-      });
+      // Select model and lookup by token location
+      let user;
+      if (userType === 'admin') {
+        user = await Admin.findOne({
+          'security.passwordResetToken': token,
+          'security.passwordResetExpires': { $gt: new Date() }
+        }).select('+password');
+      } else if (userType === 'seller') {
+        user = await Seller.findOne({
+          passwordResetToken: token,
+          passwordResetExpires: { $gt: new Date() }
+        }).select('+password');
+      } else {
+        // buyer
+        user = await User.findOne({
+          passwordResetToken: token,
+          passwordResetExpires: { $gt: new Date() }
+        }).select('+password');
+      }
 
       if (!user) {
         return res.status(400).json({
@@ -1056,8 +1085,16 @@ router.post('/reset-password',
 
       // Set new password (will be hashed by model middleware)
       user.password = password;
-      user.passwordResetToken = undefined;
-      user.passwordResetExpires = undefined;
+
+      if (userType === 'admin') {
+        user.set('security.passwordResetToken', undefined);
+        user.set('security.passwordResetExpires', undefined);
+        user.set('security.lastPasswordChange', new Date());
+      } else {
+        user.passwordResetToken = undefined;
+        user.passwordResetExpires = undefined;
+      }
+
       await user.save();
 
       // Log password reset
