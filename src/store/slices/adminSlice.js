@@ -1,7 +1,70 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../utils/api';
 
-const ADMIN_API = '/admin/admins';
+// Updated API base to match backend mount
+const ADMIN_API = '/admin';
+
+// Map UI role labels to backend GET filter values
+const toApiRole = (uiRole) => {
+  const map = {
+    'Super Admin': 'super_admin',
+    'Admin': 'admin',
+    'Accountant': 'finance',
+    'Review Officer': 'moderator',
+    'Customer Support': 'support',
+    'Marketing Manager': 'marketing'
+  };
+  return map[uiRole] || '';
+};
+
+// Build payload for creating an admin from modal form data
+const buildCreatePayload = (data) => {
+  const [firstNameRaw, ...rest] = (data.fullName || '').trim().split(' ');
+  const firstName = firstNameRaw || 'Admin';
+  const lastName = rest.join(' ') || 'User';
+  // Creation should use model enums
+  const roleMapCreate = {
+    'Super Admin': 'super_admin',
+    'Admin': 'admin',
+    'Accountant': 'accountant',
+    'Review Officer': 'review_officer',
+    'Customer Support': 'customer_support',
+    'Marketing Manager': 'marketing_manager'
+  };
+  const roleEnum = roleMapCreate[data.role] || 'admin';
+  const department = roleEnum === 'accountant'
+    ? 'finance'
+    : roleEnum === 'review_officer'
+      ? 'operations'
+      : roleEnum === 'customer_support'
+        ? 'customer_service'
+        : roleEnum === 'marketing_manager'
+          ? 'marketing'
+          : 'administration';
+  const jobTitle = data.role || 'Admin';
+
+  return {
+    firstName,
+    lastName,
+    email: data.email,
+    phone: data.phone,
+    password: data.password,
+    role: roleEnum,
+    department,
+    jobTitle,
+    // provide nested fields expected by backend schema
+    address: {
+      street: 'Unknown Street',
+      city: 'Lusaka',
+      state: 'Lusaka Province',
+      zipCode: '00000',
+      country: 'Zambia'
+    },
+    employment: {
+      hireDate: new Date().toISOString()
+    }
+  };
+};
 
 // Async thunks for admin management
 export const fetchAdmins = createAsyncThunk(
@@ -12,9 +75,11 @@ export const fetchAdmins = createAsyncThunk(
         page: page.toString(),
         limit: limit.toString(),
       });
-      
       if (search) params.append('search', search);
-      if (role) params.append('role', role);
+      if (role) {
+        const apiRole = toApiRole(role);
+        if (apiRole) params.append('role', apiRole);
+      }
       if (status) params.append('status', status);
       if (department) params.append('department', department);
 
@@ -30,10 +95,12 @@ export const createAdmin = createAsyncThunk(
   'admin/createAdmin',
   async (adminData, { rejectWithValue }) => {
     try {
-      const response = await api.post('/admin/admins', adminData);
-      return response.data;
+      const payload = buildCreatePayload(adminData);
+      const response = await api.post(ADMIN_API, payload);
+      return response.data.admin; // return created admin object
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to create admin');
+      const data = error.response?.data;
+      return rejectWithValue(data || { message: 'Failed to create admin' });
     }
   }
 );
@@ -42,8 +109,8 @@ export const updateAdmin = createAsyncThunk(
   'admin/updateAdmin',
   async ({ id, adminData }, { rejectWithValue }) => {
     try {
-      const response = await api.put(`/admin/admins/${id}`, adminData);
-      return response.data;
+      const response = await api.put(`${ADMIN_API}/${id}`, adminData);
+      return response.data.admin || response.data; 
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to update admin');
     }
@@ -54,7 +121,7 @@ export const deleteAdmin = createAsyncThunk(
   'admin/deleteAdmin',
   async ({ id, reason }, { rejectWithValue }) => {
     try {
-      await api.delete(`/admin/admins/${id}`, { data: { reason } });
+      await api.delete(`${ADMIN_API}/${id}`, { data: { reason } });
       return id;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to delete admin');
@@ -66,7 +133,7 @@ export const generateWorkId = createAsyncThunk(
   'admin/generateWorkId',
   async (adminId, { rejectWithValue }) => {
     try {
-      const response = await api.post(`/admin/admins/${adminId}/work-id`);
+      const response = await api.get(`${ADMIN_API}/${adminId}/work-id-pdf`, { responseType: 'blob' });
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to generate work ID');
@@ -82,6 +149,7 @@ const initialState = {
   totalCount: 0,
   currentPage: 1,
   pageSize: 10,
+  pagination: null,
 };
 
 const adminSlice = createSlice({
@@ -106,7 +174,6 @@ const adminSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // Fetch admins
       .addCase(fetchAdmins.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -114,55 +181,54 @@ const adminSlice = createSlice({
       .addCase(fetchAdmins.fulfilled, (state, action) => {
         state.loading = false;
         state.admins = action.payload.admins || action.payload;
-        state.totalCount = action.payload.totalCount || action.payload.length;
+        state.totalCount = action.payload.pagination?.totalItems || action.payload.totalCount || (action.payload.admins ? action.payload.admins.length : action.payload.length);
+        state.pagination = action.payload.pagination || null;
       })
       .addCase(fetchAdmins.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })
-      // Create admin
       .addCase(createAdmin.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
       .addCase(createAdmin.fulfilled, (state, action) => {
         state.loading = false;
-        state.admins.push(action.payload);
+        if (action.payload) state.admins.unshift(action.payload);
         state.totalCount += 1;
       })
       .addCase(createAdmin.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })
-      // Update admin
       .addCase(updateAdmin.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
       .addCase(updateAdmin.fulfilled, (state, action) => {
         state.loading = false;
-        const index = state.admins.findIndex(admin => admin.id === action.payload.id);
+        const updated = action.payload;
+        const index = state.admins.findIndex(admin => (admin.id || admin._id) === (updated.id || updated._id));
         if (index !== -1) {
-          state.admins[index] = action.payload;
+          state.admins[index] = updated;
         }
-        if (state.selectedAdmin?.id === action.payload.id) {
-          state.selectedAdmin = action.payload;
+        if ((state.selectedAdmin?.id || state.selectedAdmin?._id) === (updated.id || updated._id)) {
+          state.selectedAdmin = updated;
         }
       })
       .addCase(updateAdmin.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })
-      // Delete admin
       .addCase(deleteAdmin.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
       .addCase(deleteAdmin.fulfilled, (state, action) => {
         state.loading = false;
-        state.admins = state.admins.filter(admin => admin.id !== action.payload);
-        state.totalCount -= 1;
-        if (state.selectedAdmin?.id === action.payload) {
+        state.admins = state.admins.filter(admin => (admin.id || admin._id) !== action.payload);
+        state.totalCount = Math.max(0, state.totalCount - 1);
+        if ((state.selectedAdmin?.id || state.selectedAdmin?._id) === action.payload) {
           state.selectedAdmin = null;
         }
       })
@@ -170,14 +236,12 @@ const adminSlice = createSlice({
         state.loading = false;
         state.error = action.payload;
       })
-      // Generate work ID
       .addCase(generateWorkId.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
-      .addCase(generateWorkId.fulfilled, (state, action) => {
+      .addCase(generateWorkId.fulfilled, (state) => {
         state.loading = false;
-        // Handle work ID generation success
       })
       .addCase(generateWorkId.rejected, (state, action) => {
         state.loading = false;

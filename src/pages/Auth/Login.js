@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Link } from 'react-router-dom';
 import { loginAdmin, clearError } from '../../store/slices/authSlice';
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 
@@ -132,6 +132,12 @@ const Login = () => {
                 )}
               </button>
             </div>
+          </div>
+
+          <div className="text-right">
+            <Link to="/forgot-password" className="text-sm text-primary-600 hover:text-primary-700">
+              Forgot password?
+            </Link>
           </div>
 
           <div>

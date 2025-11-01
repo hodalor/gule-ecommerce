@@ -16,6 +16,42 @@ import {
   MagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
 
+const roleLabelMap = {
+  super_admin: 'Super Admin',
+  admin: 'Admin',
+  accountant: 'Accountant',
+  review_officer: 'Review Officer',
+  customer_support: 'Customer Support',
+  marketing_manager: 'Marketing Manager',
+  finance: 'Accountant',
+  moderator: 'Review Officer',
+  support: 'Customer Support',
+  marketing: 'Marketing Manager'
+};
+
+const normalizeAdmin = (a = {}) => {
+  const id = a.id || a._id || a.adminId;
+  const first = a.firstName || (a.fullName ? a.fullName.split(' ')[0] : '');
+  const last = a.lastName || (a.fullName ? a.fullName.split(' ').slice(1).join(' ') : '');
+  const fullName = (a.fullName || `${first} ${last}` || '').trim();
+  const role = roleLabelMap[a.role] || a.role || 'Admin';
+  const statusRaw = a.status || a.accountStatus || 'active';
+  const status = statusRaw ? (statusRaw.charAt(0).toUpperCase() + statusRaw.slice(1)) : 'Active';
+  const dateJoined = a.registrationDate || a.createdAt || a.hireDate || new Date().toISOString();
+  const photo = a.photo || a.profileImage || null;
+  return {
+    id,
+    fullName,
+    email: a.email || '',
+    employeeId: a.employeeId || a.employeeID || '',
+    role,
+    status,
+    dateJoined,
+    photo,
+    raw: a
+  };
+};
+
 const AdminManagement = () => {
   const dispatch = useDispatch();
   const { 
@@ -31,6 +67,7 @@ const AdminManagement = () => {
   const [modalMode, setModalMode] = useState('create'); // 'create', 'edit', 'view'
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('');
+  const [editingAdminId, setEditingAdminId] = useState(null);
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -41,7 +78,29 @@ const AdminManagement = () => {
     dateExpiry: ''
   });
 
-  const roles = ['Super Admin', 'Admin', 'Accountant', 'Review Officer'];
+  // Added submit lifecycle state for UI feedback
+  const [submitError, setSubmitError] = useState(null);
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [submitSuccess, setSubmitSuccess] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Helper to convert backend error payloads to a flat field error map
+  const toFieldErrorMap = (payload) => {
+    const map = {};
+    if (!payload) return map;
+    const src = payload.errors || payload.validationErrors || payload.details;
+    if (src && typeof src === 'object') {
+      Object.entries(src).forEach(([key, val]) => {
+        if (!val) return;
+        map[key] = typeof val === 'string' ? val : (val.message || (Array.isArray(val) ? val[0] : 'Invalid'));
+      });
+    }
+    if (!Object.keys(map).length && typeof payload.message === 'string') {
+      map._ = payload.message;
+    }
+    return map;
+  };
+  const roles = ['Super Admin', 'Admin', 'Accountant', 'Review Officer', 'Customer Support', 'Marketing Manager'];
 
   useEffect(() => {
     const fetchData = () => {
@@ -67,55 +126,110 @@ const AdminManagement = () => {
       photo: '',
       dateExpiry: ''
     });
+    setSubmitError(null);
+    setFieldErrors({});
+    setSubmitSuccess(null);
+    setSubmitting(false);
     setShowModal(true);
   };
 
   const handleEditAdmin = (admin) => {
+    const n = normalizeAdmin(admin);
     setModalMode('edit');
+    setEditingAdminId(n.id);
     setFormData({
-      fullName: admin.fullName,
-      email: admin.email,
-      phone: admin.phone,
+      fullName: n.fullName,
+      email: n.email,
+      phone: n.raw?.phone || '',
       password: '',
-      role: admin.role,
-      photo: admin.photo,
-      dateExpiry: admin.dateExpiry
+      role: n.role,
+      photo: n.photo || '',
+      dateExpiry: ''
     });
+    setSubmitError(null);
+    setFieldErrors({});
+    setSubmitSuccess(null);
+    setSubmitting(false);
     setShowModal(true);
   };
 
   const handleViewAdmin = (admin) => {
+    const n = normalizeAdmin(admin);
     setModalMode('view');
-    setFormData(admin);
+    setFormData({
+      fullName: n.fullName,
+      email: n.email,
+      phone: n.raw?.phone || '',
+      role: n.role,
+      employeeId: n.employeeId
+    });
+    setSubmitError(null);
+    setFieldErrors({});
+    setSubmitSuccess(null);
+    setSubmitting(false);
     setShowModal(true);
   };
 
   const handleDeleteAdmin = async (adminId) => {
     if (window.confirm('Are you sure you want to delete this admin?')) {
-      dispatch(deleteAdmin(adminId));
+      dispatch(deleteAdmin({ id: adminId }));
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (modalMode === 'create') {
-      dispatch(createAdmin(formData));
-    } else if (modalMode === 'edit') {
-      dispatch(updateAdmin({ id: selectedAdmin.id, data: formData }));
+    setSubmitting(true);
+    setSubmitError(null);
+    setFieldErrors({});
+    setSubmitSuccess(null);
+    try {
+      if (modalMode === 'create') {
+        const created = await dispatch(createAdmin(formData)).unwrap();
+        if (created) {
+          setSubmitSuccess('Admin created successfully.');
+          // keep modal open; reset form so user can add another
+          setFormData({
+            fullName: '',
+            email: '',
+            phone: '',
+            password: '',
+            role: 'Admin',
+            photo: '',
+            dateExpiry: ''
+          });
+        }
+      } else if (modalMode === 'edit') {
+        const [firstName, ...rest] = (formData.fullName || '').trim().split(' ');
+        const updatePayload = {
+          firstName,
+          lastName: rest.join(' '),
+          phone: formData.phone
+        };
+        await dispatch(updateAdmin({ id: editingAdminId, adminData: updatePayload })).unwrap();
+        setSubmitSuccess('Admin updated successfully.');
+      }
+    } catch (err) {
+      const fe = toFieldErrorMap(err);
+      setFieldErrors(fe);
+      setSubmitError(err?.message || 'Submission failed. Please review the highlighted fields.');
+      // do not close modal on error
+    } finally {
+      setSubmitting(false);
     }
-    
-    setShowModal(false);
   };
 
   const handleDownloadWorkId = async (adminId) => {
     dispatch(generateWorkId(adminId));
   };
 
-  const filteredAdmins = admins.filter(admin => {
-    const matchesSearch = admin.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         admin.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         admin.employeeId.toLowerCase().includes(searchTerm.toLowerCase());
+  const normalizedAdmins = admins.map(normalizeAdmin);
+  const filteredAdmins = normalizedAdmins.filter((admin) => {
+    const name = (admin.fullName || '').toLowerCase();
+    const email = (admin.email || '').toLowerCase();
+    const empId = (admin.employeeId || '').toLowerCase();
+    const matchesSearch = name.includes(searchTerm.toLowerCase()) ||
+      email.includes(searchTerm.toLowerCase()) ||
+      empId.includes(searchTerm.toLowerCase());
     const matchesRole = filterRole === '' || admin.role === filterRole;
     return matchesSearch && matchesRole;
   });
@@ -281,7 +395,7 @@ const AdminManagement = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex space-x-2">
                         <button
-                          onClick={() => handleViewAdmin(admin)}
+                          onClick={() => handleViewAdmin(admin.raw)}
                           className="text-gray-600 hover:text-gray-900"
                           title="View Details"
                         >
@@ -297,7 +411,7 @@ const AdminManagement = () => {
                         {canManageAdmins && (
                           <>
                             <button
-                              onClick={() => handleEditAdmin(admin)}
+                              onClick={() => handleEditAdmin(admin.raw)}
                               className="text-indigo-600 hover:text-indigo-900"
                               title="Edit Admin"
                             >
@@ -357,35 +471,58 @@ const AdminManagement = () => {
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-4">
+                  {submitError && (
+                    <div className="rounded-md bg-red-50 p-3 text-red-700 text-sm">
+                      {submitError}
+                    </div>
+                  )}
+                  {submitSuccess && (
+                    <div className="rounded-md bg-green-50 p-3 text-green-700 text-sm">
+                      {submitSuccess}
+                    </div>
+                  )}
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Full Name</label>
                     <input
                       type="text"
                       required
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      placeholder="e.g., Belinda Mwila"
+                      className={`mt-1 block w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 ${fieldErrors.fullName ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-primary-500 focus:border-primary-500'}`}
                       value={formData.fullName}
                       onChange={(e) => setFormData({...formData, fullName: e.target.value})}
                     />
+                    {fieldErrors.fullName && (
+                      <p className="mt-1 text-xs text-red-600">{fieldErrors.fullName}</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Email</label>
                     <input
                       type="email"
                       required
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      placeholder="name@example.com"
+                      className={`mt-1 block w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 ${fieldErrors.email ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-primary-500 focus:border-primary-500'}`}
                       value={formData.email}
                       onChange={(e) => setFormData({...formData, email: e.target.value})}
                     />
+                    {fieldErrors.email && (
+                      <p className="mt-1 text-xs text-red-600">{fieldErrors.email}</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Phone</label>
                     <input
                       type="tel"
                       required
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      placeholder="+260971234567"
+                      className={`mt-1 block w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 ${fieldErrors.phone ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-primary-500 focus:border-primary-500'}`}
                       value={formData.phone}
                       onChange={(e) => setFormData({...formData, phone: e.target.value})}
                     />
+                    <p className="mt-1 text-xs text-gray-500">Use international format (E.164), e.g., +260971234567.</p>
+                    {fieldErrors.phone && (
+                      <p className="mt-1 text-xs text-red-600">{fieldErrors.phone}</p>
+                    )}
                   </div>
                   {modalMode === 'create' && (
                     <div>
@@ -393,17 +530,21 @@ const AdminManagement = () => {
                       <input
                         type="password"
                         required
-                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                        placeholder="Min 8 chars, mix letters & numbers"
+                        className={`mt-1 block w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 ${fieldErrors.password ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-primary-500 focus:border-primary-500'}`}
                         value={formData.password}
                         onChange={(e) => setFormData({...formData, password: e.target.value})}
                       />
+                      {fieldErrors.password && (
+                        <p className="mt-1 text-xs text-red-600">{fieldErrors.password}</p>
+                      )}
                     </div>
                   )}
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Role</label>
                     <select
                       required
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      className={`mt-1 block w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 ${fieldErrors.role ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-primary-500 focus:border-primary-500'}`}
                       value={formData.role}
                       onChange={(e) => setFormData({...formData, role: e.target.value})}
                     >
@@ -411,6 +552,9 @@ const AdminManagement = () => {
                         <option key={role} value={role}>{role}</option>
                       ))}
                     </select>
+                    {fieldErrors.role && (
+                      <p className="mt-1 text-xs text-red-600">{fieldErrors.role}</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Date Expiry</label>
@@ -434,9 +578,10 @@ const AdminManagement = () => {
                 {modalMode !== 'view' && (
                   <button
                     onClick={handleSubmit}
-                    className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700"
+                    disabled={submitting}
+                    className={`px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${submitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-primary-600 hover:bg-primary-700'}`}
                   >
-                    {modalMode === 'create' ? 'Create Admin' : 'Update Admin'}
+                    {modalMode === 'create' ? (submitting ? 'Creating...' : 'Create Admin') : (submitting ? 'Updating...' : 'Update Admin')}
                   </button>
                 )}
               </div>

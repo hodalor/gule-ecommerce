@@ -12,6 +12,8 @@ import AdminLayout from './components/Layout/AdminLayout';
 
 // Auth Components
 import Login from './pages/Auth/Login';
+import ForgotPassword from './pages/Auth/ForgotPassword';
+import ResetPassword from './pages/Auth/ResetPassword';
 
 // Admin Pages
 import Dashboard from './pages/Dashboard/Dashboard';
@@ -84,6 +86,8 @@ function AppContent() {
         <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           
           {/* Protected Admin Routes */}
           <Route path="/admin" element={
