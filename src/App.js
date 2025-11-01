@@ -5,6 +5,7 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { store } from './store';
 import { checkAuthStatus } from './store/slices/authSlice';
+import { Toaster } from 'react-hot-toast';
 
 // Layout Components
 import AdminLayout from './components/Layout/AdminLayout';
@@ -130,6 +131,7 @@ function App() {
         <div className="App">
           <AppContent />
         </div>
+        <Toaster position="top-right" />
       </ThemeProvider>
     </Provider>
   );

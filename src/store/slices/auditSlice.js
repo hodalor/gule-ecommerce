@@ -132,8 +132,11 @@ const auditSlice = createSlice({
       })
       .addCase(fetchAuditLogs.fulfilled, (state, action) => {
         state.loading = false;
-        state.logs = action.payload.data?.logs || action.payload.logs || action.payload;
-        state.totalCount = action.payload.data?.pagination?.totalCount || action.payload.totalCount || action.payload.length;
+        const payload = action.payload || {};
+        const data = payload.data ?? payload;
+        state.logs = Array.isArray(data) ? data : (data.logs ?? []);
+        const pagination = payload.pagination ?? data.pagination ?? {};
+        state.totalCount = pagination.total ?? (Array.isArray(state.logs) ? state.logs.length : 0);
       })
       .addCase(fetchAuditLogs.rejected, (state, action) => {
         state.loading = false;

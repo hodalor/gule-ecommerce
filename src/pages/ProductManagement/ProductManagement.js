@@ -598,7 +598,7 @@ const ProductManagement = () => {
                     type="checkbox"
                     onChange={(e) => {
                       if (e.target.checked) {
-                        setSelectedProducts(filteredProducts.map(p => p.id));
+                        setSelectedProducts(filteredProducts.map(p => p._id));
                       } else {
                         setSelectedProducts([]);
                       }
@@ -647,16 +647,16 @@ const ProductManagement = () => {
                 </tr>
               ) : (
                 filteredProducts.map((product) => (
-                  <tr key={product.id} className="hover:bg-gray-50">
+                  <tr key={product._id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
                       <input
                         type="checkbox"
-                        checked={selectedProducts.includes(product.id)}
+                        checked={selectedProducts.includes(product._id)}
                         onChange={(e) => {
                           if (e.target.checked) {
-                            setSelectedProducts([...selectedProducts, product.id]);
+                            setSelectedProducts([...selectedProducts, product._id]);
                           } else {
-                            setSelectedProducts(selectedProducts.filter(id => id !== product.id));
+                            setSelectedProducts(selectedProducts.filter(id => id !== product._id));
                           }
                         }}
                         className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -707,11 +707,29 @@ const ProductManagement = () => {
                           <PencilIcon className="w-5 h-5" />
                         </button>
                         <button
-                          onClick={() => handleDelete(product.id)}
+                          onClick={() => handleDelete(product._id)}
                           className="text-red-600 hover:text-red-900"
                         >
                           <TrashIcon className="w-5 h-5" />
                         </button>
+                        {product.status === 'pending' && (
+                          <>
+                            <button
+                              onClick={() => handleStatusChange(product._id, 'active')}
+                              className="text-green-600 hover:text-green-800"
+                              title="Approve"
+                            >
+                              <CheckIcon className="w-5 h-5" />
+                            </button>
+                            <button
+                              onClick={() => handleStatusChange(product._id, 'rejected')}
+                              className="text-red-600 hover:text-red-800"
+                              title="Reject"
+                            >
+                              <XMarkIcon className="w-5 h-5" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>

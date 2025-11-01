@@ -44,8 +44,12 @@ export const fetchProductById = createAsyncThunk(
   'adminProducts/fetchProductById',
   async (productId, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`${API_URL}/products/${productId}`);
-      return response.data;
+      const response = await api.get(`${ADMIN_PRODUCTS_API}/${productId}`);
+      const product = response.data?.data?.product || response.data?.product || response.data;
+      if (product && product.id && !product._id) {
+        product._id = product.id;
+      }
+      return product;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch product');
     }
@@ -56,11 +60,15 @@ export const updateProductStatus = createAsyncThunk(
   'adminProducts/updateProductStatus',
   async ({ productId, status, reason }, { rejectWithValue }) => {
     try {
-      const response = await axios.patch(`${API_URL}/admin/products/${productId}/status`, {
+      const response = await api.patch(`${ADMIN_PRODUCTS_API}/${productId}/status`, {
         status,
         reason
       });
-      return response.data;
+      const product = response.data?.data?.product || response.data?.product || response.data;
+      if (product && product.id && !product._id) {
+        product._id = product.id;
+      }
+      return product;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to update product status');
     }
@@ -71,7 +79,7 @@ export const deleteProduct = createAsyncThunk(
   'adminProducts/deleteProduct',
   async ({ productId, reason }, { rejectWithValue }) => {
     try {
-      await axios.delete(`${API_URL}/products/${productId}`, {
+      await api.delete(`${ADMIN_PRODUCTS_API}/${productId}`, {
         data: { reason }
       });
       return productId;
@@ -105,7 +113,7 @@ export const bulkUpdateProducts = createAsyncThunk(
   'adminProducts/bulkUpdateProducts',
   async ({ productIds, action, data }, { rejectWithValue }) => {
     try {
-      const response = await axios.patch(`${API_URL}/admin/products/bulk`, {
+      const response = await api.patch(`${ADMIN_PRODUCTS_API}/bulk/update`, {
         productIds,
         action,
         data
@@ -126,7 +134,7 @@ export const exportProducts = createAsyncThunk(
         if (filters[key]) params.append(key, filters[key]);
       });
 
-      const response = await axios.get(`${API_URL}/admin/products/export?${params}`, {
+      const response = await api.get(`${ADMIN_PRODUCTS_API}/export?${params}`, {
         responseType: 'blob'
       });
       
@@ -138,9 +146,6 @@ export const exportProducts = createAsyncThunk(
       document.body.appendChild(link);
       link.click();
       link.remove();
-      window.URL.revokeObjectURL(url);
-      
-      return { success: true };
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to export products');
     }
@@ -203,7 +208,11 @@ const productSlice = createSlice({
         state.loading = false;
         // Handle nested response structure from backend
         const responseData = action.payload.data || action.payload;
-        state.products = responseData.products || [];
+        const rawProducts = responseData.products || [];
+        // Normalize product IDs to ensure `_id` exists
+        state.products = Array.isArray(rawProducts)
+          ? rawProducts.map(p => ({ ...p, _id: p._id || p.id }))
+          : [];
         state.pagination = responseData.pagination || {
           currentPage: 1,
           totalPages: 1,
