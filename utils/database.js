@@ -306,6 +306,16 @@ class Database {
         const AdminSettings = mongoose.model('AdminSettings');
         await AdminSettings.initializeDefaults(defaultAdmin._id);
         logger.info('Default admin settings initialized');
+      } else {
+        // Ensure default settings exist for existing admins
+        const AdminSettings = mongoose.model('AdminSettings');
+        const anyAdmin = await Admin.findOne({}, { _id: 1 }).lean();
+        if (anyAdmin && anyAdmin._id) {
+          await AdminSettings.initializeDefaults(anyAdmin._id);
+          logger.info('Ensured default admin settings initialized for existing admins');
+        } else {
+          logger.warn('Admin count > 0 but no admin found for defaults');
+        }
       }
 
       logger.info('Default data initialization completed');

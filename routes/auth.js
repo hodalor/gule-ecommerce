@@ -27,8 +27,9 @@ const {
 } = require('../middleware/validation');
 
 // Import utilities
-const { sendVerificationEmail, sendPasswordResetEmail } = require('../utils/email');
+const { sendVerificationEmail, sendPasswordResetEmail, sendWelcomeEmail } = require('../utils/email');
 const logger = require('../utils/logger');
+
 
 const router = express.Router();
 
@@ -927,6 +928,21 @@ router.post('/verify-email',
         severity: 'low'
       });
 
+      // Send welcome email after verification, respecting notification preferences
+      try {
+        const optedOut = user.preferences && user.preferences.notifications === false;
+        if (optedOut) {
+          logger.info('User opted out of notifications; skipping welcome email', { userId: user._id, userType });
+        } else {
+          const fullName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.name || 'User';
+          sendWelcomeEmail(user.email, fullName, userType)
+            .then((result) => logger.info('Welcome email attempted after verification', { userId: user._id, userType, success: result.success, messageId: result.messageId }))
+            .catch((err) => logger.error('Welcome email failed after verification', { userId: user._id, userType, error: err.message }));
+        }
+      } catch (e) {
+        logger.error('Error in post-verification welcome email flow', { userId: user._id, error: e.message });
+      }
+
       res.json({
         message: 'Email verified successfully',
         user: {
@@ -1100,10 +1116,11 @@ router.post('/reset-password',
       // Log password reset
       await AuditLog.logAction({
         action: 'PASSWORD_RESET_COMPLETED',
-        userId: user._id,
-        userType,
-        resourceType: 'Authentication',
-        resourceId: user._id,
+        performedBy: user._id,
+        userType: (userType === 'buyer' ? 'user' : userType),
+        userModel: (userType === 'admin' ? 'Admin' : userType === 'seller' ? 'Seller' : 'User'),
+        targetResource: 'Authentication',
+        targetId: user._id,
         details: { email: user.email },
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
@@ -1121,6 +1138,74 @@ router.post('/reset-password',
         error: 'Password reset failed',
         message: 'An error occurred while resetting your password'
       });
+    }
+  }
+);
+
+// Admin: Directly reset a user's password (no email link)
+router.post('/admin/reset-user-password',
+  authenticate,
+  body('userId').notEmpty().withMessage('User ID is required'),
+  body('userType').isIn(['buyer', 'seller', 'admin']).withMessage('Valid user type is required'),
+  body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
+  body('confirmPassword').custom((value, { req }) => {
+    if (value !== req.body.password) {
+      throw new Error('Passwords do not match');
+    }
+    return true;
+  }),
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      // Require admin privileges
+      if (!req.user || req.userType !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      const { userId, userType, password } = req.body;
+
+      const Model = userType === 'buyer' ? User : userType === 'seller' ? Seller : Admin;
+      const tokenSelector = userType === 'admin' ? 'security.passwordResetToken' : 'passwordResetToken';
+
+      const user = await Model.findById(userId).select('+password');
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      // Update password; model pre-save hooks will hash it
+      user.password = password;
+
+      // Clear any existing reset token state
+      if (userType === 'admin') {
+        user.set('security.passwordResetToken', undefined);
+        user.set('security.passwordResetExpires', undefined);
+        user.set('security.lastPasswordChange', new Date());
+      } else {
+        user.passwordResetToken = undefined;
+        user.passwordResetExpires = undefined;
+      }
+
+      await user.save();
+
+      // Audit log
+      await AuditLog.logAction({
+        action: 'ADMIN_MANUAL_PASSWORD_RESET',
+        performedBy: req.user.id,
+        userType: 'admin',
+        userModel: 'Admin',
+        targetResource: 'Authentication',
+        targetId: user._id,
+        details: { targetUserId: user._id, targetUserType: userType },
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+        severity: 'high',
+        status: 'success'
+      });
+
+      res.json({ message: 'Password updated successfully' });
+    } catch (error) {
+      logger.error('Admin manual password reset error', error);
+      res.status(500).json({ error: 'Failed to update password' });
     }
   }
 );

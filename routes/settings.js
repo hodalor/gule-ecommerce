@@ -112,36 +112,26 @@ router.get('/public',
   authenticate,
   async (req, res) => {
     try {
-      const settings = await AdminSettings.findOne().select(
-        'privacy.showBuyerProfiles privacy.showSellerProfiles privacy.showBuyerStats privacy.showSellerStats ' +
-        'platform.siteName platform.siteDescription platform.contactEmail platform.supportEmail ' +
-        'platform.maintenanceMode platform.registrationEnabled platform.maxFileSize platform.allowedFileTypes ' +
-        'security.sessionTimeout security.maxLoginAttempts security.accountLockoutDuration ' +
-        'notifications.emailNotifications notifications.smsNotifications notifications.pushNotifications ' +
-        'features.escrowEnabled features.reviewsEnabled features.ratingsEnabled features.wishlistEnabled ' +
-        'features.compareEnabled features.recommendationsEnabled features.autoApproveProducts -_id -__v'
-      );
+      const features = {
+        autoApproveProducts: await AdminSettings.getValue('feature_auto_approve_products', false),
+        escrowEnabled: await AdminSettings.getValue('feature_escrow_enabled', false),
+        reviewsEnabled: await AdminSettings.getValue('feature_reviews_enabled', true),
+        ratingsEnabled: await AdminSettings.getValue('feature_ratings_enabled', true),
+        wishlistEnabled: await AdminSettings.getValue('feature_wishlist_enabled', true),
+        compareEnabled: await AdminSettings.getValue('feature_compare_enabled', false),
+        recommendationsEnabled: await AdminSettings.getValue('feature_recommendations_enabled', true)
+      };
 
-      if (!settings) {
-        return res.status(404).json({
-          success: false,
-          error: 'Settings not found'
-        });
-      }
-
-      res.json({
-        success: true,
-        data: settings
-      });
+      return res.json({ success: true, data: { features } });
     } catch (error) {
       logger.error('Error retrieving public settings', {
         error: error.message,
         stack: error.stack,
-        userId: req.user.id,
+        userId: req.user?.id,
         ip: req.ip
       });
 
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: 'Failed to retrieve public settings'
       });
@@ -255,7 +245,7 @@ router.put('/',
         if (hasRestrictedFields) {
           await AuditLog.create({
             userId: req.user.id,
-            userType: 'Admin',
+            userType: 'admin',
             action: 'SETTINGS_UPDATE_UNAUTHORIZED',
             resource: 'AdminSettings',
             details: {
@@ -382,7 +372,7 @@ router.put('/privacy',
       // Create audit log
       await AuditLog.create({
         userId: req.user.id,
-        userType: 'Admin',
+        userType: 'admin',
         action: 'PRIVACY_SETTINGS_UPDATE',
         resource: 'AdminSettings',
         resourceId: settings._id,
@@ -461,7 +451,7 @@ router.put('/platform',
       // Create audit log
       await AuditLog.create({
         userId: req.user.id,
-        userType: 'Admin',
+        userType: 'admin',
         action: 'PLATFORM_SETTINGS_UPDATE',
         resource: 'AdminSettings',
         resourceId: settings._id,
@@ -513,54 +503,88 @@ router.put('/features',
     body('wishlistEnabled').optional().isBoolean().withMessage('wishlistEnabled must be a boolean'),
     body('compareEnabled').optional().isBoolean().withMessage('compareEnabled must be a boolean'),
     body('recommendationsEnabled').optional().isBoolean().withMessage('recommendationsEnabled must be a boolean'),
-    body('autoApproveProducts').optional().isBoolean().withMessage('autoApproveProducts must be a boolean'),
+    body('autoApproveProducts').optional().isBoolean().withMessage('autoApproveProducts must be a boolean')
   ],
-  handleValidationErrors,
   async (req, res) => {
     try {
-      let settings = await AdminSettings.findOne();
-      
-      if (!settings) {
-        settings = new AdminSettings();
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ success: false, errors: errors.array() });
       }
 
-      // Update feature settings
-      Object.keys(req.body).forEach(key => {
-        if (req.body[key] !== undefined) {
-          settings.features[key] = req.body[key];
-        }
-      });
+      const userId = req.user.id;
 
-      settings.updatedBy = req.user.id;
-      settings.updatedAt = new Date();
+      const map = {
+        autoApproveProducts: { key: 'feature_auto_approve_products', default: false, name: 'Auto Approve Products', desc: 'Automatically approve newly listed products' },
+        escrowEnabled: { key: 'feature_escrow_enabled', default: false, name: 'Escrow Enabled', desc: 'Enable escrow for transactions' },
+        reviewsEnabled: { key: 'feature_reviews_enabled', default: true, name: 'Reviews Enabled', desc: 'Enable product reviews' },
+        ratingsEnabled: { key: 'feature_ratings_enabled', default: true, name: 'Ratings Enabled', desc: 'Enable product ratings' },
+        wishlistEnabled: { key: 'feature_wishlist_enabled', default: true, name: 'Wishlist Enabled', desc: 'Enable wishlists' },
+        compareEnabled: { key: 'feature_compare_enabled', default: false, name: 'Compare Enabled', desc: 'Enable product comparison' },
+        recommendationsEnabled: { key: 'feature_recommendations_enabled', default: true, name: 'Recommendations Enabled', desc: 'Show product recommendations' }
+      };
 
-      await settings.save();
+      const updatedFields = [];
 
-      // Create audit log
-      await AuditLog.create({
-        userId: req.user.id,
-        userType: 'Admin',
+      for (const field of Object.keys(map)) {
+        if (req.body[field] === undefined) continue;
+        updatedFields.push(field);
+        const conf = map[field];
+
+        let doc = await AdminSettings.findOne({ settingKey: conf.key });
+        logger.info('Feature update attempt', {
+          key: conf.key,
+          hasExisting: !!doc,
+          existingUiType: doc?.ui?.inputType,
+          payloadValue: !!req.body[field]
+        });
+
+        await AdminSettings.updateOne(
+          { settingKey: conf.key },
+          {
+            $set: {
+              settingKey: conf.key,
+              category: 'general',
+              name: conf.name,
+              description: conf.desc,
+              value: !!req.body[field],
+              defaultValue: conf.default,
+              dataType: 'boolean',
+              status: 'active',
+              lastModifiedBy: userId,
+              'ui.inputType': 'boolean',
+              'ui.group': 'Features',
+              permissions: { read: ['admin'], write: ['admin'] }
+            }
+          },
+          { upsert: true, runValidators: true }
+        );
+      }
+
+      await AuditLog.logAction({
         action: 'FEATURE_SETTINGS_UPDATE',
-        resource: 'AdminSettings',
-        resourceId: settings._id,
-        details: {
-          updatedFields: Object.keys(req.body),
-          newFeatureSettings: settings.features
-        },
+        performedBy: userId,
+        userType: 'admin',
+        userModel: 'Admin',
+        module: 'settings',
+        targetResource: 'AdminSettings',
+        request: { method: req.method, url: req.originalUrl },
         ipAddress: req.ip,
-        userAgent: req.get('User-Agent')
+        userAgent: req.get('User-Agent'),
+        changes: { summary: `Updated feature flags: ${updatedFields.join(', ')}` }
       });
 
-      logger.info('Feature settings updated', {
-        adminId: req.user.id,
-        updatedFields: Object.keys(req.body),
-        ip: req.ip
-      });
+      logger.info('Feature settings updated', { adminId: userId, updatedFields, ip: req.ip });
 
-      res.json({
+      const features = {};
+      for (const field of Object.keys(map)) {
+        features[field] = await AdminSettings.getValue(map[field].key, map[field].default);
+      }
+
+      return res.json({
         success: true,
         message: 'Feature settings updated successfully',
-        data: settings.features
+        data: features
       });
     } catch (error) {
       logger.error('Error updating feature settings', {
@@ -571,7 +595,7 @@ router.put('/features',
         ip: req.ip
       });
 
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: 'Failed to update feature settings'
       });
@@ -592,7 +616,7 @@ router.post('/reset',
       if (!isSuperAdmin) {
         await AuditLog.create({
           userId: req.user.id,
-          userType: 'Admin',
+          userType: 'admin',
           action: 'SETTINGS_RESET_UNAUTHORIZED',
           resource: 'AdminSettings',
           details: {
@@ -623,7 +647,7 @@ router.post('/reset',
       // Create audit log
       await AuditLog.create({
         userId: req.user.id,
-        userType: 'Admin',
+        userType: 'admin',
         action: 'SETTINGS_RESET',
         resource: 'AdminSettings',
         resourceId: defaultSettings._id,
@@ -689,7 +713,7 @@ router.get('/backup',
       // Create audit log
       await AuditLog.create({
         userId: req.user.id,
-        userType: 'Admin',
+        userType: 'admin',
         action: 'SETTINGS_BACKUP_CREATED',
         resource: 'AdminSettings',
         resourceId: settings._id,
@@ -726,6 +750,97 @@ router.get('/backup',
         success: false,
         error: 'Failed to create settings backup'
       });
+    }
+  }
+);
+
+// System settings endpoints for admin UI compatibility
+router.get('/system',
+  authenticate,
+  authorize(['admin']),
+  async (req, res) => {
+    try {
+      const data = {
+        enableNotifications: await AdminSettings.getValue('notifications_enabled', true),
+        emailNotifications: await AdminSettings.getValue('email_notifications_enabled', true),
+        smsNotifications: await AdminSettings.getValue('sms_notifications_enabled', false),
+        pushNotifications: await AdminSettings.getValue('push_notifications_enabled', false),
+        notificationFrequency: await AdminSettings.getValue('notification_frequency', 'immediate')
+      };
+
+      return res.json({ success: true, data });
+    } catch (error) {
+      logger.error('Error retrieving system settings', {
+        error: error.message,
+        stack: error.stack,
+        adminId: req.user.id,
+        ip: req.ip
+      });
+
+      return res.status(500).json({ success: false, error: 'Failed to retrieve system settings' });
+    }
+  }
+);
+
+router.patch('/system',
+  updateRateLimit,
+  authenticate,
+  authorize(['admin']),
+  [
+    body('enableNotifications').optional().isBoolean(),
+    body('emailNotifications').optional().isBoolean(),
+    body('smsNotifications').optional().isBoolean(),
+    body('pushNotifications').optional().isBoolean(),
+    body('notificationFrequency').optional().isIn(['immediate', 'hourly', 'daily', 'weekly'])
+  ],
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      const map = {
+        enableNotifications: 'notifications_enabled',
+        emailNotifications: 'email_notifications_enabled',
+        smsNotifications: 'sms_notifications_enabled',
+        pushNotifications: 'push_notifications_enabled',
+        notificationFrequency: 'notification_frequency'
+      };
+
+      const updatedFields = [];
+      for (const [key, value] of Object.entries(req.body)) {
+        const settingKey = map[key];
+        if (!settingKey) continue;
+        await AdminSettings.setValue(settingKey, value, req.user.id, `Updated ${key} via system settings API`);
+        updatedFields.push(key);
+      }
+
+      await AuditLog.create({
+        userId: req.user.id,
+        userType: 'admin',
+        action: 'SYSTEM_SETTINGS_UPDATE',
+        resource: 'AdminSettings',
+        details: { updatedFields },
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent')
+      });
+
+      const data = {
+        enableNotifications: await AdminSettings.getValue('notifications_enabled', true),
+        emailNotifications: await AdminSettings.getValue('email_notifications_enabled', true),
+        smsNotifications: await AdminSettings.getValue('sms_notifications_enabled', false),
+        pushNotifications: await AdminSettings.getValue('push_notifications_enabled', false),
+        notificationFrequency: await AdminSettings.getValue('notification_frequency', 'immediate')
+      };
+
+      return res.json({ success: true, message: 'System settings updated successfully', data });
+    } catch (error) {
+      logger.error('Error updating system settings', {
+        error: error.message,
+        stack: error.stack,
+        adminId: req.user.id,
+        requestBody: req.body,
+        ip: req.ip
+      });
+
+      return res.status(500).json({ success: false, error: 'Failed to update system settings' });
     }
   }
 );

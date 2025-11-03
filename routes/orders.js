@@ -17,6 +17,18 @@ const {
 } = require('../middleware/validation');
 const logger = require('../utils/logger');
 const rateLimit = require('express-rate-limit');
+// Add email utilities for notifications
+const { sendOrderNotification } = require('../utils/email');
+
+const createOrderRateLimit = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 20, // limit each user to 20 order creations per hour
+  keyGenerator: (req) => req.user?.id || req.ip,
+  message: {
+    error: 'Too many order creation attempts, please try again later.',
+    retryAfter: '1 hour'
+  }
+});
 
 // Rate limiting for order operations
 const orderRateLimit = rateLimit({
@@ -28,16 +40,6 @@ const orderRateLimit = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-});
-
-const createOrderRateLimit = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 20, // limit each user to 20 order creations per hour
-  keyGenerator: (req) => req.user?.id || req.ip,
-  message: {
-    error: 'Too many order creation attempts, please try again later.',
-    retryAfter: '1 hour'
-  }
 });
 
 // Base GET route for /api/orders - returns available endpoints
@@ -269,6 +271,30 @@ router.post('/',
         orderNumber: order.orderNumber,
         total: order.totalAmount
       });
+
+      // Send order confirmation email to buyer (respect preferences)
+      try {
+        const buyer = await User.findById(order.buyer).select('firstName lastName email preferences');
+        const optedOut = buyer?.preferences && buyer.preferences.notifications === false;
+        if (optedOut) {
+          logger.info('Buyer opted out; skipping order confirmation email', { orderId: order._id, buyerId: buyer?._id });
+        } else {
+          const itemsForEmail = (orderItems || []).map(i => ({
+            name: i.productName || 'Item',
+            quantity: i.quantity || 0,
+            price: i.price || 0
+          }));
+          sendOrderNotification(
+            buyer.email,
+            `${buyer.firstName || ''} ${buyer.lastName || ''}`.trim() || 'Buyer',
+            { orderId: order.orderNumber, status: 'Created', items: itemsForEmail, total: order.totalAmount }
+          )
+          .then(result => logger.info('Order confirmation email attempted', { orderId: order._id, success: result.success, messageId: result.messageId }))
+          .catch(err => logger.error('Order confirmation email failed', { orderId: order._id, error: err.message }));
+        }
+      } catch (e) {
+        logger.error('Error in order confirmation email flow', { orderId: order._id, error: e.message });
+      }
 
       // Populate order for response
       const populatedOrder = await Order.findById(order._id)
@@ -585,6 +611,30 @@ router.patch('/:id/status',
         newStatus: status
       });
 
+      // Send status update email to buyer (respect preferences)
+      try {
+        const buyer = await User.findById(order.buyer).select('firstName lastName email preferences');
+        const optedOut = buyer?.preferences && buyer.preferences.notifications === false;
+        if (optedOut) {
+          logger.info('Buyer opted out; skipping status update email', { orderId: order._id, buyerId: buyer?._id, newStatus: status });
+        } else {
+          const itemsForEmail = (updatedOrder.items || []).map(item => ({
+            name: (item?.productSnapshot?.name) || (item?.product?.name) || 'Item',
+            quantity: item?.quantity || 0,
+            price: item?.unitPrice || (item?.pricing?.basePrice || 0)
+          }));
+          sendOrderNotification(
+            buyer.email,
+            `${buyer.firstName || ''} ${buyer.lastName || ''}`.trim() || 'Buyer',
+            { orderId: updatedOrder.orderNumber || order.orderNumber, status, items: itemsForEmail, total: updatedOrder.totalAmount || order.totalAmount }
+          )
+          .then(result => logger.info('Order status email attempted', { orderId: order._id, success: result.success, messageId: result.messageId }))
+          .catch(err => logger.error('Order status email failed', { orderId: order._id, error: err.message }));
+        }
+      } catch (e) {
+        logger.error('Error in order status email flow', { orderId: order._id, error: e.message });
+      }
+
       res.json({
         success: true,
         message: 'Order status updated successfully',
@@ -689,6 +739,30 @@ router.patch('/:id/cancel', orderRateLimit, authenticate, async (req, res) => {
       userType: req.user.userType,
       reason
     });
+
+    // Send cancellation email to buyer (respect preferences)
+    try {
+      const buyer = await User.findById(order.buyer).select('firstName lastName email preferences');
+      const optedOut = buyer?.preferences && buyer.preferences.notifications === false;
+      if (optedOut) {
+        logger.info('Buyer opted out; skipping cancellation email', { orderId: order._id, buyerId: buyer?._id });
+      } else {
+        const itemsForEmail = (updatedOrder.items || []).map(item => ({
+          name: (item?.productSnapshot?.name) || (item?.product?.name) || 'Item',
+          quantity: item?.quantity || 0,
+          price: item?.unitPrice || (item?.pricing?.basePrice || 0)
+        }));
+        sendOrderNotification(
+          buyer.email,
+          `${buyer.firstName || ''} ${buyer.lastName || ''}`.trim() || 'Buyer',
+          { orderId: updatedOrder.orderNumber || order.orderNumber, status: 'Cancelled', items: itemsForEmail, total: updatedOrder.totalAmount || order.totalAmount }
+        )
+        .then(result => logger.info('Order cancellation email attempted', { orderId: order._id, success: result.success, messageId: result.messageId }))
+        .catch(err => logger.error('Order cancellation email failed', { orderId: order._id, error: err.message }));
+      }
+    } catch (e) {
+      logger.error('Error in order cancellation email flow', { orderId: order._id, error: e.message });
+    }
 
     res.json({
       success: true,

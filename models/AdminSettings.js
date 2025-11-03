@@ -722,6 +722,17 @@ adminSettingsSchema.statics.initializeDefaults = function(adminId) {
     
     // Notification Settings
     {
+      settingKey: 'notifications_enabled',
+      category: 'notification',
+      name: 'Notifications Enabled',
+      description: 'Master switch for all notifications system-wide',
+      value: true,
+      defaultValue: true,
+      dataType: 'boolean',
+      ui: { inputType: 'boolean', group: 'Notifications', order: 0 },
+      permissions: { read: ['super_admin', 'admin'], write: ['super_admin', 'admin'] }
+    },
+    {
       settingKey: 'email_notifications_enabled',
       category: 'notification',
       name: 'Email Notifications Enabled',
@@ -741,6 +752,39 @@ adminSettingsSchema.statics.initializeDefaults = function(adminId) {
       defaultValue: false,
       dataType: 'boolean',
       ui: { inputType: 'boolean', group: 'Notifications', order: 2 },
+      permissions: { read: ['super_admin', 'admin'], write: ['super_admin', 'admin'] }
+    },
+    {
+      settingKey: 'push_notifications_enabled',
+      category: 'notification',
+      name: 'Push Notifications Enabled',
+      description: 'Enable browser push notifications system-wide',
+      value: false,
+      defaultValue: false,
+      dataType: 'boolean',
+      ui: { inputType: 'boolean', group: 'Notifications', order: 3 },
+      permissions: { read: ['super_admin', 'admin'], write: ['super_admin', 'admin'] }
+    },
+    {
+      settingKey: 'notification_frequency',
+      category: 'notification',
+      name: 'Notification Frequency',
+      description: 'Frequency for non-critical notifications delivery',
+      value: 'immediate',
+      defaultValue: 'immediate',
+      dataType: 'string',
+      validation: { enum: ['immediate', 'hourly', 'daily', 'weekly'] },
+      ui: {
+        inputType: 'select',
+        group: 'Notifications',
+        order: 4,
+        options: [
+          { label: 'Immediate', value: 'immediate' },
+          { label: 'Hourly', value: 'hourly' },
+          { label: 'Daily', value: 'daily' },
+          { label: 'Weekly', value: 'weekly' }
+        ]
+      },
       permissions: { read: ['super_admin', 'admin'], write: ['super_admin', 'admin'] }
     },
     

@@ -1,5 +1,6 @@
 const nodemailer = require('nodemailer');
 const logger = require('./logger');
+const AdminSettings = require('../models/AdminSettings');
 
 /**
  * Email utility class for sending various types of emails
@@ -15,18 +16,24 @@ class EmailService {
    */
   initialize() {
     try {
-      this.transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST || 'smtp.gmail.com',
-        port: parseInt(process.env.SMTP_PORT) || 587,
-        secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS,
-        },
-        tls: {
-          rejectUnauthorized: false
-        }
-      });
+      const host = process.env.SMTP_HOST || process.env.EMAIL_HOST || 'smtp.gmail.com';
+      const portStr = process.env.SMTP_PORT || process.env.EMAIL_PORT || '587';
+      const port = parseInt(portStr, 10);
+      const secure = process.env.SMTP_SECURE ? process.env.SMTP_SECURE === 'true' : port === 465;
+      const user = process.env.SMTP_USER || process.env.EMAIL_USER;
+      const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
+
+      const transportOptions = {
+        host,
+        port,
+        secure,
+        tls: { rejectUnauthorized: false }
+      };
+      if (user && pass) {
+        transportOptions.auth = { user, pass };
+      }
+
+      this.transporter = nodemailer.createTransport(transportOptions);
 
       logger.info('Email service initialized successfully');
     } catch (error) {
@@ -42,11 +49,16 @@ class EmailService {
    * @param {string} userType - User type (user, seller, admin)
    */
   async sendVerificationEmail(email, name, verificationToken, userType = 'user') {
+    const enabled = await this.isEmailEnabled();
+    if (!enabled) {
+      logger.info('Email notifications disabled; skipping verification email', { email });
+      return { success: false, error: 'Email notifications disabled' };
+    }
     try {
       const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}&type=${userType}`;
       
       const mailOptions = {
-        from: `"${process.env.APP_NAME || 'Gule Marketplace'}" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+        from: `"${process.env.APP_NAME || 'Gule Marketplace'}" <${process.env.SMTP_FROM || process.env.EMAIL_FROM || process.env.SMTP_USER || process.env.EMAIL_USER}>`,
         to: email,
         subject: 'Verify Your Email Address',
         html: `
@@ -88,11 +100,25 @@ class EmailService {
    * @param {string} userType - User type (user, seller, admin)
    */
   async sendPasswordResetEmail(email, name, resetToken, userType = 'user') {
+    const enabled = await this.isEmailEnabled();
+    if (!enabled) {
+      logger.info('Email notifications disabled; skipping password reset email', { email });
+      return { success: false, error: 'Email notifications disabled' };
+    }
     try {
-      const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}&type=${userType}`;
+      const baseUrl = userType === 'admin'
+        ? (process.env.ADMIN_URL || process.env.FRONTEND_URL)
+        : (process.env.FRONTEND_URL || process.env.SELLER_DASHBOARD_URL || 'http://localhost:3000');
+
+      // Align query param with frontend expectations:
+      // - Admin app reads only token
+      // - Marketplace client expects `role` for buyer/seller
+      const resetUrl = userType === 'admin'
+        ? `${baseUrl}/reset-password?token=${resetToken}`
+        : `${baseUrl}/reset-password?token=${resetToken}&role=${userType === 'seller' ? 'seller' : 'buyer'}`;
       
       const mailOptions = {
-        from: `"${process.env.APP_NAME || 'Gule Marketplace'}" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+        from: `"${process.env.APP_NAME || 'Gule Marketplace'}" <${process.env.SMTP_FROM || process.env.EMAIL_FROM || process.env.SMTP_USER || process.env.EMAIL_USER}>`,
         to: email,
         subject: 'Password Reset Request',
         html: `
@@ -133,6 +159,11 @@ class EmailService {
    * @param {string} userType - User type (user, seller, admin)
    */
   async sendWelcomeEmail(email, name, userType = 'user') {
+    const enabled = await this.isEmailEnabled();
+    if (!enabled) {
+      logger.info('Email notifications disabled; skipping welcome email', { email });
+      return { success: false, error: 'Email notifications disabled' };
+    }
     try {
       const dashboardUrl = userType === 'seller' 
         ? `${process.env.SELLER_DASHBOARD_URL || process.env.FRONTEND_URL}/seller/dashboard`
@@ -141,7 +172,7 @@ class EmailService {
         : `${process.env.FRONTEND_URL}/dashboard`;
 
       const mailOptions = {
-        from: `"${process.env.APP_NAME || 'Gule Marketplace'}" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+        from: `"${process.env.APP_NAME || 'Gule Marketplace'}" <${process.env.SMTP_FROM || process.env.EMAIL_FROM || process.env.SMTP_USER || process.env.EMAIL_USER}>`,
         to: email,
         subject: `Welcome to ${process.env.APP_NAME || 'Gule Marketplace'}!`,
         html: `
@@ -198,11 +229,16 @@ class EmailService {
    * @param {Object} orderData - Order information
    */
   async sendOrderNotification(email, name, orderData) {
+    const enabled = await this.isEmailEnabled();
+    if (!enabled) {
+      logger.info('Email notifications disabled; skipping order notification', { email, orderId: orderData?.orderId });
+      return { success: false, error: 'Email notifications disabled' };
+    }
     try {
       const { orderId, status, items, total } = orderData;
       
       const mailOptions = {
-        from: `"${process.env.APP_NAME || 'Gule Marketplace'}" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+        from: `"${process.env.APP_NAME || 'Gule Marketplace'}" <${process.env.SMTP_FROM || process.env.EMAIL_FROM || process.env.SMTP_USER || process.env.EMAIL_USER}>`,
         to: email,
         subject: `Order ${status} - #${orderId}`,
         html: `
@@ -254,6 +290,26 @@ class EmailService {
     } catch (error) {
       logger.error('Email service connection test failed', error);
       return { success: false, error: error.message };
+    }
+  }
+
+  // Add system-wide email toggle check using AdminSettings (master + channel)
+  async isEmailEnabled() {
+    try {
+      const keys = ['notifications_enabled', 'email_notifications_enabled'];
+      const settings = await AdminSettings.find({ settingKey: { $in: keys }, isActive: true }).lean();
+      const map = settings.reduce((acc, s) => { acc[s.settingKey] = s; return acc; }, {});
+
+      const master = map.notifications_enabled ? (map.notifications_enabled.value === true || map.notifications_enabled.value === 'true') : true;
+      const email = map.email_notifications_enabled ? (map.email_notifications_enabled.value === true || map.email_notifications_enabled.value === 'true') : true;
+
+      const enabled = master && email;
+      logger.info('Email notifications setting evaluated', { master, email, enabled });
+      return enabled;
+    } catch (error) {
+      logger.error('Error evaluating email notifications setting', { error: error.message });
+      // Fail-open to avoid blocking transactional flows when settings lookup fails
+      return true;
     }
   }
 }

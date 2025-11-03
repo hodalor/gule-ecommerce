@@ -3,6 +3,8 @@ const router = express.Router();
 const { authenticate, authorizeUserType } = require('../middleware/auth');
 const { body, validationResult } = require('express-validator');
 const logger = require('../utils/logger');
+// Add email service imports
+const { emailService, testEmailConnection } = require('../utils/email');
 
 // Mock notification data for now - in a real app, this would come from a database
 let notifications = [];
@@ -195,5 +197,49 @@ router.post('/', authenticate, authorizeUserType('admin'), validateNotification,
     });
   }
 });
+
+// POST /api/notifications/test-email - Send a test email (admin only)
+router.post('/test-email',
+  authenticate,
+  authorizeUserType('admin'),
+  [
+    body('to').isEmail().withMessage('Recipient email is required and must be valid'),
+    body('subject').optional().isLength({ min: 1, max: 200 }).withMessage('Subject must be 1-200 characters'),
+    body('message').optional().isLength({ min: 1, max: 2000 }).withMessage('Message must be 1-2000 characters'),
+  ],
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, errors: errors.array() });
+    }
+    next();
+  },
+  async (req, res) => {
+    try {
+      const { to, subject = 'SMTP Test Email', message = 'This is a test email from Gule backend.' } = req.body;
+
+      const verifyRes = await testEmailConnection();
+      if (!verifyRes.success) {
+        return res.status(400).json({ success: false, error: 'SMTP verification failed', details: verifyRes.error });
+      }
+
+      const from = `${process.env.APP_NAME || 'Gule Marketplace'} <${process.env.SMTP_FROM || process.env.EMAIL_FROM || process.env.SMTP_USER || process.env.EMAIL_USER}>`;
+
+      const result = await emailService.transporter.sendMail({
+        from,
+        to,
+        subject,
+        text: message,
+        html: `<p>${message}</p>`
+      });
+
+      logger.info('Test email sent via API', { to, messageId: result.messageId, adminId: req.user.id });
+      return res.json({ success: true, messageId: result.messageId });
+    } catch (error) {
+      logger.error('Failed to send test email via API', { error: error.message, adminId: req.user.id });
+      return res.status(500).json({ success: false, error: 'Failed to send test email', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
+    }
+  }
+);
 
 module.exports = router;
