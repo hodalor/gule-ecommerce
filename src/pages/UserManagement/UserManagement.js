@@ -22,8 +22,11 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   DocumentArrowDownIcon,
-  FunnelIcon
+  FunnelIcon,
+  KeyIcon
 } from '@heroicons/react/24/outline';
+import api from '../../utils/api';
+import toast from 'react-hot-toast';
 
 const UserManagement = () => {
   const dispatch = useDispatch();
@@ -56,6 +59,10 @@ const UserManagement = () => {
     gender: ''
   });
 
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ userId: null, password: '', confirmPassword: '' });
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  
   const tabs = [
     { id: 'all', name: 'All Users', icon: UserIcon, count: users?.length || 0 },
     { id: 'sellers', name: 'Sellers', icon: BuildingStorefrontIcon, count: users?.filter(u => u.role === 'seller')?.length || 0 },
@@ -135,6 +142,53 @@ const UserManagement = () => {
   const handleActivateUser = async (userId) => {
     if (window.confirm('Are you sure you want to activate this user?')) {
       dispatch(activateUser(userId));
+    }
+  };
+
+  const handleResetPassword = async (user) => {
+    const role = user.role || 'buyer';
+    if (!user.email) {
+      alert('User email is missing.');
+      return;
+    }
+    if (!window.confirm(`Send password reset email to ${user.email}?`)) return;
+    try {
+      const { default: api } = await import('../../utils/api');
+      const { toast } = await import('react-hot-toast');
+      await api.post('/auth/forgot-password', { email: user.email, userType: role });
+      toast.success('Reset email sent if the account exists.');
+    } catch (error) {
+      const message = error?.response?.data?.message || 'Failed to send reset email';
+      const { toast } = await import('react-hot-toast');
+      toast.error(message);
+    }
+  };
+
+  const openPasswordModal = (user) => {
+    setSelectedUser(user);
+    setPasswordForm({ password: '', confirmPassword: '' });
+    setShowPasswordModal(true);
+  };
+
+  const submitManualPassword = async (e) => {
+    e.preventDefault();
+    if (!selectedUser) return;
+    if (passwordForm.password !== passwordForm.confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+    try {
+      await api.post('/auth/admin/reset-user-password', {
+        userId: selectedUser.id,
+        userType: selectedUser.role || 'buyer',
+        password: passwordForm.password,
+        confirmPassword: passwordForm.confirmPassword,
+      });
+      toast.success('Password updated successfully');
+      setShowPasswordModal(false);
+    } catch (error) {
+      const message = error?.response?.data?.error || error?.response?.data?.message || 'Failed to update password';
+      toast.error(message);
     }
   };
 
@@ -496,6 +550,20 @@ const UserManagement = () => {
                               </button>
                             )}
                             <button
+                              onClick={() => handleResetPassword(user)}
+                              className="text-orange-600 hover:text-orange-900"
+                              title="Reset Password"
+                            >
+                              <KeyIcon className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => openPasswordModal(user)}
+                              className="text-blue-600 hover:text-blue-900"
+                              title="Change Password"
+                            >
+                              <KeyIcon className="h-4 w-4" />
+                            </button>
+                            <button
                               onClick={() => handleDeleteUser(user.id)}
                               className="text-red-600 hover:text-red-900"
                               title="Delete User"
@@ -700,6 +768,61 @@ const UserManagement = () => {
                     {modalMode === 'create' ? 'Create User' : 'Update User'}
                   </button>
                 )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPasswordModal && (
+        <div className="fixed z-10 inset-0 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-6 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div className="inline-block align-middle bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:max-w-lg sm:w-full">
+              <div className="bg-white p-6">
+                <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">Change Password</h3>
+                <form onSubmit={submitManualPassword}>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">New Password</label>
+                      <div className="mt-1 relative rounded-md shadow-sm">
+                        <input
+                          type={passwordVisible ? 'text' : 'password'}
+                          name="password"
+                          value={passwordForm.password}
+                          onChange={(e) => setPasswordForm(prev => ({ ...prev, password: e.target.value }))}
+                          className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pr-10 sm:text-sm border-gray-300 rounded-md"
+                          required
+                          placeholder="Enter new password"
+                        />
+                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer" onClick={() => setPasswordVisible(!passwordVisible)}>
+                          <KeyIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Confirm Password</label>
+                      <input
+                        type="password"
+                        name="confirmPassword"
+                        value={passwordForm.confirmPassword}
+                        onChange={(e) => setPasswordForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                        className="focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                        required
+                        placeholder="Confirm new password"
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
+                    <button type="submit" className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 sm:ml-3 sm:w-auto sm:text-sm">
+                      Update Password
+                    </button>
+                    <button type="button" className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 sm:mt-0 sm:w-auto sm:text-sm" onClick={() => setShowPasswordModal(false)}>
+                      Cancel
+                    </button>
+                  </div>
+                </form>
               </div>
             </div>
           </div>

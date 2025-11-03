@@ -72,9 +72,7 @@ export const updateSystemSetting = createAsyncThunk(
   'settings/updateSystemSetting',
   async ({ setting, value }, { rejectWithValue }) => {
     try {
-      const response = await axios.patch('/api/settings/system', {
-        [setting]: value,
-      });
+      await api.patch('/settings/system', { [setting]: value });
       return { setting, value };
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to update system setting');
@@ -86,8 +84,9 @@ export const fetchSystemSettings = createAsyncThunk(
   'settings/fetchSystemSettings',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.get('/api/settings/system');
-      return response.data;
+      const response = await api.get('/settings/system');
+      const data = response.data?.data || {};
+      return data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch system settings');
     }

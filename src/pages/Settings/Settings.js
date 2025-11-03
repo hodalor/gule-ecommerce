@@ -110,7 +110,21 @@ const Settings = () => {
       ...prev,
       [key]: value
     }));
-    setHasChanges(true);
+
+    const notificationKeys = ['enableNotifications', 'emailNotifications', 'smsNotifications', 'pushNotifications', 'notificationFrequency'];
+    if (activeTab === 'notifications' && notificationKeys.includes(key)) {
+      // Immediate apply for notification settings
+      dispatch(updateSystemSetting({ setting: key, value }))
+        .unwrap?.()
+        .then(() => {
+          toast.success('Setting updated');
+        })
+        .catch((err) => {
+          toast.error(err?.message || 'Failed to update setting');
+        });
+    } else {
+      setHasChanges(true);
+    }
   };
 
   const handleSaveSettings = async () => {
