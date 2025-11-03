@@ -88,7 +88,7 @@ const Header = () => {
             ) : (
               <div className="flex items-center space-x-2">
                 <Link
-                  to="/login"
+                  to="/login?role=buyer"
                   className="text-gray-700 hover:text-primary-600 transition-colors"
                 >
                   Login

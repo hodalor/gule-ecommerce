@@ -27,6 +27,8 @@ import Cart from './pages/Cart';
 import Checkout from './pages/Checkout';
 import OrderConfirmation from './pages/OrderConfirmation';
 import Wishlist from './pages/Wishlist';
+import ForgotPassword from './pages/auth/ForgotPassword';
+import ResetPassword from './pages/auth/ResetPassword';
 
 // Buyer Pages
 import BuyerDashboard from './pages/buyer/BuyerDashboard';
@@ -101,6 +103,22 @@ function App() {
                   element={
                     <ProtectedRoute requireAuth={false}>
                       <SignUp />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="forgot-password" 
+                  element={
+                    <ProtectedRoute requireAuth={false}>
+                      <ForgotPassword />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="reset-password" 
+                  element={
+                    <ProtectedRoute requireAuth={false}>
+                      <ResetPassword />
                     </ProtectedRoute>
                   } 
                 />

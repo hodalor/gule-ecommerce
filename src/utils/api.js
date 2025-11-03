@@ -32,7 +32,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       // Token expired or invalid
       Cookies.remove('token');
-      window.location.href = '/login';
+      window.location.href = '/login?role=buyer';
     }
     return Promise.reject(error);
   }
