@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchProductById } from '../store/slices/productSlice';
 import { addToCart } from '../store/slices/cartSlice';
@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 const ProductDetails = () => {
   const { id } = useParams();
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const { currentProduct: product, loading, error } = useSelector((state) => state.products);
   const { user } = useSelector((state) => state.auth);
   
@@ -23,6 +24,8 @@ const ProductDetails = () => {
   const handleAddToCart = () => {
     if (!user) {
       toast.error('Please login to add items to cart');
+      // Redirect to login page with return URL
+      navigate('/login', { state: { from: `/product/${id}` } });
       return;
     }
 
@@ -238,6 +241,21 @@ const ProductDetails = () => {
                 </div>
               </div>
 
+              {/* Price Calculation */}
+              <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-900">Total Price:</span>
+                  <span className="text-lg font-bold text-indigo-600">
+                    ${(product.price * quantity).toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between mt-1">
+                  <span className="text-xs text-gray-500">
+                    ${product.price.toFixed(2)} × {quantity}
+                  </span>
+                </div>
+              </div>
+
               <div className="mt-10 flex sm:flex-col1">
                 <button
                   type="button"
@@ -245,7 +263,10 @@ const ProductDetails = () => {
                   className="max-w-xs flex-1 bg-indigo-600 border border-transparent rounded-md py-3 px-8 flex items-center justify-center text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:w-full"
                   disabled={!product.inStock && product.stock <= 0}
                 >
-                  {(product.inStock !== false && product.stock > 0) ? 'Add to Cart' : 'Out of Stock'}
+                  {(product.inStock !== false && product.stock > 0) ? 
+                    (user ? 'Add to Cart' : 'Login to Add to Cart') : 
+                    'Out of Stock'
+                  }
                 </button>
 
                 <button

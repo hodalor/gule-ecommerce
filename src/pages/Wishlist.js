@@ -169,7 +169,7 @@ const Wishlist = () => {
                   >
                     {item.name}
                   </Link>
-                  <p className="text-sm text-gray-500 mt-1">by {item.seller}</p>
+                  <p className="text-sm text-gray-500 mt-1">by {item.seller?.name || item.seller?.businessName || item.sellerName || 'Unknown Seller'}</p>
                 </div>
 
                 {/* Rating */}

@@ -307,7 +307,7 @@ const OrderTracking = () => {
                       Qty: {item.quantity} × {formatPrice(item.price)}
                     </p>
                     <p className="text-xs text-gray-500">
-                      by {item.seller}
+                      by {item.seller?.name || item.seller?.businessName || item.sellerName || 'Unknown Seller'}
                     </p>
                   </div>
                 </div>

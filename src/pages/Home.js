@@ -116,7 +116,7 @@ const Home = () => {
             <div className="group relative bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
               <div className="w-full min-h-80 bg-gray-200 aspect-w-1 aspect-h-1 rounded-md overflow-hidden group-hover:opacity-75 lg:h-80 lg:aspect-none">
                 <img
-                  src="https://via.placeholder.com/300x300/4F46E5/FFFFFF?text=Earbuds"
+                  src="https://picsum.photos/300/300?random=1"
                   alt="Wireless Bluetooth Earbuds"
                   className="w-full h-full object-center object-cover lg:w-full lg:h-full"
                 />
@@ -159,7 +159,7 @@ const Home = () => {
             <div className="group relative bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
               <div className="w-full min-h-80 bg-gray-200 aspect-w-1 aspect-h-1 rounded-md overflow-hidden group-hover:opacity-75 lg:h-80 lg:aspect-none">
                 <img
-                  src="https://via.placeholder.com/300x300/7C3AED/FFFFFF?text=Watch"
+                  src="https://picsum.photos/300/300?random=2"
                   alt="Smart Fitness Watch"
                   className="w-full h-full object-center object-cover lg:w-full lg:h-full"
                 />
@@ -202,7 +202,7 @@ const Home = () => {
             <div className="group relative bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
               <div className="w-full min-h-80 bg-gray-200 aspect-w-1 aspect-h-1 rounded-md overflow-hidden group-hover:opacity-75 lg:h-80 lg:aspect-none">
                 <img
-                  src="https://via.placeholder.com/300x300/10B981/FFFFFF?text=T-Shirt"
+                  src="https://picsum.photos/300/300?random=3"
                   alt="Organic Cotton T-Shirt"
                   className="w-full h-full object-center object-cover lg:w-full lg:h-full"
                 />
@@ -245,7 +245,7 @@ const Home = () => {
             <div className="group relative bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
               <div className="w-full min-h-80 bg-gray-200 aspect-w-1 aspect-h-1 rounded-md overflow-hidden group-hover:opacity-75 lg:h-80 lg:aspect-none">
                 <img
-                  src="https://via.placeholder.com/300x300/8B5CF6/FFFFFF?text=Yoga+Mat"
+                  src="https://picsum.photos/300/300?random=4"
                   alt="Yoga Mat Premium"
                   className="w-full h-full object-center object-cover lg:w-full lg:h-full"
                 />

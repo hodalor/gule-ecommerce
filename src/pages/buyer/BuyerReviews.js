@@ -269,7 +269,7 @@ const BuyerReviews = () => {
             <div className="flex justify-between items-start mb-4">
               <div className="flex gap-4">
                 <img
-                  src={review.product?.images?.[0] || 'https://via.placeholder.com/64'}
+                  src={review.product?.images?.[0] || 'https://picsum.photos/64/64?random=15'}
                   alt={review.product?.name || 'Product'}
                   className="w-16 h-16 object-cover rounded-lg"
                 />
@@ -400,7 +400,7 @@ const BuyerReviews = () => {
               {/* Product Info */}
               <div className="flex gap-4 p-4 bg-gray-50 rounded-lg">
                 <img
-                  src={editingReview.product?.images?.[0] || 'https://via.placeholder.com/64'}
+                  src={editingReview.product?.images?.[0] || 'https://picsum.photos/64/64?random=16'}
                   alt={editingReview.product?.name || 'Product'}
                   className="w-16 h-16 object-cover rounded-lg"
                 />

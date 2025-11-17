@@ -78,7 +78,7 @@ const SellerStorefront = () => {
       {/* Store Banner */}
       <div className="relative h-64 bg-gradient-to-r from-indigo-500 to-purple-600">
         <img
-          src={seller.banner || 'https://via.placeholder.com/1200x300/6366F1/FFFFFF?text=Store+Banner'}
+          src={seller.banner || 'https://picsum.photos/1200/300?random=9'}
           alt={seller.businessName || seller.name}
           className="w-full h-full object-cover"
         />
@@ -92,7 +92,7 @@ const SellerStorefront = () => {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center">
                 <img
-                  src={seller.avatar || 'https://via.placeholder.com/150x150/4F46E5/FFFFFF?text=S'}
+                  src={seller.avatar || 'https://picsum.photos/150/150?random=10'}
                   alt={seller.businessName || seller.name}
                   className="h-20 w-20 rounded-full border-4 border-white shadow-lg"
                 />
@@ -164,7 +164,7 @@ const SellerStorefront = () => {
                   <div key={product._id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
                     <Link to={`/product/${product._id}`}>
                       <img
-                        src={product.images?.[0] || 'https://via.placeholder.com/300x300/E5E7EB/9CA3AF?text=No+Image'}
+                        src={product.images?.[0] || 'https://picsum.photos/300/300?random=11'}
                         alt={product.name}
                         className="w-full h-48 object-cover"
                       />

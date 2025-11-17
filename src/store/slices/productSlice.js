@@ -1,8 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../utils/api';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
-
 // Async thunks
 export const fetchProducts = createAsyncThunk(
   'products/fetchProducts',
@@ -75,8 +73,8 @@ export const fetchCategories = createAsyncThunk(
   'products/fetchCategories',
   async (_, { rejectWithValue }) => {
     try {
-      // Correct backend route is /products/categories
-      const response = await api.get(`/products/categories`);
+      // Use the new public categories endpoint that returns all active categories
+      const response = await api.get(`/categories`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch categories');

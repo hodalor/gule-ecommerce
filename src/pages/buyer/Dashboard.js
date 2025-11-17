@@ -235,7 +235,7 @@ const BuyerDashboard = () => {
                         <img src={item.image} alt={item.name} className="h-16 w-16 rounded-lg object-cover" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-900 truncate">{item.name}</p>
-                          <p className="text-sm text-gray-500">{item.seller}</p>
+                          <p className="text-sm text-gray-500">{item.seller?.name || item.seller?.businessName || item.sellerName || 'Unknown Seller'}</p>
                           <p className="text-sm font-semibold text-indigo-600">${item.price}</p>
                         </div>
                         <button className="text-indigo-600 hover:text-indigo-500">
@@ -343,7 +343,7 @@ const BuyerDashboard = () => {
                       <img src={item.image} alt={item.name} className="w-full h-48 object-cover" />
                       <div className="p-4">
                         <h3 className="text-lg font-medium text-gray-900 mb-2">{item.name}</h3>
-                        <p className="text-sm text-gray-500 mb-2">by {item.seller}</p>
+                        <p className="text-sm text-gray-500 mb-2">by {item.seller?.name || item.seller?.businessName || item.sellerName || 'Unknown Seller'}</p>
                         <div className="flex items-center justify-between">
                           <span className="text-xl font-bold text-indigo-600">${item.price}</span>
                           <div className="flex space-x-2">

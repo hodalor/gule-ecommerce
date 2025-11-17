@@ -114,7 +114,7 @@ const Cart = () => {
                       {/* Product Image */}
                       <div className="flex-shrink-0">
                         <img
-                          src={item.image || 'https://via.placeholder.com/100x100/E5E7EB/9CA3AF?text=No+Image'}
+                          src={item.image || 'https://picsum.photos/100/100?random=8'}
                           alt={item.name}
                           className="w-20 h-20 object-cover rounded-lg"
                         />

@@ -563,14 +563,25 @@ const SellerOrders = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div>
-                        <div className="font-medium text-gray-900">{order.customer?.name || 'N/A'}</div>
-                        <div className="text-sm text-gray-600">{order.customer?.email || 'N/A'}</div>
+                        <div className="font-medium text-gray-900">
+                          {order.customer?.displayName || 
+                           order.customer?.name || 
+                           (order.customer?.firstName 
+                             ? `${order.customer.firstName} ${order.customer.lastName || ''}`.trim()
+                             : 'Customer')}
+                        </div>
+                        {order.customer?.email && (
+                          <div className="text-sm text-gray-600">{order.customer.email}</div>
+                        )}
+                        {!order.customer?.email && order.customer?.displayName !== 'Customer' && (
+                          <div className="text-sm text-gray-500">Contact info not available</div>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                          <img
-                           src={order.items?.[0]?.image || 'https://via.placeholder.com/40x40?text=No+Image'}
+                           src={order.items?.[0]?.image || 'https://picsum.photos/40/40?random=12'}
                            alt={order.items?.[0]?.name || 'Product'}
                            className="w-10 h-10 object-cover rounded"
                          />
@@ -692,31 +703,64 @@ const SellerOrders = () => {
                   <div className="space-y-2">
                     <div className="flex justify-between">
                       <span className="text-gray-600">Name:</span>
-                      <span className="font-medium">{selectedOrder.customer?.name || 'N/A'}</span>
+                      <span className="font-medium">
+                        {selectedOrder.customer?.displayName || 
+                         (selectedOrder.customer?.firstName 
+                           ? `${selectedOrder.customer.firstName} ${selectedOrder.customer.lastName || ''}`.trim()
+                           : selectedOrder.customer?.name || 'Customer')}
+                      </span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Email:</span>
-                      <span className="font-medium">{selectedOrder.customer?.email || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Phone:</span>
-                      <span className="font-medium">{selectedOrder.customer?.phone || 'N/A'}</span>
-                    </div>
+                    {selectedOrder.customer?.email ? (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Email:</span>
+                        <span className="font-medium">{selectedOrder.customer.email}</span>
+                      </div>
+                    ) : (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Email:</span>
+                        <span className="font-medium text-gray-500">Not available</span>
+                      </div>
+                    )}
+                    {selectedOrder.customer?.phone ? (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Phone:</span>
+                        <span className="font-medium">{selectedOrder.customer.phone}</span>
+                      </div>
+                    ) : (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Phone:</span>
+                        <span className="font-medium text-gray-500">Not available</span>
+                      </div>
+                    )}
+                    {selectedOrder.customer?.displayName === 'Customer' && (
+                      <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
+                        <p className="text-sm text-yellow-800">
+                          <span className="font-medium">Privacy Notice:</span> Customer contact details are hidden by admin settings.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
 
               {/* Shipping Address */}
-              {selectedOrder.shippingAddress && (
-                <div>
-                  <h3 className="text-lg font-medium mb-3">Shipping Address</h3>
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <p>{selectedOrder.shippingAddress.street || 'N/A'}</p>
-                    <p>{selectedOrder.shippingAddress.city || 'N/A'}, {selectedOrder.shippingAddress.state || 'N/A'} {selectedOrder.shippingAddress.zipCode || 'N/A'}</p>
-                    <p>{selectedOrder.shippingAddress.country || 'N/A'}</p>
-                  </div>
+              <div>
+                <h3 className="text-lg font-medium mb-3">Shipping Address</h3>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  {selectedOrder.shippingAddress && selectedOrder.shippingAddress.street ? (
+                    <>
+                      <p>{selectedOrder.shippingAddress.street}</p>
+                      <p>{selectedOrder.shippingAddress.city || 'N/A'}, {selectedOrder.shippingAddress.state || 'N/A'} {selectedOrder.shippingAddress.zipCode || 'N/A'}</p>
+                      <p>{selectedOrder.shippingAddress.country || 'N/A'}</p>
+                    </>
+                  ) : (
+                    <div className="text-center py-4">
+                      <p className="text-gray-500 mb-2">Address details not available</p>
+                      <p className="text-sm text-gray-400">Customer address information is protected by privacy settings</p>
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
 
               {/* Order Items */}
               <div>
@@ -725,7 +769,7 @@ const SellerOrders = () => {
                   {selectedOrder.items?.map((item, index) => (
                     <div key={item.id || item._id || index} className="flex items-center gap-4 p-4 border border-gray-200 rounded-lg">
                       <img
-                        src={item.image || 'https://via.placeholder.com/64x64?text=No+Image'}
+                        src={item.image || 'https://picsum.photos/64/64?random=13'}
                         alt={item.name || 'Product'}
                         className="w-16 h-16 object-cover rounded-lg"
                       />

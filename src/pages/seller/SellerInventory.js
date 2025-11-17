@@ -73,7 +73,7 @@ const SellerInventory = () => {
       stockVelocity,
       daysUntilStockout,
       reorderPoint: product.lowStockThreshold || 5,
-      image: product.images?.[0] || 'https://via.placeholder.com/64x64/E5E7EB/9CA3AF?text=No+Image',
+      image: product.images?.[0] || 'https://picsum.photos/64/64?random=6',
       totalValue: (product.stock || 0) * product.price,
       lastSale: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     };

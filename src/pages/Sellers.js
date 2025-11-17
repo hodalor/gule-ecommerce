@@ -132,7 +132,7 @@ const Sellers = () => {
                 {/* Seller Header */}
                 <div className="flex items-start space-x-4">
                   <img
-                    src={seller.avatar || 'https://via.placeholder.com/80x80/6366F1/FFFFFF?text=S'}
+                    src={seller.avatar || 'https://picsum.photos/80/80?random=17'}
                     alt={seller.name}
                     className="h-16 w-16 rounded-full object-cover"
                   />

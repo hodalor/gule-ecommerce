@@ -38,7 +38,7 @@ export const fetchSellerOrders = createAsyncThunk(
       const params = new URLSearchParams({ page: page.toString() });
       if (status) params.append('status', status);
       
-      const response = await axios.get(`${API_URL}/orders/seller?${params}`);
+      const response = await axios.get(`${API_URL}/orders/seller-orders?${params}`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch seller orders');

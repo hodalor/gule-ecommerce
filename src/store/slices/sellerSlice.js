@@ -58,8 +58,8 @@ export const fetchSellerCategories = createAsyncThunk(
   'sellers/fetchSellerCategories',
   async (_, { rejectWithValue }) => {
     try {
-      // Reuse product categories endpoint and map to names
-      const response = await fetch(`${API_BASE_URL}/products/categories`, {
+      // Use the new public categories endpoint that returns all active categories
+      const response = await fetch(`${API_BASE_URL}/categories`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -142,7 +142,7 @@ const sellerSlice = createSlice({
           firstName: seller.firstName,
           lastName: seller.lastName,
           description: seller.businessDetails?.businessDescription || 'Professional seller',
-          avatar: seller.profileImage || 'https://via.placeholder.com/64x64/6366F1/FFFFFF?text=' + (seller.firstName?.[0] || 'S'),
+          avatar: seller.profileImage || 'https://picsum.photos/64/64?random=14',
           verified: (seller.isVerified === true) || (seller.verificationStatus === 'verified') || false,
           rating: seller.rating || seller.averageRating || 0,
           reviewCount: seller.totalReviews || 0,

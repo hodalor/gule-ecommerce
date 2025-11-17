@@ -94,7 +94,7 @@ const Categories = () => {
             <div key={category.name} className="group relative bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
               <div className="aspect-w-16 aspect-h-12">
                 <img
-                  src={category.image || `https://via.placeholder.com/400x300/3B82F6/FFFFFF?text=${encodeURIComponent(category.name)}`}
+                  src={category.image || `https://picsum.photos/400/300?random=${category._id || Math.random()}`}
                   alt={category.name}
                   className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
                 />
