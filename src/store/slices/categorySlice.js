@@ -4,7 +4,6 @@ import api from '../../utils/api';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
 const ADMIN_CATEGORIES_API = '/admin/categories';
-const PRODUCTS_CATEGORIES_API = '/products/categories';
 
 // Async thunks for category management
 export const fetchCategories = createAsyncThunk(
@@ -16,11 +15,19 @@ export const fetchCategories = createAsyncThunk(
         limit: limit.toString(),
       });
       
-      if (search) params.append('search', search);
-      if (status) params.append('status', status);
+      // Only add search if it's not empty (backend requires 1-100 characters)
+      if (search && search.trim().length > 0) {
+        params.append('search', search.trim());
+      }
+      
+      // Only add status if it's a valid value (backend only accepts 'active' or 'inactive')
+      if (status && (status === 'active' || status === 'inactive')) {
+        params.append('status', status);
+      }
+      
       if (parentId) params.append('parentId', parentId);
 
-      const response = await api.get(`${PRODUCTS_CATEGORIES_API}?${params}`);
+      const response = await api.get(`${ADMIN_CATEGORIES_API}?${params}`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch categories');
@@ -32,7 +39,7 @@ export const fetchCategoryById = createAsyncThunk(
   'adminCategories/fetchCategoryById',
   async (categoryId, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`${API_URL}/products/categories/${categoryId}`);
+      const response = await api.get(`${ADMIN_CATEGORIES_API}/${categoryId}`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch category');
@@ -201,7 +208,7 @@ export const fetchCategoryTree = createAsyncThunk(
   'adminCategories/fetchCategoryTree',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`${API_URL}/products/categories/tree`);
+      const response = await api.get(`${ADMIN_CATEGORIES_API}/tree`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch category tree');
@@ -299,7 +306,9 @@ const categorySlice = createSlice({
       })
       .addCase(createCategory.fulfilled, (state, action) => {
         state.loading = false;
-        state.categories.unshift(action.payload);
+        // Backend returns { success: true, data: { category: categoryObject } }
+        const newCategory = action.payload.data?.category || action.payload;
+        state.categories.unshift(newCategory);
       })
       .addCase(createCategory.rejected, (state, action) => {
         state.loading = false;
@@ -313,7 +322,8 @@ const categorySlice = createSlice({
       })
       .addCase(updateCategory.fulfilled, (state, action) => {
         state.loading = false;
-        const updatedCategory = action.payload;
+        // Backend returns { success: true, data: { category: categoryObject } }
+        const updatedCategory = action.payload.data?.category || action.payload;
         const index = state.categories.findIndex(c => c._id === updatedCategory._id);
         if (index !== -1) {
           state.categories[index] = updatedCategory;
@@ -351,13 +361,14 @@ const categorySlice = createSlice({
       })
       .addCase(updateCategoryStatus.fulfilled, (state, action) => {
         state.loading = false;
-        const updatedCategory = action.payload;
-        const index = state.categories.findIndex(c => c._id === updatedCategory._id);
+        // Backend returns { success: true, data: { category: categoryObject } }
+        const updatedCategory = action.payload.data?.category || action.payload;
+        const index = state.categories.findIndex(c => c._id === updatedCategory._id || c._id === updatedCategory.id);
         if (index !== -1) {
-          state.categories[index] = updatedCategory;
+          state.categories[index] = { ...state.categories[index], ...updatedCategory };
         }
-        if (state.selectedCategory && state.selectedCategory._id === updatedCategory._id) {
-          state.selectedCategory = updatedCategory;
+        if (state.selectedCategory && (state.selectedCategory._id === updatedCategory._id || state.selectedCategory._id === updatedCategory.id)) {
+          state.selectedCategory = { ...state.selectedCategory, ...updatedCategory };
         }
       })
       .addCase(updateCategoryStatus.rejected, (state, action) => {

@@ -9,10 +9,9 @@ import {
 import {
   CheckCircleIcon,
   XCircleIcon,
-  ClockIcon,
   UserIcon,
   MagnifyingGlassIcon,
-  FunnelIcon
+  EyeIcon
 } from '@heroicons/react/24/outline';
 
 const OrderManagement = () => {
@@ -20,15 +19,15 @@ const OrderManagement = () => {
   const { 
     orders, 
     loading, 
-    error, 
-    pagination, 
-    filters 
+    pagination 
   } = useSelector((state) => state.orders);
   const { user } = useSelector((state) => state.auth);
 
   const [selectedOrders, setSelectedOrders] = useState([]);
   const [showBulkActions, setShowBulkActions] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [showOrderDetailsModal, setShowOrderDetailsModal] = useState(false);
+  const [selectedOrderDetails, setSelectedOrderDetails] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
@@ -95,6 +94,11 @@ const OrderManagement = () => {
     dispatch(assignReviewOfficer({ orderIds: selectedOrders, officerId }));
     setSelectedOrders([]);
     setShowAssignModal(false);
+  };
+
+  const handleViewOrderDetails = (order) => {
+    setSelectedOrderDetails(order);
+    setShowOrderDetailsModal(true);
   };
 
   const getStatusColor = (status) => {
@@ -315,7 +319,12 @@ const OrderManagement = () => {
                       />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
-                      #{order.id}
+                      <button
+                        onClick={() => handleViewOrderDetails(order)}
+                        className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                      >
+                        #{order.id}
+                      </button>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
@@ -343,46 +352,55 @@ const OrderManagement = () => {
                       {order.reviewOfficer || 'Unassigned'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      {canManageOrders && (
-                        <div className="flex space-x-2">
-                          {order.status === 'Pending' && (
-                            <>
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleViewOrderDetails(order)}
+                          className="text-blue-600 hover:text-blue-900"
+                          title="View Details"
+                        >
+                          <EyeIcon className="h-4 w-4" />
+                        </button>
+                        {canManageOrders && (
+                          <>
+                            {order.status === 'Pending' && (
+                              <>
+                                <button
+                                  onClick={() => handleStatusUpdate(order.id, 'Approved')}
+                                  className="text-green-600 hover:text-green-900"
+                                  title="Approve"
+                                >
+                                  <CheckCircleIcon className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleStatusUpdate(order.id, 'Rejected')}
+                                  className="text-red-600 hover:text-red-900"
+                                  title="Reject"
+                                >
+                                  <XCircleIcon className="h-4 w-4" />
+                                </button>
+                              </>
+                            )}
+                            {order.status === 'In Progress' && (
                               <button
-                                onClick={() => handleStatusUpdate(order.id, 'Approved')}
-                                className="text-green-600 hover:text-green-900"
-                                title="Approve"
+                                onClick={() => handleStatusUpdate(order.id, 'Delivered')}
+                                className="text-blue-600 hover:text-blue-900"
+                                title="Mark as Delivered"
                               >
                                 <CheckCircleIcon className="h-4 w-4" />
                               </button>
+                            )}
+                            {order.status === 'Delivered' && (
                               <button
-                                onClick={() => handleStatusUpdate(order.id, 'Rejected')}
-                                className="text-red-600 hover:text-red-900"
-                                title="Reject"
+                                onClick={() => handleStatusUpdate(order.id, 'Completed')}
+                                className="text-green-600 hover:text-green-900"
+                                title="Mark as Completed"
                               >
-                                <XCircleIcon className="h-4 w-4" />
+                                <CheckCircleIcon className="h-4 w-4" />
                               </button>
-                            </>
-                          )}
-                          {order.status === 'In Progress' && (
-                            <button
-                              onClick={() => handleStatusUpdate(order.id, 'Delivered')}
-                              className="text-blue-600 hover:text-blue-900"
-                              title="Mark as Delivered"
-                            >
-                              <CheckCircleIcon className="h-4 w-4" />
-                            </button>
-                          )}
-                          {order.status === 'Delivered' && (
-                            <button
-                              onClick={() => handleStatusUpdate(order.id, 'Completed')}
-                              className="text-green-600 hover:text-green-900"
-                              title="Mark as Completed"
-                            >
-                              <CheckCircleIcon className="h-4 w-4" />
-                            </button>
-                          )}
-                        </div>
-                      )}
+                            )}
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -391,6 +409,192 @@ const OrderManagement = () => {
           </table>
         </div>
       </div>
+
+      {/* Order Details Modal */}
+      {showOrderDetailsModal && selectedOrderDetails && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-10 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-900">
+                  Order Details - #{selectedOrderDetails.id}
+                </h3>
+                <button
+                  onClick={() => setShowOrderDetailsModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Order Information */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h4 className="text-lg font-medium text-gray-900 mb-3">Order Information</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Order ID:</span>
+                      <span className="font-mono">#{selectedOrderDetails.id}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Status:</span>
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(selectedOrderDetails.status)}`}>
+                        {selectedOrderDetails.status}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Amount:</span>
+                      <span className="font-semibold">${selectedOrderDetails.amount}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Created:</span>
+                      <span>{new Date(selectedOrderDetails.createdAt).toLocaleDateString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Review Officer:</span>
+                      <span>{selectedOrderDetails.reviewOfficer || 'Unassigned'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Product Information */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h4 className="text-lg font-medium text-gray-900 mb-3">Product Information</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Product:</span>
+                      <span className="font-medium">{selectedOrderDetails.productTitle}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Category:</span>
+                      <span>{selectedOrderDetails.category}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Quantity:</span>
+                      <span>{selectedOrderDetails.quantity || 1}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Unit Price:</span>
+                      <span>${selectedOrderDetails.unitPrice || selectedOrderDetails.amount}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Buyer Information */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h4 className="text-lg font-medium text-gray-900 mb-3">Buyer Information</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Name:</span>
+                      <span>{selectedOrderDetails.buyerName}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Email:</span>
+                      <span>{selectedOrderDetails.buyerEmail || 'N/A'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Phone:</span>
+                      <span>{selectedOrderDetails.buyerPhone || 'N/A'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Seller Information */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h4 className="text-lg font-medium text-gray-900 mb-3">Seller Information</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Name:</span>
+                      <span>{selectedOrderDetails.sellerName}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Email:</span>
+                      <span>{selectedOrderDetails.sellerEmail || 'N/A'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Business:</span>
+                      <span>{selectedOrderDetails.businessName || 'N/A'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Shipping Information */}
+              {selectedOrderDetails.shippingAddress && (
+                <div className="mt-6 bg-gray-50 p-4 rounded-lg">
+                  <h4 className="text-lg font-medium text-gray-900 mb-3">Shipping Information</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-gray-600">Address:</span>
+                      <div className="mt-1">
+                        {selectedOrderDetails.shippingAddress.street && (
+                          <p>{selectedOrderDetails.shippingAddress.street}</p>
+                        )}
+                        <p>
+                          {selectedOrderDetails.shippingAddress.city}
+                          {selectedOrderDetails.shippingAddress.state && `, ${selectedOrderDetails.shippingAddress.state}`}
+                          {selectedOrderDetails.shippingAddress.zipCode && ` ${selectedOrderDetails.shippingAddress.zipCode}`}
+                        </p>
+                        {selectedOrderDetails.shippingAddress.country && (
+                          <p>{selectedOrderDetails.shippingAddress.country}</p>
+                        )}
+                      </div>
+                    </div>
+                    {selectedOrderDetails.trackingNumber && (
+                      <div>
+                        <span className="text-gray-600">Tracking Number:</span>
+                        <p className="mt-1 font-mono">{selectedOrderDetails.trackingNumber}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Order Notes */}
+              {selectedOrderDetails.notes && (
+                <div className="mt-6 bg-yellow-50 p-4 rounded-lg">
+                  <h4 className="text-lg font-medium text-gray-900 mb-3">Order Notes</h4>
+                  <p className="text-gray-700">{selectedOrderDetails.notes}</p>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  onClick={() => setShowOrderDetailsModal(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Close
+                </button>
+                {canManageOrders && selectedOrderDetails.status === 'Pending' && (
+                  <>
+                    <button
+                      onClick={() => {
+                        handleStatusUpdate(selectedOrderDetails.id, 'Approved');
+                        setShowOrderDetailsModal(false);
+                      }}
+                      className="px-4 py-2 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700"
+                    >
+                      Approve Order
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleStatusUpdate(selectedOrderDetails.id, 'Rejected');
+                        setShowOrderDetailsModal(false);
+                      }}
+                      className="px-4 py-2 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700"
+                    >
+                      Reject Order
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Assign Review Officer Modal */}
       {showAssignModal && (

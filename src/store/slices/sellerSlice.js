@@ -174,6 +174,37 @@ export const sendSellerNotification = createAsyncThunk(
   }
 );
 
+// Admin reset seller password
+export const adminResetSellerPassword = createAsyncThunk(
+  'adminSellers/adminResetSellerPassword',
+  async ({ sellerId, password, confirmPassword }, { rejectWithValue }) => {
+    try {
+      const response = await api.post(`/sellers/${sellerId}/reset-password`, {
+      password,
+      confirmPassword
+    });
+      return { sellerId, message: response.data.message };
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to reset password');
+    }
+  }
+);
+
+// Send password reset email to seller
+export const sendSellerPasswordReset = createAsyncThunk(
+  'adminSellers/sendSellerPasswordReset',
+  async ({ sellerId, email }, { rejectWithValue }) => {
+    try {
+      const response = await api.post(`/sellers/forgot-password`, {
+        email: email
+      });
+      return { sellerId, message: response.data.message };
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to send password reset email');
+    }
+  }
+);
+
 const initialState = {
   sellers: [],
   selectedSeller: null,
@@ -369,6 +400,32 @@ const sellerSlice = createSlice({
         state.loading = false;
       })
       .addCase(sendSellerNotification.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      
+      // Admin reset seller password
+      .addCase(adminResetSellerPassword.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(adminResetSellerPassword.fulfilled, (state) => {
+        state.loading = false;
+      })
+      .addCase(adminResetSellerPassword.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      
+      // Send seller password reset
+      .addCase(sendSellerPasswordReset.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(sendSellerPasswordReset.fulfilled, (state) => {
+        state.loading = false;
+      })
+      .addCase(sendSellerPasswordReset.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       });

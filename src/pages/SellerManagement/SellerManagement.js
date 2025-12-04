@@ -8,7 +8,9 @@ import {
   bulkUpdateSellers,
   fetchSellerStatistics,
   exportSellers,
-  setSelectedSeller
+  setSelectedSeller,
+  adminResetSellerPassword,
+  sendSellerPasswordReset
 } from '../../store/slices/sellerSlice';
 import {
   PlusIcon,
@@ -25,7 +27,8 @@ import {
   ClockIcon,
   DocumentTextIcon,
   CurrencyDollarIcon,
-  ChartBarIcon
+  ChartBarIcon,
+  KeyIcon
 } from '@heroicons/react/24/outline';
 
 const SellerManagement = () => {
@@ -49,6 +52,13 @@ const SellerManagement = () => {
   const [showDocumentModal, setShowDocumentModal] = useState(false);
   const [selectedDocuments, setSelectedDocuments] = useState([]);
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
+
+  // Password reset modal states
+  const [showPasswordResetModal, setShowPasswordResetModal] = useState(false);
+  const [passwordResetMode, setPasswordResetMode] = useState('manual'); // 'manual' or 'email'
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordResetSeller, setPasswordResetSeller] = useState(null);
 
   // New local state for edit modal controls
   const [statusSelection, setStatusSelection] = useState('pending');
@@ -198,8 +208,83 @@ const SellerManagement = () => {
           dateRange: dateRange.start && dateRange.end ? dateRange : undefined
         }));
       } catch (err) {
-        console.error(`Failed to ${action} sellers:`, err);
+        console.error('Bulk action failed:', err);
       }
+    }
+  };
+
+  // Password reset functions
+  const openPasswordResetModal = (seller, mode = 'manual') => {
+    setPasswordResetSeller(seller);
+    setPasswordResetMode(mode);
+    setNewPassword('');
+    setConfirmPassword('');
+    setShowPasswordResetModal(true);
+  };
+
+  const closePasswordResetModal = () => {
+    setShowPasswordResetModal(false);
+    setPasswordResetSeller(null);
+    setNewPassword('');
+    setConfirmPassword('');
+    setUpdateMessage({ type: '', text: '' });
+  };
+
+  const handleManualPasswordReset = async () => {
+    if (!passwordResetSeller) return;
+    
+    if (!newPassword || !confirmPassword) {
+      setUpdateMessage({ type: 'error', text: 'Please fill in all password fields' });
+      return;
+    }
+    
+    if (newPassword !== confirmPassword) {
+      setUpdateMessage({ type: 'error', text: 'Passwords do not match' });
+      return;
+    }
+    
+    if (newPassword.length < 6) {
+      setUpdateMessage({ type: 'error', text: 'Password must be at least 6 characters long' });
+      return;
+    }
+
+    try {
+      const result = await dispatch(adminResetSellerPassword({
+        sellerId: passwordResetSeller._id || passwordResetSeller.id,
+        password: newPassword,
+        confirmPassword: confirmPassword
+      }));
+      
+      if (result.type.endsWith('/fulfilled')) {
+        setUpdateMessage({ type: 'success', text: 'Password reset successfully' });
+        setTimeout(() => {
+          closePasswordResetModal();
+        }, 2000);
+      }
+    } catch (err) {
+      console.error('Manual password reset failed:', err);
+      setUpdateMessage({ type: 'error', text: 'Failed to reset password' });
+    }
+  };
+
+  const handleEmailPasswordReset = async () => {
+    if (!passwordResetSeller) return;
+
+    try {
+      const result = await dispatch(sendSellerPasswordReset({
+        sellerId: passwordResetSeller._id || passwordResetSeller.id,
+        email: passwordResetSeller.email
+      }));
+      
+      if (result.type.endsWith('/fulfilled')) {
+        setUpdateMessage({ type: 'success', text: 'Password reset email sent successfully' });
+        setTimeout(() => {
+          closePasswordResetModal();
+        }, 2000);
+      }
+    } catch (err) {
+      console.error('Email password reset failed:', err);
+      setUpdateMessage({ type: 'error', text: 'Failed to send password reset email' });
     }
   };
 
@@ -621,6 +706,13 @@ const SellerManagement = () => {
                           <DocumentTextIcon className="w-5 h-5" />
                         </button>
                         <button
+                          onClick={() => openPasswordResetModal(seller)}
+                          className="text-orange-600 hover:text-orange-900"
+                          title="Reset Password"
+                        >
+                          <KeyIcon className="w-5 h-5" />
+                        </button>
+                        <button
                           onClick={() => openModal('edit', seller)}
                           className="text-indigo-600 hover:text-indigo-900"
                           title="Edit"
@@ -920,6 +1012,114 @@ const SellerManagement = () => {
                 >
                   Close
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Password Reset Modal */}
+      {showPasswordResetModal && passwordResetSeller && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-1/2 lg:w-1/3 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">
+                Reset Password - {passwordResetSeller.businessName}
+              </h3>
+              
+              {updateMessage.type === 'error' && (
+                <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
+                  {updateMessage.text}
+                </div>
+              )}
+              {updateMessage.type === 'success' && (
+                <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md">
+                  {updateMessage.text}
+                </div>
+              )}
+              
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Reset Method</label>
+                <div className="flex space-x-4">
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      value="manual"
+                      checked={passwordResetMode === 'manual'}
+                      onChange={(e) => setPasswordResetMode(e.target.value)}
+                      className="mr-2"
+                    />
+                    Manual Reset
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      value="email"
+                      checked={passwordResetMode === 'email'}
+                      onChange={(e) => setPasswordResetMode(e.target.value)}
+                      className="mr-2"
+                    />
+                    Send Email
+                  </label>
+                </div>
+              </div>
+              
+              {passwordResetMode === 'manual' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">New Password</label>
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Enter new password"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Confirm Password</label>
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Confirm new password"
+                    />
+                  </div>
+                </div>
+              )}
+              
+              {passwordResetMode === 'email' && (
+                <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+                  <p className="text-sm text-blue-800">
+                    A password reset email will be sent to: <strong>{passwordResetSeller.email}</strong>
+                  </p>
+                </div>
+              )}
+              
+              <div className="flex justify-end space-x-3 pt-6 mt-6 border-t">
+                <button
+                  onClick={closePasswordResetModal}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
+                >
+                  Cancel
+                </button>
+                {passwordResetMode === 'manual' ? (
+                  <button
+                    onClick={handleManualPasswordReset}
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700"
+                  >
+                    Reset Password
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleEmailPasswordReset}
+                    className="px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700"
+                  >
+                    Send Reset Email
+                  </button>
+                )}
               </div>
             </div>
           </div>

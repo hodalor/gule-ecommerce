@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import toast from 'react-hot-toast';
 import {
   MagnifyingGlassIcon,
   PlusIcon,
@@ -60,8 +61,8 @@ const CategoryManagement = () => {
       dispatch(fetchCategories({ 
         page: pagination?.currentPage || 1, 
         limit: 50,
-        search: searchTerm,
-        status: 'all'
+        search: searchTerm
+        // Removed status: 'all' as it's not a valid backend value
       }));
     };
 
@@ -174,11 +175,13 @@ const CategoryManagement = () => {
     try {
       if (modalType === 'add') {
         await dispatch(createCategory(formData)).unwrap();
+        toast.success('Category created successfully');
       } else if (modalType === 'edit' && selectedCategory) {
         await dispatch(updateCategory({ 
-          id: selectedCategory._id || selectedCategory.id, 
+          categoryId: selectedCategory._id || selectedCategory.id, 
           categoryData: formData 
         })).unwrap();
+        toast.success('Category updated successfully');
       }
       
       // Refresh categories after successful operation
@@ -186,6 +189,8 @@ const CategoryManagement = () => {
       closeModal();
     } catch (error) {
       console.error('Form submission error:', error);
+      const errorMessage = error?.message || error?.error || 'Failed to save category';
+      toast.error(errorMessage);
     }
   };
 
@@ -204,11 +209,16 @@ const CategoryManagement = () => {
         data: actionData
       })).unwrap();
       
+      const actionText = action === 'activate' ? 'activated' : action === 'deactivate' ? 'deactivated' : action;
+      toast.success(`Categories ${actionText} successfully`);
+      
       // Refresh categories and clear selection
       dispatch(fetchCategories({ page: 1, limit: 50 }));
       setSelectedCategories([]);
     } catch (error) {
       console.error('Bulk action error:', error);
+      const errorMessage = error?.message || error?.error || 'Failed to perform bulk action';
+      toast.error(errorMessage);
     }
   };
 
@@ -216,11 +226,14 @@ const CategoryManagement = () => {
     try {
       if (action === 'delete') {
         await dispatch(deleteCategory(categoryId)).unwrap();
+        toast.success('Category deleted successfully');
         // Refresh categories after deletion
         dispatch(fetchCategories({ page: 1, limit: 50 }));
       }
     } catch (error) {
       console.error('Category action error:', error);
+      const errorMessage = error?.message || error?.error || 'Failed to perform action';
+      toast.error(errorMessage);
     }
   };
 
