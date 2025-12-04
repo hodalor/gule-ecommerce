@@ -13,6 +13,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { fetchUserOrders, confirmDelivery, rateOrder } from '../../store/slices/orderSlice';
 import toast from 'react-hot-toast';
+import { formatCurrency as formatCurrencyUtil } from '../../utils/currency';
 
 const BuyerOrders = () => {
   const dispatch = useDispatch();
@@ -120,12 +121,7 @@ const BuyerOrders = () => {
     });
   };
 
-  const formatPrice = (price) => {
-    return new Intl.NumberFormat('en-NG', {
-      style: 'currency',
-      currency: 'NGN'
-    }).format(price);
-  };
+  const formatPrice = (price) => formatCurrencyUtil(price);
 
   return (
     <div className="space-y-6">
@@ -234,8 +230,18 @@ const BuyerOrders = () => {
                       {order.items.map((item, index) => (
                         <div key={index} className="flex items-center gap-4">
                           <img
-                            src={item.image}
-                            alt={item.name}
+                            src={
+                              item.product?.images?.[0]?.url ||
+                              item.productSnapshot?.image ||
+                              (typeof item.image === 'string' ? item.image : item.image?.url) ||
+                              'https://picsum.photos/64/64?random=15'
+                            }
+                            alt={
+                              item.product?.images?.[0]?.alt ||
+                              item.name ||
+                              item.product?.name ||
+                              'Product'
+                            }
                             className="w-16 h-16 object-cover rounded-lg"
                           />
                           <div className="flex-1">

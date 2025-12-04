@@ -16,7 +16,7 @@ import {
   CheckCircleIcon,
   CreditCardIcon
 } from '@heroicons/react/24/outline';
-import { fetchUserOrders } from '../../store/slices/orderSlice';
+import { fetchSellerOrders } from '../../store/slices/orderSlice';
 import { fetchProducts } from '../../store/slices/productSlice';
 import NotificationCenter from '../../components/notifications/NotificationCenter';
 
@@ -41,7 +41,7 @@ const SellerDashboard = () => {
 
   useEffect(() => {
     if (user?.id) {
-      dispatch(fetchUserOrders({ userId: user.id, userType: 'seller' }));
+      dispatch(fetchSellerOrders({ page: 1 }));
       dispatch(fetchProducts({ seller: user.id }));
     }
   }, [dispatch, user?.id]);

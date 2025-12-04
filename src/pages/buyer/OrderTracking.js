@@ -12,6 +12,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { CheckCircleIcon as CheckCircleIconSolid } from '@heroicons/react/24/solid';
 import { trackOrder } from '../../store/slices/orderSlice';
+import { formatCurrency as formatCurrencyUtil } from '../../utils/currency';
 
 const OrderTracking = () => {
   const { orderId } = useParams();
@@ -81,10 +82,7 @@ const OrderTracking = () => {
   };
 
   const formatPrice = (price) => {
-    return new Intl.NumberFormat('en-NG', {
-      style: 'currency',
-      currency: 'NGN'
-    }).format(price);
+    return formatCurrencyUtil(price);
   };
 
   const getStatusColor = (status, completed) => {
@@ -295,8 +293,18 @@ const OrderTracking = () => {
               {selectedOrder?.items.map((item) => (
                 <div key={item.id} className="flex items-center gap-3">
                   <img
-                    src={item.image}
-                    alt={item.name}
+                    src={
+                      item.product?.images?.[0]?.url ||
+                      item.productSnapshot?.image ||
+                      (typeof item.image === 'string' ? item.image : item.image?.url) ||
+                      'https://picsum.photos/48/48?random=12'
+                    }
+                    alt={
+                      item.product?.images?.[0]?.alt ||
+                      item.name ||
+                      item.product?.name ||
+                      'Product'
+                    }
                     className="w-12 h-12 object-cover rounded-lg"
                   />
                   <div className="flex-1 min-w-0">

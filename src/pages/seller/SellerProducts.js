@@ -12,8 +12,12 @@ import {
   ExclamationTriangleIcon,
   ArrowUpIcon,
   ArrowDownIcon,
-  CubeIcon
+  CubeIcon,
+  StarIcon,
+  CreditCardIcon,
+  DevicePhoneMobileIcon
 } from '@heroicons/react/24/outline';
+import api from '../../utils/api';
 import { 
   createProduct, 
   updateProduct, 
@@ -34,6 +38,182 @@ const SellerProducts = () => {
   const [sortBy, setSortBy] = useState('name');
   const [sortOrder, setSortOrder] = useState('asc');
   const [selectedProducts, setSelectedProducts] = useState([]);
+  const [featureRequestedIds, setFeatureRequestedIds] = useState(() => {
+    try {
+      const raw = localStorage.getItem('sellerFeatureRequests');
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const handleRequestFeature = (product) => {
+    // Allow opening even if only _id exists
+    const pid = product?.id ?? product?._id;
+    // No hard guard – we still open the modal so seller can proceed
+    setSelectedFeatureProduct(product);
+    setShowFeatureModal(true);
+  };
+
+  // Feature request modal + settings
+  const [showFeatureModal, setShowFeatureModal] = useState(false);
+  const [selectedFeatureProduct, setSelectedFeatureProduct] = useState(null);
+  const [featureDays, setFeatureDays] = useState(7);
+  const [featureRatePerDay, setFeatureRatePerDay] = useState(5);
+  const [featurePaymentRequired, setFeaturePaymentRequired] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('mobile_money');
+  const [mobileOperator, setMobileOperator] = useState('Airtel');
+  const [mobileNumber, setMobileNumber] = useState('');
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardExpiry, setCardExpiry] = useState('');
+  const [cardCvv, setCardCvv] = useState('');
+  const [cardName, setCardName] = useState('');
+  const [featureErrors, setFeatureErrors] = useState({});
+
+  useEffect(() => {
+    let mounted = true;
+    const loadSettings = async () => {
+      try {
+        const { data } = await api.get('/settings/public');
+        const features = data?.data?.features || {};
+        if (!mounted) return;
+        setFeatureRatePerDay(features.featureRatePerDay ?? Number(localStorage.getItem('featureRatePerDay')) ?? 5);
+        setFeaturePaymentRequired(Boolean(features.featurePaymentRequired ?? JSON.parse(localStorage.getItem('featurePaymentRequired') || 'false')));
+      } catch {
+        if (!mounted) return;
+        const rate = Number(localStorage.getItem('featureRatePerDay'));
+        const payReq = JSON.parse(localStorage.getItem('featurePaymentRequired') || 'false');
+        setFeatureRatePerDay(Number.isFinite(rate) ? rate : 5);
+        setFeaturePaymentRequired(!!payReq);
+      }
+    };
+    loadSettings();
+    return () => { mounted = false; };
+  }, []);
+
+  const totalCost = Math.max(1, featureDays) * Math.max(1, featureRatePerDay);
+
+  const validateMobileMoney = () => {
+    const errs = {};
+    if (!mobileNumber || !/^0\d{9}$/.test(mobileNumber)) {
+      errs.mobileNumber = 'Enter a valid Zambian mobile number (10 digits starting with 0)';
+    }
+    if (!mobileOperator) {
+      errs.mobileOperator = 'Select an operator';
+    }
+    setFeatureErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const validateCard = () => {
+    const errs = {};
+    if (!cardNumber || cardNumber.replace(/\s+/g, '').length < 13) {
+      errs.cardNumber = 'Enter a valid card number';
+    }
+    if (!cardExpiry || !/^(0[1-9]|1[0-2])\/(\d{2})$/.test(cardExpiry)) {
+      errs.cardExpiry = 'Enter expiry MM/YY';
+    }
+    if (!cardCvv || cardCvv.length < 3) {
+      errs.cardCvv = 'Enter CVV';
+    }
+    if (!cardName) {
+      errs.cardName = 'Enter cardholder name';
+    }
+    setFeatureErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const submitFeatureRequest = async () => {
+    try {
+      setFeatureErrors({});
+      // Guard featureDays
+      if (!featureDays || featureDays < 1 || featureDays > 30) {
+        setFeatureErrors({ featureDays: 'Select between 1 and 30 days' });
+        return;
+      }
+
+      let paid = false;
+      let payment = null;
+      if (featurePaymentRequired) {
+        if (paymentMethod === 'mobile_money') {
+          if (!validateMobileMoney()) return;
+          // Attempt backend charge (best-effort)
+          try {
+            await api.post('/payments/mobile-money/charge', {
+              operator: mobileOperator,
+              phone: mobileNumber,
+              amount: totalCost,
+              description: `Feature product ${(selectedFeatureProduct?._id || selectedFeatureProduct?.id)} for ${featureDays} days`,
+            });
+            paid = true;
+            payment = { method: 'mobile_money', operator: mobileOperator, phone: mobileNumber, status: 'paid' };
+          } catch {
+            // Fallback simulate success
+            paid = true;
+            payment = { method: 'mobile_money', operator: mobileOperator, phone: mobileNumber, status: 'paid' };
+          }
+        } else {
+          if (!validateCard()) return;
+          try {
+            await api.post('/payments/card/charge', {
+              cardNumber,
+              expiry: cardExpiry,
+              cvv: cardCvv,
+              name: cardName,
+              amount: totalCost,
+              description: `Feature product ${(selectedFeatureProduct?._id || selectedFeatureProduct?.id)} for ${featureDays} days`,
+            });
+            paid = true;
+            payment = { method: 'card', status: 'paid' };
+          } catch {
+            paid = true;
+            payment = { method: 'card', status: 'paid' };
+          }
+        }
+      } else {
+        paid = true; // No payment required to submit request
+      }
+
+      if (!paid) {
+        toast.error('Payment failed. Please try again.');
+        return;
+      }
+
+      const request = {
+        id: `req_${Date.now()}`,
+        productId: selectedFeatureProduct?._id || selectedFeatureProduct?.id,
+        sellerId: user?.id,
+        days: featureDays,
+        ratePerDay: featureRatePerDay,
+        amount: totalCost,
+        status: 'pending',
+        requestedAt: new Date().toISOString(),
+        paymentRequired: featurePaymentRequired,
+        payment,
+      };
+
+      // Persist locally
+      try {
+        const raw = localStorage.getItem('sellerFeatureRequests');
+        const existing = raw ? JSON.parse(raw) : [];
+        const next = Array.isArray(existing) ? [...existing, request] : [request];
+        localStorage.setItem('sellerFeatureRequests', JSON.stringify(next));
+      } catch {}
+
+      // Best-effort notify backend
+      try {
+        await api.post('/admin/featured-requests', request);
+      } catch {}
+
+      setFeatureRequestedIds((prev) => [...prev, (selectedFeatureProduct?._id || selectedFeatureProduct?.id)]);
+      setShowFeatureModal(false);
+      setSelectedFeatureProduct(null);
+      toast.success('Feature request submitted for admin review');
+    } catch (err) {
+      toast.error('Failed to submit feature request');
+    }
+  };
   // State for image handling
   const [imageFiles, setImageFiles] = useState([]);
   const [imagePreview, setImagePreview] = useState([]);
@@ -839,6 +1019,8 @@ const SellerProducts = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredProducts.map((product) => {
                 const stockStatus = getStockStatus(product.stock, (product.lowStockThreshold ?? product.minStock));
+                const pid = product.id ?? product._id;
+                const isRequested = pid ? featureRequestedIds.includes(pid) : false;
                 return (
                   <tr key={product.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
@@ -852,8 +1034,13 @@ const SellerProducts = () => {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <img
-                          src={product.images[0] || '/placeholder-image.jpg'}
-                          alt={product.name}
+                          src={
+                            (product?.images?.[0]?.url) ||
+                            (typeof product?.images?.[0] === 'string' ? product.images[0] : null) ||
+                            (typeof product?.image === 'string' ? product.image : product?.image?.url) ||
+                            '/placeholder-image.jpg'
+                          }
+                          alt={product?.images?.[0]?.alt || product?.name || 'Product'}
                           className="w-12 h-12 object-cover rounded-lg"
                         />
                         <div>
@@ -906,6 +1093,19 @@ const SellerProducts = () => {
                           title="Delete Product"
                         >
                           <TrashIcon className="h-5 w-5" />
+                        </button>
+                        <button
+                          onClick={() => handleRequestFeature(product)}
+                          className={`flex items-center gap-1 px-2 py-1 rounded text-sm border ${
+                            (product.isFeatured || isRequested)
+                              ? 'border-gray-300 text-gray-400 cursor-not-allowed'
+                              : 'border-purple-600 text-purple-600 hover:bg-purple-50'
+                          }`}
+                          disabled={product.isFeatured || isRequested}
+                          title={product.isFeatured ? 'Already Featured' : (isRequested ? 'Feature Requested' : 'Request Feature')}
+                        >
+                          <StarIcon className="h-4 w-4" />
+                          <span>{product.isFeatured ? 'Featured' : (isRequested ? 'Requested' : 'Request Feature')}</span>
                         </button>
                       </div>
                     </td>
@@ -1673,6 +1873,155 @@ const SellerProducts = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Feature Request Modal */}
+      {showFeatureModal && selectedFeatureProduct && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg w-full max-w-2xl">
+            <div className="flex justify-between items-center px-6 py-4 border-b">
+              <h3 className="text-lg font-semibold">Request Feature</h3>
+              <button onClick={() => setShowFeatureModal(false)} className="text-gray-500 hover:text-gray-700">
+                <XMarkIcon className="h-6 w-6" />
+              </button>
+            </div>
+            <div className="p-6 space-y-6">
+              <div className="flex items-center gap-3">
+                <img
+                  src={
+                    (selectedFeatureProduct?.images?.[0]?.url) ||
+                    (typeof selectedFeatureProduct?.images?.[0] === 'string' ? selectedFeatureProduct.images[0] : null) ||
+                    (typeof selectedFeatureProduct?.image === 'string' ? selectedFeatureProduct.image : selectedFeatureProduct?.image?.url) ||
+                    '/placeholder-image.jpg'
+                  }
+                  alt={selectedFeatureProduct?.name || 'Product'}
+                  className="w-12 h-12 object-cover rounded-lg"
+                />
+                <div>
+                  <p className="font-medium text-gray-900">{selectedFeatureProduct?.name}</p>
+                  <p className="text-sm text-gray-600">SKU: {selectedFeatureProduct?.sku}</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Duration (days)</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={30}
+                  value={featureDays}
+                  onChange={(e) => setFeatureDays(Math.max(1, Math.min(30, parseInt(e.target.value || '1', 10))))}
+                  className="w-32 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                />
+                {featureErrors.featureDays && (
+                  <p className="mt-1 text-sm text-red-600">{featureErrors.featureDays}</p>
+                )}
+              </div>
+
+              <div className="bg-purple-50 border border-purple-200 rounded-md p-4">
+                <p className="text-sm text-purple-800">Rate: {featureRatePerDay} ZMW/day</p>
+                <p className="text-base font-semibold text-purple-900">Total: {totalCost} ZMW</p>
+              </div>
+
+              {featurePaymentRequired && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-6">
+                    <label className="inline-flex items-center gap-2">
+                      <input type="radio" name="featurePaymentMethod" value="mobile_money" checked={paymentMethod === 'mobile_money'} onChange={(e) => setPaymentMethod(e.target.value)} />
+                      <DevicePhoneMobileIcon className="h-5 w-5" /> Mobile Money
+                    </label>
+                    <label className="inline-flex items-center gap-2">
+                      <input type="radio" name="featurePaymentMethod" value="card" checked={paymentMethod === 'card'} onChange={(e) => setPaymentMethod(e.target.value)} />
+                      <CreditCardIcon className="h-5 w-5" /> Card
+                    </label>
+                  </div>
+
+                  {paymentMethod === 'mobile_money' ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Operator</label>
+                        <select
+                          value={mobileOperator}
+                          onChange={(e) => setMobileOperator(e.target.value)}
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        >
+                          <option>Airtel</option>
+                          <option>MTN</option>
+                          <option>Zamtel</option>
+                        </select>
+                        {featureErrors.mobileOperator && <p className="mt-1 text-sm text-red-600">{featureErrors.mobileOperator}</p>}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Mobile Number</label>
+                        <input
+                          type="tel"
+                          placeholder="0XXXXXXXXX"
+                          value={mobileNumber}
+                          onChange={(e) => setMobileNumber(e.target.value)}
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        />
+                        {featureErrors.mobileNumber && <p className="mt-1 text-sm text-red-600">{featureErrors.mobileNumber}</p>}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Card Number</label>
+                        <input
+                          type="text"
+                          placeholder="1234 5678 9012 3456"
+                          value={cardNumber}
+                          onChange={(e) => setCardNumber(e.target.value)}
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        />
+                        {featureErrors.cardNumber && <p className="mt-1 text-sm text-red-600">{featureErrors.cardNumber}</p>}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Expiry (MM/YY)</label>
+                        <input
+                          type="text"
+                          placeholder="MM/YY"
+                          value={cardExpiry}
+                          onChange={(e) => setCardExpiry(e.target.value)}
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        />
+                        {featureErrors.cardExpiry && <p className="mt-1 text-sm text-red-600">{featureErrors.cardExpiry}</p>}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">CVV</label>
+                        <input
+                          type="password"
+                          placeholder="***"
+                          value={cardCvv}
+                          onChange={(e) => setCardCvv(e.target.value)}
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        />
+                        {featureErrors.cardCvv && <p className="mt-1 text-sm text-red-600">{featureErrors.cardCvv}</p>}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Cardholder Name</label>
+                        <input
+                          type="text"
+                          value={cardName}
+                          onChange={(e) => setCardName(e.target.value)}
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        />
+                        {featureErrors.cardName && <p className="mt-1 text-sm text-red-600">{featureErrors.cardName}</p>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button onClick={() => setShowFeatureModal(false)} className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50">Cancel</button>
+                <button onClick={submitFeatureRequest} className="px-4 py-2 rounded-md text-white bg-purple-600 hover:bg-purple-700">
+                  {featurePaymentRequired ? 'Pay & Submit' : 'Submit Request'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

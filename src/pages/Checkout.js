@@ -8,6 +8,7 @@ import {
   ArrowLeftIcon,
   CheckCircleIcon
 } from '@heroicons/react/24/outline';
+import { DevicePhoneMobileIcon } from '@heroicons/react/24/outline';
 import { clearCart } from '../store/slices/cartSlice';
 import toast from 'react-hot-toast';
 
@@ -33,10 +34,13 @@ const Checkout = () => {
   });
 
   const [paymentInfo, setPaymentInfo] = useState({
+    paymentMethod: 'card', // 'card' | 'mobile'
     cardNumber: '',
     expiryDate: '',
     cvv: '',
     cardholderName: '',
+    mobileOperator: 'airtel', // 'airtel' | 'mtn' | 'zamtel'
+    mobileNumber: '',
     billingAddress: {
       sameAsShipping: true,
       address: '',
@@ -66,12 +70,22 @@ const Checkout = () => {
 
   const handlePaymentSubmit = (e) => {
     e.preventDefault();
-    // Validate payment info
-    if (!paymentInfo.cardNumber || !paymentInfo.expiryDate || !paymentInfo.cvv || !paymentInfo.cardholderName) {
-      toast.error('Please fill in all payment details');
-      return;
+    // Validate based on selected payment method
+    if (paymentInfo.paymentMethod === 'card') {
+      if (!paymentInfo.cardNumber || !paymentInfo.expiryDate || !paymentInfo.cvv || !paymentInfo.cardholderName) {
+        toast.error('Please fill in all card details');
+        return;
+      }
+    } else {
+      // Basic Zambia mobile number validation (095/096/097 + 7 digits)
+      const isValidPrefix = /^(095|096|097)/.test(paymentInfo.mobileNumber);
+      const isValidLength = paymentInfo.mobileNumber.replace(/\D/g, '').length === 10;
+      if (!paymentInfo.mobileOperator || !paymentInfo.mobileNumber || !isValidPrefix || !isValidLength) {
+        toast.error('Enter a valid mobile money number (095/096/097 XXXXXXX)');
+        return;
+      }
     }
-    
+
     setStep(3);
   };
 
@@ -89,7 +103,9 @@ const Checkout = () => {
         shippingInfo,
         paymentInfo: {
           ...paymentInfo,
-          cardNumber: `****-****-****-${paymentInfo.cardNumber.slice(-4)}`
+          ...(paymentInfo.paymentMethod === 'card' && {
+            cardNumber: `****-****-****-${paymentInfo.cardNumber.slice(-4)}`
+          })
         },
         subtotal: totalAmount,
         tax,
@@ -115,8 +131,13 @@ const Checkout = () => {
     }
   };
 
+  React.useEffect(() => {
+    if (items.length === 0) {
+      navigate('/cart');
+    }
+  }, [items.length, navigate]);
+
   if (items.length === 0) {
-    navigate('/cart');
     return null;
   }
 
@@ -295,62 +316,144 @@ const Checkout = () => {
             {step === 2 && (
               <div className="bg-white rounded-lg shadow-sm p-6">
                 <h2 className="text-xl font-semibold text-gray-900 mb-6">Payment Information</h2>
+                {/* Method selector */}
+                <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentInfo({ ...paymentInfo, paymentMethod: 'card' })}
+                    className={`flex items-center gap-3 border rounded-lg p-4 transition-colors ${
+                      paymentInfo.paymentMethod === 'card' ? 'border-primary-600 bg-primary-50' : 'border-gray-300'
+                    }`}
+                  >
+                    <CreditCardIcon className="h-6 w-6 text-primary-600" />
+                    <div className="text-left">
+                      <p className="font-semibold">Pay with Card</p>
+                      <p className="text-sm text-gray-600">Visa, Mastercard</p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPaymentInfo({ ...paymentInfo, paymentMethod: 'mobile' })}
+                    className={`flex items-center gap-3 border rounded-lg p-4 transition-colors ${
+                      paymentInfo.paymentMethod === 'mobile' ? 'border-primary-600 bg-primary-50' : 'border-gray-300'
+                    }`}
+                  >
+                    <DevicePhoneMobileIcon className="h-6 w-6 text-primary-600" />
+                    <div className="text-left">
+                      <p className="font-semibold">Mobile Money</p>
+                      <p className="text-sm text-gray-600">Airtel, MTN, Zamtel</p>
+                    </div>
+                  </button>
+                </div>
+
                 <form onSubmit={handlePaymentSubmit} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Card Number *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="1234 5678 9012 3456"
-                      value={paymentInfo.cardNumber}
-                      onChange={(e) => setPaymentInfo({...paymentInfo, cardNumber: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                    />
-                  </div>
+                  {/* Card form */}
+                  {paymentInfo.paymentMethod === 'card' && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Card Number *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="1234 5678 9012 3456"
+                          value={paymentInfo.cardNumber}
+                          onChange={(e) => setPaymentInfo({...paymentInfo, cardNumber: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                        />
+                      </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Expiry Date *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="MM/YY"
-                        value={paymentInfo.expiryDate}
-                        onChange={(e) => setPaymentInfo({...paymentInfo, expiryDate: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        CVV *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="123"
-                        value={paymentInfo.cvv}
-                        onChange={(e) => setPaymentInfo({...paymentInfo, cvv: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                      />
-                    </div>
-                  </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="md:col-span-1">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Expiry Date *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="MM/YY"
+                            value={paymentInfo.expiryDate}
+                            onChange={(e) => setPaymentInfo({...paymentInfo, expiryDate: e.target.value})}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                          />
+                        </div>
+                        <div className="md:col-span-1">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            CVV *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="123"
+                            value={paymentInfo.cvv}
+                            onChange={(e) => setPaymentInfo({...paymentInfo, cvv: e.target.value})}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                          />
+                        </div>
+                        <div className="md:col-span-1">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Cardholder Name *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={paymentInfo.cardholderName}
+                            onChange={(e) => setPaymentInfo({...paymentInfo, cardholderName: e.target.value})}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Cardholder Name *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={paymentInfo.cardholderName}
-                      onChange={(e) => setPaymentInfo({...paymentInfo, cardholderName: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                    />
-                  </div>
+                  {/* Mobile money form */}
+                  {paymentInfo.paymentMethod === 'mobile' && (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Operator *
+                          </label>
+                          <div className="grid grid-cols-3 gap-2">
+                            {[
+                              { key: 'airtel', label: 'Airtel' },
+                              { key: 'mtn', label: 'MTN' },
+                              { key: 'zamtel', label: 'Zamtel' }
+                            ].map(op => (
+                              <button
+                                key={op.key}
+                                type="button"
+                                onClick={() => setPaymentInfo({ ...paymentInfo, mobileOperator: op.key })}
+                                className={`px-3 py-2 rounded border text-sm font-medium transition-colors ${
+                                  paymentInfo.mobileOperator === op.key ? 'border-primary-600 bg-primary-50' : 'border-gray-300'
+                                }`}
+                              >
+                                {op.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Mobile Number *
+                          </label>
+                          <input
+                            type="tel"
+                            required
+                            placeholder="097 XXXXXXX / 096 XXXXXXX / 095 XXXXXXX"
+                            value={paymentInfo.mobileNumber}
+                            onChange={(e) => setPaymentInfo({ ...paymentInfo, mobileNumber: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                          />
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        You will receive a prompt to approve the payment on your phone.
+                      </p>
+                    </>
+                  )}
 
                   <div className="flex gap-4 pt-4">
                     <button
@@ -379,18 +482,22 @@ const Checkout = () => {
                   <h2 className="text-xl font-semibold text-gray-900 mb-4">Order Items</h2>
                   <div className="space-y-4">
                     {items.map((item) => (
-                      <div key={item.product._id} className="flex items-center space-x-4">
+                      <div key={item.productId || item.product?._id || item.product?.id || Math.random()} className="flex items-center space-x-4">
                         <img
-                          src={item.product.images?.[0] || 'https://picsum.photos/60/60?random=5'}
-                          alt={item.product.name}
+                          src={
+                            (typeof item.image === 'string' ? item.image : item.image?.url) ||
+                            item.product?.images?.[0]?.url ||
+                            'https://picsum.photos/60/60?random=5'
+                          }
+                          alt={item.name || item.product?.name || 'Product'}
                           className="w-15 h-15 object-cover rounded-lg"
                         />
                         <div className="flex-1">
-                          <h3 className="font-medium text-gray-900">{item.product.name}</h3>
+                          <h3 className="font-medium text-gray-900">{item.name || item.product?.name}</h3>
                           <p className="text-sm text-gray-500">Quantity: {item.quantity}</p>
                         </div>
                         <p className="font-semibold text-gray-900">
-                          ${(item.product.price * item.quantity).toFixed(2)}
+                          ${((item.price || item.product?.price || 0) * item.quantity).toFixed(2)}
                         </p>
                       </div>
                     ))}
@@ -412,9 +519,21 @@ const Checkout = () => {
                   <div className="bg-white rounded-lg shadow-sm p-6">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4">Payment Method</h3>
                     <div className="text-sm text-gray-600 space-y-1">
-                      <p>****-****-****-{paymentInfo.cardNumber.slice(-4)}</p>
-                      <p>{paymentInfo.cardholderName}</p>
-                      <p>Expires: {paymentInfo.expiryDate}</p>
+                      {paymentInfo.paymentMethod === 'card' ? (
+                        <>
+                          <p>****-****-****-{paymentInfo.cardNumber.slice(-4)}</p>
+                          <p>{paymentInfo.cardholderName}</p>
+                          <p>Expires: {paymentInfo.expiryDate}</p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="font-medium">Mobile Money</p>
+                          <p>Operator: {paymentInfo.mobileOperator?.toUpperCase()}</p>
+                          <p>
+                            Number: {paymentInfo.mobileNumber ? `${paymentInfo.mobileNumber.slice(0,3)}*****${paymentInfo.mobileNumber.slice(-2)}` : ''}
+                          </p>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>

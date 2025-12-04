@@ -186,8 +186,12 @@ const SellerInventory = () => {
               className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
             />
             <img
-              src={item.image}
-              alt={item.name}
+              src={
+                item.product?.images?.[0]?.url ||
+                (typeof item.image === 'string' ? item.image : item.image?.url) ||
+                'https://picsum.photos/48/48?random=5'
+              }
+              alt={item.product?.images?.[0]?.alt || item.name || 'Product'}
               className="w-12 h-12 rounded-lg object-cover"
             />
             <div>
@@ -564,8 +568,12 @@ const SellerInventory = () => {
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center gap-3">
                               <img
-                                src={item.image}
-                                alt={item.name}
+                                src={
+                                  item.product?.images?.[0]?.url ||
+                                  (typeof item.image === 'string' ? item.image : item.image?.url) ||
+                                  'https://picsum.photos/40/40?random=6'
+                                }
+                                alt={item.product?.images?.[0]?.alt || item.name || 'Product'}
                                 className="w-10 h-10 rounded-lg object-cover"
                               />
                               <div>

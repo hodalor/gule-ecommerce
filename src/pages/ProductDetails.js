@@ -33,9 +33,11 @@ const ProductDetails = () => {
       productId: product._id,
       name: product.name,
       price: product.price,
-      image: product.images?.[0] || '',
+      image: product.images?.[0]?.url || '',
       quantity,
-      sellerId: product.seller
+      sellerId: (product.seller && typeof product.seller === 'object')
+        ? (product.seller._id || product.seller.id || product.seller.businessName || product.seller.name)
+        : product.seller
     };
 
     dispatch(addToCart(cartItem));
@@ -129,7 +131,7 @@ const ProductDetails = () => {
                   >
                     <span className="sr-only">Image {index + 1}</span>
                     <span className="absolute inset-0 rounded-md overflow-hidden">
-                      <img src={image} alt="" className="w-full h-full object-center object-cover" />
+                      <img src={image?.url || image} alt={image?.alt || ''} className="w-full h-full object-center object-cover" />
                     </span>
                   </button>
                 ))}
@@ -139,8 +141,8 @@ const ProductDetails = () => {
             {/* Main image */}
             <div className="w-full aspect-w-1 aspect-h-1">
               <img
-                src={(product.images && product.images[selectedImage]) || '/api/placeholder/600/600'}
-                alt={product.name}
+                src={product.images?.[selectedImage]?.url || '/api/placeholder/600/600'}
+                alt={product.images?.[selectedImage]?.alt || product.name}
                 className="w-full h-full object-center object-cover sm:rounded-lg"
               />
             </div>

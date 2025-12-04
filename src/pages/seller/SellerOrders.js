@@ -769,8 +769,13 @@ const SellerOrders = () => {
                   {selectedOrder.items?.map((item, index) => (
                     <div key={item.id || item._id || index} className="flex items-center gap-4 p-4 border border-gray-200 rounded-lg">
                       <img
-                        src={item.image || 'https://picsum.photos/64/64?random=13'}
-                        alt={item.name || 'Product'}
+                        src={
+                          item.product?.images?.[0]?.url ||
+                          item.productSnapshot?.image ||
+                          (typeof item.image === 'string' ? item.image : item.image?.url) ||
+                          'https://picsum.photos/64/64?random=13'
+                        }
+                        alt={item.product?.images?.[0]?.alt || item.name || item.product?.name || 'Product'}
                         className="w-16 h-16 object-cover rounded-lg"
                       />
                       <div className="flex-1">

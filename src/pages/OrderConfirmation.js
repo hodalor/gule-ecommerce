@@ -88,20 +88,24 @@ const OrderConfirmation = () => {
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Items Ordered</h3>
               <div className="space-y-4">
                 {order.items.map((item) => (
-                  <div key={item.product._id} className="flex items-center space-x-4">
+                  <div key={item.productId || item.product?._id || item.product?.id || Math.random()} className="flex items-center space-x-4">
                     <img
-                      src={item.product.images?.[0] || 'https://picsum.photos/60/60?random=7'}
-                      alt={item.product.name}
+                      src={
+                        (typeof item.image === 'string' ? item.image : item.image?.url) ||
+                        item.product?.images?.[0]?.url ||
+                        'https://picsum.photos/60/60?random=7'
+                      }
+                      alt={item.name || item.product?.name || 'Product'}
                       className="w-15 h-15 object-cover rounded-lg"
                     />
                     <div className="flex-1">
-                      <h4 className="font-medium text-gray-900">{item.product.name}</h4>
+                      <h4 className="font-medium text-gray-900">{item.name || item.product?.name}</h4>
                       <p className="text-sm text-gray-500">
-                        Quantity: {item.quantity} × ${item.product.price.toFixed(2)}
+                        Quantity: {item.quantity} × ${(item.price || item.product?.price || 0).toFixed(2)}
                       </p>
                     </div>
                     <p className="font-semibold text-gray-900">
-                      ${(item.product.price * item.quantity).toFixed(2)}
+                      ${((item.price || item.product?.price || 0) * item.quantity).toFixed(2)}
                     </p>
                   </div>
                 ))}
@@ -160,9 +164,23 @@ const OrderConfirmation = () => {
           <div className="bg-white rounded-lg shadow-sm p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Payment Method</h3>
             <div className="text-sm text-gray-600 space-y-1">
-              <p className="font-medium text-gray-900">Credit Card</p>
-              <p>{order.paymentInfo.cardNumber}</p>
-              <p>{order.paymentInfo.cardholderName}</p>
+              {order.paymentInfo.paymentMethod === 'mobile' ? (
+                <>
+                  <p className="font-medium text-gray-900">Mobile Money</p>
+                  <p>Operator: {order.paymentInfo.mobileOperator?.toUpperCase()}</p>
+                  <p>
+                    Number: {order.paymentInfo.mobileNumber
+                      ? `${order.paymentInfo.mobileNumber.slice(0,3)}*****${order.paymentInfo.mobileNumber.slice(-2)}`
+                      : ''}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="font-medium text-gray-900">Credit Card</p>
+                  <p>{order.paymentInfo.cardNumber}</p>
+                  <p>{order.paymentInfo.cardholderName}</p>
+                </>
+              )}
             </div>
           </div>
         </div>

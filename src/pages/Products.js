@@ -36,7 +36,9 @@ const Products = () => {
       price: product.price,
       image: product.images?.[0] || '',
       quantity: 1,
-      sellerId: product.seller
+      sellerId: (product.seller && typeof product.seller === 'object')
+        ? (product.seller._id || product.seller.id || product.seller.businessName || product.seller.name)
+        : product.seller
     };
 
     dispatch(addToCart(cartItem));
@@ -108,12 +110,18 @@ const Products = () => {
       case 'price-high':
         return b.price - a.price;
       case 'rating':
-        return (b.rating || 0) - (a.rating || 0);
+        return (b.rating || b.averageRating || 0) - (a.rating || a.averageRating || 0);
       case 'name':
       default:
         return a.name.localeCompare(b.name);
     }
   });
+
+  // Ensure featured products appear first while preserving current sort within groups
+  const displayProducts = [
+    ...sortedProducts.filter(p => p.isFeatured || p.featured),
+    ...sortedProducts.filter(p => !(p.isFeatured || p.featured))
+  ];
 
   const renderStars = (rating) => {
     return Array.from({ length: 5 }, (_, index) => (
@@ -219,23 +227,26 @@ const Products = () => {
         {/* Results Count */}
         <div className="mb-6">
           <p className="text-gray-600">
-            Showing {sortedProducts.length} of {products?.length || 0} products
+            Showing {displayProducts.length} of {products?.length || 0} products
           </p>
         </div>
 
         {/* Products Grid */}
-        {sortedProducts.length > 0 ? (
+        {displayProducts.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {sortedProducts.map((product) => (
-              <div key={product._id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
+            {displayProducts.map((product) => (
+              <div
+                key={product._id}
+                className={`${(product.isFeatured || product.featured) ? 'bg-green-50 ring-1 ring-green-200' : 'bg-white'} rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300`}
+              >
                 <div className="relative">
                   <img
-                    src={product.images?.[0] || '/api/placeholder/300/300'}
-                    alt={product.name}
+                    src={product.images?.[0]?.url || '/api/placeholder/300/300'}
+                    alt={product.images?.[0]?.alt || product.name}
                     className="w-full h-48 object-cover"
                   />
-                  {product.featured && (
-                    <div className="absolute top-2 left-2 bg-indigo-600 text-white px-2 py-1 rounded-md text-xs font-medium">
+                  {(product.isFeatured || product.featured) && (
+                    <div className="absolute top-2 left-2 bg-green-600 text-white px-2 py-1 rounded-md text-xs font-medium">
                       Featured
                     </div>
                   )}

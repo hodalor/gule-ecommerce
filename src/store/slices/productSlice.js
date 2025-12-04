@@ -241,7 +241,7 @@ const productSlice = createSlice({
       })
       // Fetch featured products
       .addCase(fetchFeaturedProducts.fulfilled, (state, action) => {
-        state.featuredProducts = action.payload.products;
+        state.featuredProducts = action.payload?.data?.products || [];
       })
       // Fetch categories
       .addCase(fetchCategories.fulfilled, (state, action) => {

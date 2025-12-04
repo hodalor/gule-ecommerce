@@ -114,8 +114,12 @@ const Cart = () => {
                       {/* Product Image */}
                       <div className="flex-shrink-0">
                         <img
-                          src={item.image || 'https://picsum.photos/100/100?random=8'}
-                          alt={item.name}
+                          src={
+                            item.product?.images?.[0]?.url ||
+                            (typeof item.image === 'string' ? item.image : item.image?.url) ||
+                            'https://picsum.photos/100/100?random=8'
+                          }
+                          alt={item.product?.images?.[0]?.alt || item.name || item.product?.name || 'Product'}
                           className="w-20 h-20 object-cover rounded-lg"
                         />
                       </div>
@@ -129,7 +133,11 @@ const Cart = () => {
                           {item.name}
                         </Link>
                         <p className="text-sm text-gray-500 mt-1">
-                          Sold by: {item.sellerId || 'Unknown Seller'}
+                          Sold by: {
+                            typeof item.sellerId === 'object'
+                              ? (item.sellerId.businessName || item.sellerId.name || item.sellerId._id || 'Unknown Seller')
+                              : (item.sellerId || 'Unknown Seller')
+                          }
                         </p>
                         {item.variant && (
                           <p className="text-sm text-gray-500">

@@ -232,7 +232,15 @@ const BuyerDashboard = () => {
                   {userData.savedItems.length > 0 ? (
                     userData.savedItems.slice(0, 3).map((item) => (
                       <div key={item.id} className="flex items-center space-x-4">
-                        <img src={item.image} alt={item.name} className="h-16 w-16 rounded-lg object-cover" />
+                        <img
+                          src={
+                            item.product?.images?.[0]?.url ||
+                            (typeof item.image === 'string' ? item.image : item.image?.url) ||
+                            'https://picsum.photos/64/64?random=10'
+                          }
+                          alt={item.product?.images?.[0]?.alt || item.name || 'Item'}
+                          className="h-16 w-16 rounded-lg object-cover"
+                        />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-900 truncate">{item.name}</p>
                           <p className="text-sm text-gray-500">{item.seller?.name || item.seller?.businessName || item.sellerName || 'Unknown Seller'}</p>
@@ -340,7 +348,15 @@ const BuyerDashboard = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {userData.savedItems.map((item) => (
                     <div key={item.id} className="bg-white rounded-lg shadow-md overflow-hidden">
-                      <img src={item.image} alt={item.name} className="w-full h-48 object-cover" />
+                      <img
+                        src={
+                          item.product?.images?.[0]?.url ||
+                          (typeof item.image === 'string' ? item.image : item.image?.url) ||
+                          'https://picsum.photos/300/300?random=20'
+                        }
+                        alt={item.product?.images?.[0]?.alt || item.name || 'Item'}
+                        className="w-full h-48 object-cover"
+                      />
                       <div className="p-4">
                         <h3 className="text-lg font-medium text-gray-900 mb-2">{item.name}</h3>
                         <p className="text-sm text-gray-500 mb-2">by {item.seller?.name || item.seller?.businessName || item.sellerName || 'Unknown Seller'}</p>

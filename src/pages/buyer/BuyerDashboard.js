@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   ShoppingBagIcon,
   TruckIcon,
@@ -20,11 +20,19 @@ import BuyerReviews from './BuyerReviews';
 import BuyerDisputes from './BuyerDisputes';
 import TransactionList from '../../components/transactions/TransactionList';
 import TransactionDetails from '../../components/transactions/TransactionDetails';
+import { fetchUserOrders } from '../../store/slices/orderSlice';
 
 const BuyerDashboard = () => {
   const location = useLocation();
+  const dispatch = useDispatch();
   const { user } = useSelector(state => state.auth);
   const { orders } = useSelector(state => state.orders);
+
+  useEffect(() => {
+    if (user?.id) {
+      dispatch(fetchUserOrders({ page: 1 }));
+    }
+  }, [dispatch, user?.id]);
 
   const navigation = [
     {

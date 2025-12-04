@@ -34,6 +34,7 @@ import {
   exportReport,
   clearErrors
 } from '../../store/slices/reportsSlice';
+import { formatCurrency as formatCurrencyUtil } from '../../utils/currency';
 
 const SellerReports = () => {
   const dispatch = useDispatch();
@@ -123,12 +124,7 @@ const SellerReports = () => {
     }
   ];
 
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(value);
-  };
+  const formatCurrency = (value, options) => formatCurrencyUtil(value, undefined, undefined, options);
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {

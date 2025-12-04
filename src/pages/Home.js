@@ -1,7 +1,35 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchFeaturedProducts } from '../store/slices/productSlice';
+import { formatCurrency } from '../utils/currency';
 
 const Home = () => {
+  const dispatch = useDispatch();
+  const featuredProducts = useSelector((state) => state.products.featuredProducts);
+
+  useEffect(() => {
+    dispatch(fetchFeaturedProducts());
+  }, [dispatch]);
+
+  const renderStars = (rating = 0) => {
+    const full = Math.round(rating);
+    return (
+      <div className="flex items-center">
+        {[...Array(5)].map((_, i) => (
+          <svg
+            key={i}
+            className={`h-4 w-4 ${i < full ? 'text-yellow-400' : 'text-gray-300'}`}
+            fill="currentColor"
+            viewBox="0 0 20 20"
+          >
+            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+          </svg>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-white">
       {/* Hero Section */}
@@ -111,179 +139,57 @@ const Home = () => {
             </p>
           </div>
 
-          <div className="mt-12 grid grid-cols-1 gap-y-10 sm:grid-cols-2 gap-x-6 lg:grid-cols-4 xl:gap-x-8">
-            {/* Featured Product 1 */}
-            <div className="group relative bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
-              <div className="w-full min-h-80 bg-gray-200 aspect-w-1 aspect-h-1 rounded-md overflow-hidden group-hover:opacity-75 lg:h-80 lg:aspect-none">
-                <img
-                  src="https://picsum.photos/300/300?random=1"
-                  alt="Wireless Bluetooth Earbuds"
-                  className="w-full h-full object-center object-cover lg:w-full lg:h-full"
-                />
-              </div>
-              <div className="p-4">
-                <div className="flex justify-between">
-                  <div>
-                    <h3 className="text-sm text-gray-700">
-                      <Link to="/product/1">
-                        <span aria-hidden="true" className="absolute inset-0" />
-                        Wireless Bluetooth Earbuds
-                      </Link>
-                    </h3>
-                    <p className="mt-1 text-sm text-gray-500">Audio Pro</p>
+          {Array.isArray(featuredProducts) && featuredProducts.length > 0 ? (
+            <div className="mt-12 grid grid-cols-1 gap-y-10 sm:grid-cols-2 gap-x-6 lg:grid-cols-4 xl:gap-x-8">
+              {featuredProducts.map((product) => (
+                <div key={product._id || product.id} className="group relative bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
+                  <div className="w-full min-h-80 bg-gray-200 aspect-w-1 aspect-h-1 rounded-md overflow-hidden group-hover:opacity-75 lg:h-80 lg:aspect-none">
+                    <img
+                      src={product.images?.[0]?.url || 'https://via.placeholder.com/300'}
+                      alt={product.images?.[0]?.alt || product.name}
+                      className="w-full h-full object-center object-cover lg:w-full lg:h-full"
+                    />
+                    {product.isFeatured && (
+                      <span className="absolute top-2 left-2 bg-indigo-600 text-white px-2 py-1 rounded-md text-xs font-medium">Featured</span>
+                    )}
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-gray-900">$89.99</p>
-                    <p className="text-xs text-gray-500 line-through">$129.99</p>
+                  <div className="p-4">
+                    <div className="flex justify-between">
+                      <div>
+                        <h3 className="text-sm text-gray-700">
+                          <Link to={`/product/${product._id || product.id}`}>
+                            <span aria-hidden="true" className="absolute inset-0" />
+                            {product.name}
+                          </Link>
+                        </h3>
+                        <p className="mt-1 text-sm text-gray-500">{product.seller?.businessName || 'Unknown Seller'}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-medium text-gray-900">{formatCurrency(product.price, product.currency)}</p>
+                        {product.comparePrice && product.comparePrice > product.price && (
+                          <p className="text-xs text-gray-500 line-through">{formatCurrency(product.comparePrice, product.currency)}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-2 flex items-center">
+                      {renderStars(product.averageRating)}
+                      <span className="ml-2 text-sm text-gray-600">{typeof product.averageRating === 'number' ? product.averageRating.toFixed(1) : (product.averageRating || 0)} ({product.reviewCount || 0})</span>
+                    </div>
                   </div>
                 </div>
-                <div className="mt-2 flex items-center">
-                  <div className="flex items-center">
-                    {[...Array(5)].map((_, i) => (
-                      <svg
-                        key={i}
-                        className={`h-4 w-4 ${i < 4 ? 'text-yellow-400' : 'text-gray-300'}`}
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
-                      >
-                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                      </svg>
-                    ))}
-                  </div>
-                  <span className="ml-2 text-sm text-gray-600">4.5 (128)</span>
-                </div>
-              </div>
+              ))}
             </div>
-
-            {/* Featured Product 2 */}
-            <div className="group relative bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
-              <div className="w-full min-h-80 bg-gray-200 aspect-w-1 aspect-h-1 rounded-md overflow-hidden group-hover:opacity-75 lg:h-80 lg:aspect-none">
-                <img
-                  src="https://picsum.photos/300/300?random=2"
-                  alt="Smart Fitness Watch"
-                  className="w-full h-full object-center object-cover lg:w-full lg:h-full"
-                />
-              </div>
-              <div className="p-4">
-                <div className="flex justify-between">
-                  <div>
-                    <h3 className="text-sm text-gray-700">
-                      <Link to="/product/2">
-                        <span aria-hidden="true" className="absolute inset-0" />
-                        Smart Fitness Watch
-                      </Link>
-                    </h3>
-                    <p className="mt-1 text-sm text-gray-500">FitTech</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-gray-900">$249.99</p>
-                    <p className="text-xs text-gray-500 line-through">$299.99</p>
-                  </div>
+          ) : (
+            <div className="mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[1,2,3,4].map((i) => (
+                <div key={i} className="animate-pulse bg-white rounded-lg shadow-md p-4">
+                  <div className="h-48 bg-gray-200 rounded mb-4" />
+                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2" />
+                  <div className="h-4 bg-gray-200 rounded w-1/2" />
                 </div>
-                <div className="mt-2 flex items-center">
-                  <div className="flex items-center">
-                    {[...Array(5)].map((_, i) => (
-                      <svg
-                        key={i}
-                        className={`h-4 w-4 ${i < 5 ? 'text-yellow-400' : 'text-gray-300'}`}
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
-                      >
-                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                      </svg>
-                    ))}
-                  </div>
-                  <span className="ml-2 text-sm text-gray-600">4.8 (89)</span>
-                </div>
-              </div>
+              ))}
             </div>
-
-            {/* Featured Product 3 */}
-            <div className="group relative bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
-              <div className="w-full min-h-80 bg-gray-200 aspect-w-1 aspect-h-1 rounded-md overflow-hidden group-hover:opacity-75 lg:h-80 lg:aspect-none">
-                <img
-                  src="https://picsum.photos/300/300?random=3"
-                  alt="Organic Cotton T-Shirt"
-                  className="w-full h-full object-center object-cover lg:w-full lg:h-full"
-                />
-              </div>
-              <div className="p-4">
-                <div className="flex justify-between">
-                  <div>
-                    <h3 className="text-sm text-gray-700">
-                      <Link to="/product/4">
-                        <span aria-hidden="true" className="absolute inset-0" />
-                        Organic Cotton T-Shirt
-                      </Link>
-                    </h3>
-                    <p className="mt-1 text-sm text-gray-500">EcoWear</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-gray-900">$24.99</p>
-                    <p className="text-xs text-gray-500 line-through">$34.99</p>
-                  </div>
-                </div>
-                <div className="mt-2 flex items-center">
-                  <div className="flex items-center">
-                    {[...Array(5)].map((_, i) => (
-                      <svg
-                        key={i}
-                        className={`h-4 w-4 ${i < 5 ? 'text-yellow-400' : 'text-gray-300'}`}
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
-                      >
-                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                      </svg>
-                    ))}
-                  </div>
-                  <span className="ml-2 text-sm text-gray-600">4.6 (45)</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Featured Product 4 */}
-            <div className="group relative bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
-              <div className="w-full min-h-80 bg-gray-200 aspect-w-1 aspect-h-1 rounded-md overflow-hidden group-hover:opacity-75 lg:h-80 lg:aspect-none">
-                <img
-                  src="https://picsum.photos/300/300?random=4"
-                  alt="Yoga Mat Premium"
-                  className="w-full h-full object-center object-cover lg:w-full lg:h-full"
-                />
-              </div>
-              <div className="p-4">
-                <div className="flex justify-between">
-                  <div>
-                    <h3 className="text-sm text-gray-700">
-                      <Link to="/product/6">
-                        <span aria-hidden="true" className="absolute inset-0" />
-                        Yoga Mat Premium
-                      </Link>
-                    </h3>
-                    <p className="mt-1 text-sm text-gray-500">Zen Fitness</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-gray-900">$45.99</p>
-                    <p className="text-xs text-gray-500 line-through">$59.99</p>
-                  </div>
-                </div>
-                <div className="mt-2 flex items-center">
-                  <div className="flex items-center">
-                    {[...Array(5)].map((_, i) => (
-                      <svg
-                        key={i}
-                        className={`h-4 w-4 ${i < 4 ? 'text-yellow-400' : 'text-gray-300'}`}
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
-                      >
-                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                      </svg>
-                    ))}
-                  </div>
-                  <span className="ml-2 text-sm text-gray-600">4.4 (78)</span>
-                </div>
-              </div>
-            </div>
-          </div>
+          )}
 
           <div className="mt-12 text-center">
             <Link

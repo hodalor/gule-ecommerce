@@ -22,6 +22,7 @@ import {
   ChartPieIcon,
   PresentationChartLineIcon
 } from '@heroicons/react/24/outline';
+import { formatCurrency as formatCurrencyUtil } from '../../utils/currency';
 
 const SellerAnalytics = () => {
   const dispatch = useDispatch();
@@ -33,6 +34,15 @@ const SellerAnalytics = () => {
   const [comparisonPeriod, setComparisonPeriod] = useState('previous');
   const [showAdvancedMetrics, setShowAdvancedMetrics] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
+
+  // Derive booleans from loading/error objects
+  const hasLoading = typeof loading === 'object'
+    ? Object.values(loading).some(Boolean)
+    : !!loading;
+
+  const errorMessages = typeof error === 'object' && error !== null
+    ? Object.values(error).filter(Boolean)
+    : (error ? [error] : []);
 
   // Fetch analytics data on component mount and when filters change
   useEffect(() => {
@@ -100,12 +110,7 @@ const SellerAnalytics = () => {
     }
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount);
-  };
+  const formatCurrency = (amount, options) => formatCurrencyUtil(amount, undefined, undefined, options);
 
   const formatPercentage = (value) => {
     return `${value > 0 ? '+' : ''}${value.toFixed(1)}%`;
@@ -276,7 +281,7 @@ const SellerAnalytics = () => {
   return (
     <div className="space-y-6">
       {/* Loading State */}
-      {loading && (
+      {hasLoading && (
         <div className="flex justify-center items-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           <span className="ml-2 text-gray-600">Loading analytics...</span>
@@ -284,17 +289,17 @@ const SellerAnalytics = () => {
       )}
 
       {/* Error State */}
-      {error && (
+      {errorMessages.length > 0 && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <div className="flex items-center">
             <ExclamationTriangleIcon className="h-5 w-5 text-red-400 mr-2" />
-            <span className="text-red-800">{error}</span>
+            <span className="text-red-800">{errorMessages.join(' • ')}</span>
           </div>
         </div>
       )}
 
       {/* Main Content */}
-      {!loading && (
+      {!hasLoading && (
         <>
           {/* Header */}
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">

@@ -60,7 +60,7 @@ const Wishlist = () => {
           _id: item.id,
           name: item.name,
           price: item.price,
-          images: [item.image],
+          images: [{ url: item.image, alt: item.name }],
           seller: { name: item.seller }
         },
         quantity: 1
@@ -132,8 +132,12 @@ const Wishlist = () => {
               {/* Product Image */}
               <div className="relative">
                 <img
-                  src={item.image}
-                  alt={item.name}
+                  src={
+                    item.product?.images?.[0]?.url ||
+                    (typeof item.image === 'string' ? item.image : item.image?.url) ||
+                    'https://picsum.photos/300/300?random=21'
+                  }
+                  alt={item.product?.images?.[0]?.alt || item.name || 'Item'}
                   className="w-full h-48 object-cover"
                 />
                 

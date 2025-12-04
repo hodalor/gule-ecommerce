@@ -16,6 +16,7 @@ import {
   fetchTransactionStats,
   exportTransactionReport
 } from '../../store/slices/transactionSlice';
+import { formatCurrency as formatCurrencyUtil } from '../../utils/currency';
 
 const TransactionStats = () => {
   const dispatch = useDispatch();
@@ -44,14 +45,11 @@ const TransactionStats = () => {
     }
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
+  const formatCurrency = (amount) =>
+    formatCurrencyUtil(amount, undefined, undefined, {
       minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(amount);
-  };
+      maximumFractionDigits: 0,
+    });
 
   const formatPercentage = (value) => {
     return `${value > 0 ? '+' : ''}${value.toFixed(1)}%`;

@@ -28,6 +28,7 @@ import {
   cancelTransaction,
   addTransactionNote
 } from '../../store/slices/transactionSlice';
+import { formatCurrency as formatCurrencyUtil } from '../../utils/currency';
 import toast from 'react-hot-toast';
 
 const TransactionDetails = () => {
@@ -155,12 +156,7 @@ const TransactionDetails = () => {
     }
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount);
-  };
+  const formatCurrency = (amount, options) => formatCurrencyUtil(amount, undefined, undefined, options);
 
   const formatDate = (date) => {
     return new Date(date).toLocaleDateString('en-US', {

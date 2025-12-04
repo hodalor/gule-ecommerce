@@ -36,7 +36,7 @@ const initialState = {
   },
   app: {
     site_name: 'Gule Marketplace',
-    currency: 'USD',
+    currency: 'ZMW',
     tax_rate: 0.1,
     shipping_fee: 5.99,
     free_shipping_threshold: 50,

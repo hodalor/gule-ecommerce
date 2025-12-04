@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import axios from 'axios';
+import api from '../../utils/api';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
 
@@ -8,7 +8,7 @@ export const createOrder = createAsyncThunk(
   'orders/createOrder',
   async (orderData, { rejectWithValue }) => {
     try {
-      const response = await axios.post(`${API_URL}/orders`, orderData);
+      const response = await api.post(`/orders`, orderData);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to create order');
@@ -23,7 +23,7 @@ export const fetchUserOrders = createAsyncThunk(
       const params = new URLSearchParams({ page: page.toString() });
       if (status) params.append('status', status);
       
-      const response = await axios.get(`${API_URL}/orders/user?${params}`);
+      const response = await api.get(`/orders/user?${params}`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch orders');
@@ -38,7 +38,7 @@ export const fetchSellerOrders = createAsyncThunk(
       const params = new URLSearchParams({ page: page.toString() });
       if (status) params.append('status', status);
       
-      const response = await axios.get(`${API_URL}/orders/seller-orders?${params}`);
+      const response = await api.get(`/orders/seller-orders?${params}`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch seller orders');
@@ -50,7 +50,7 @@ export const fetchOrderById = createAsyncThunk(
   'orders/fetchOrderById',
   async (orderId, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`${API_URL}/orders/${orderId}`);
+      const response = await api.get(`/orders/${orderId}`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch order');
@@ -62,7 +62,7 @@ export const updateOrderStatus = createAsyncThunk(
   'orders/updateOrderStatus',
   async ({ orderId, status, trackingNumber }, { rejectWithValue }) => {
     try {
-      const response = await axios.put(`${API_URL}/orders/${orderId}/status`, {
+      const response = await api.put(`/orders/${orderId}/status`, {
         status,
         trackingNumber,
       });
@@ -77,7 +77,7 @@ export const confirmDelivery = createAsyncThunk(
   'orders/confirmDelivery',
   async (orderId, { rejectWithValue }) => {
     try {
-      const response = await axios.put(`${API_URL}/orders/${orderId}/confirm-delivery`);
+      const response = await api.put(`/orders/${orderId}/confirm-delivery`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to confirm delivery');
@@ -89,7 +89,7 @@ export const rateOrder = createAsyncThunk(
   'orders/rateOrder',
   async ({ orderId, rating, review }, { rejectWithValue }) => {
     try {
-      const response = await axios.put(`${API_URL}/orders/${orderId}/rate`, {
+      const response = await api.put(`/orders/${orderId}/rate`, {
         rating,
         review,
       });
@@ -104,7 +104,7 @@ export const requestRefund = createAsyncThunk(
   'orders/requestRefund',
   async ({ orderId, reason }, { rejectWithValue }) => {
     try {
-      const response = await axios.put(`${API_URL}/orders/${orderId}/refund`, {
+      const response = await api.put(`/orders/${orderId}/refund`, {
         reason,
       });
       return response.data;
@@ -118,7 +118,7 @@ export const trackOrder = createAsyncThunk(
   'orders/trackOrder',
   async (orderId, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`${API_URL}/orders/${orderId}/track`);
+      const response = await api.get(`/orders/${orderId}/track`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to track order');
