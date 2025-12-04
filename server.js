@@ -56,6 +56,7 @@ const sessionsRoutes = require('./routes/sessions');
 const financeRoutes = require('./routes/finance');
 const addressRoutes = require('./routes/addresses');
 const transactionRoutes = require('./routes/transactions');
+const categoriesRoutes = require('./routes/categories');
 
 // Import error handler and logger
 const errorHandler = require('./middleware/errorHandler');
@@ -253,6 +254,7 @@ app.use('/api/sessions', sessionsRoutes);
 app.use('/api/finance', financeRoutes);
 app.use('/api/addresses', addressRoutes);
 app.use('/api/transactions', transactionRoutes);
+app.use('/api/categories', categoriesRoutes);
 
 // Swagger documentation
 if (process.env.NODE_ENV === 'development') {

@@ -1,5 +1,6 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const { body, query } = require('express-validator');
 const multer = require('multer');
 const path = require('path');
@@ -17,6 +18,7 @@ const {
 
 // Import utilities
 const { uploadToCloudinary, deleteFromCloudinary } = require('../utils/cloudinary');
+const { sendPasswordResetEmail } = require('../utils/email');
 const logger = require('../utils/logger');
 
 const router = express.Router();
@@ -65,7 +67,8 @@ const getPrivacySettings = async () => {
 
 // Helper function to filter seller data based on privacy settings
 const filterSellerData = (seller, privacySettings, isOwnProfile = false, isAdmin = false) => {
-  const sellerData = seller.toObject();
+  // Handle both Mongoose documents and plain objects
+  const sellerData = seller.toObject ? seller.toObject() : { ...seller };
   
   // Always remove sensitive fields
   delete sellerData.password;
@@ -122,6 +125,7 @@ router.get('/public',
   query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
   query('search').optional().isLength({ min: 1, max: 100 }).withMessage('Search term must be between 1 and 100 characters'),
   query('category').optional().isLength({ min: 1, max: 50 }).withMessage('Category must be between 1 and 50 characters'),
+  query('sortBy').optional().isIn(['rating', 'products', 'reviews', 'newest']).withMessage('Invalid sortBy parameter'),
   handleValidationErrors,
   async (req, res) => {
     try {
@@ -130,6 +134,7 @@ router.get('/public',
       const skip = (page - 1) * limit;
       const search = req.query.search;
       const category = req.query.category;
+      const sortBy = req.query.sortBy || 'rating';
 
       // Build query - only show active sellers publicly
       const query = {
@@ -155,15 +160,56 @@ router.get('/public',
 
       // Fetch sellers with limited public information
       const sellers = await Seller.find(query)
-        .select('firstName lastName businessDetails profilePicture rating totalSales totalProducts registrationDate isVerified verificationStatus')
-        .sort({ rating: -1, totalSales: -1 })
+        .select('firstName lastName businessDetails profilePicture rating totalSales registrationDate isVerified verificationStatus')
         .skip(skip)
         .limit(limit);
 
       const total = await Seller.countDocuments(query);
 
+      // Calculate actual product counts and ratings for each seller
+      const Product = require('../models/Product');
+      const Review = require('../models/Review');
+      
+      const sellersWithStats = await Promise.all(sellers.map(async (seller) => {
+        // Count approved products for this seller
+        const productCount = await Product.countDocuments({
+          seller: seller._id,
+          status: 'approved'
+        });
+
+        // Calculate average rating from reviews
+        const reviews = await Review.find({ seller: seller._id });
+        const averageRating = reviews.length > 0 
+          ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length 
+          : 0;
+
+        // Convert to object and add calculated fields
+        const sellerObj = seller.toObject();
+        sellerObj.totalProducts = productCount;
+        sellerObj.rating = Math.round(averageRating * 10) / 10; // Round to 1 decimal place
+        sellerObj.totalReviews = reviews.length;
+
+        return sellerObj;
+      }));
+
+      // Sort sellers based on sortBy parameter
+      sellersWithStats.sort((a, b) => {
+        switch (sortBy) {
+          case 'rating':
+            return (b.rating || 0) - (a.rating || 0);
+          case 'products':
+            return (b.totalProducts || 0) - (a.totalProducts || 0);
+          case 'reviews':
+            return (b.totalReviews || 0) - (a.totalReviews || 0);
+          case 'newest':
+            return new Date(b.registrationDate) - new Date(a.registrationDate);
+          default:
+            return (b.rating || 0) - (a.rating || 0);
+        }
+      });
+
       // Apply privacy filtering for public view
-      const filteredSellers = sellers.map(seller => 
+      const filteredSellers = sellersWithStats.map(seller => 
         filterSellerData(seller, privacySettings, false, false)
       );
 
@@ -314,7 +360,7 @@ router.get('/public/:id',
 
       // Fetch seller with limited fields for public view
       const seller = await Seller.findById(id)
-        .select('firstName lastName businessDetails profilePicture rating totalSales totalProducts registrationDate isVerified verificationStatus createdAt');
+        .select('firstName lastName businessDetails profilePicture rating totalSales registrationDate isVerified verificationStatus createdAt');
 
       if (!seller) {
         return res.status(404).json({
@@ -329,13 +375,20 @@ router.get('/public/:id',
       // Optional: include minimal aggregates for storefront tabs
       let productsCount = 0;
       let reviewsCount = 0;
+      let averageRating = 0;
+      
       try {
-        productsCount = await Product.countDocuments({ sellerId: id, status: 'active' });
+        productsCount = await Product.countDocuments({ seller: id, status: 'approved' });
       } catch (e) {
         logger.warn('Failed to count products for public seller', { sellerId: id, error: e.message });
       }
+      
       try {
-        reviewsCount = await Review.countDocuments({ sellerId: id, status: 'approved' });
+        const reviews = await Review.find({ seller: id });
+        reviewsCount = reviews.length;
+        averageRating = reviews.length > 0 
+          ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length 
+          : 0;
       } catch (e) {
         logger.warn('Failed to count reviews for public seller', { sellerId: id, error: e.message });
       }
@@ -344,7 +397,8 @@ router.get('/public/:id',
         seller: {
           ...filteredSeller,
           totalProducts: productsCount,
-          totalReviews: reviewsCount
+          totalReviews: reviewsCount,
+          rating: Math.round(averageRating * 10) / 10 // Round to 1 decimal place
         }
       });
     } catch (error) {
@@ -990,6 +1044,215 @@ router.delete('/:id',
       res.status(500).json({
         error: 'Failed to delete account',
         message: 'An error occurred while deleting the seller account'
+      });
+    }
+  }
+);
+
+// Seller Password Reset Request
+router.post('/forgot-password',
+  body('email').isEmail().withMessage('Valid email is required'),
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      const { email } = req.body;
+
+      const seller = await Seller.findOne({ email });
+
+      // Always return success to prevent email enumeration
+      const successResponse = {
+        message: 'Password reset instructions sent',
+        note: 'If a seller account with this email exists, you will receive password reset instructions.'
+      };
+
+      if (!seller) {
+        await AuditLog.logAction({
+          action: 'SELLER_PASSWORD_RESET_ATTEMPT_INVALID_EMAIL',
+          userId: null,
+          userType: 'seller',
+          resourceType: 'Authentication',
+          details: { email, reason: 'seller_not_found' },
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent'),
+          severity: 'low'
+        });
+
+        return res.json(successResponse);
+      }
+
+      // Generate reset token
+      const resetToken = crypto.randomBytes(32).toString('hex');
+      seller.passwordResetToken = resetToken;
+      seller.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+      await seller.save();
+
+      // Send reset email
+      try {
+        await sendPasswordResetEmail(
+          email,
+          `${seller.firstName} ${seller.lastName}`,
+          resetToken,
+          'seller'
+        );
+
+        await AuditLog.logAction({
+          action: 'SELLER_PASSWORD_RESET_REQUESTED',
+          userId: seller._id,
+          userType: 'seller',
+          resourceType: 'Authentication',
+          resourceId: seller._id,
+          details: { email },
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent'),
+          severity: 'medium'
+        });
+
+      } catch (emailError) {
+        logger.error('Failed to send seller password reset email', emailError);
+      }
+
+      res.json(successResponse);
+
+    } catch (error) {
+      logger.error('Seller password reset request error', error);
+      res.status(500).json({
+        error: 'Password reset failed',
+        message: 'An error occurred while processing your request'
+      });
+    }
+  }
+);
+
+// Seller Password Reset
+router.post('/reset-password',
+  body('token').notEmpty().withMessage('Reset token is required'),
+  body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
+  body('confirmPassword').custom((value, { req }) => {
+    if (value !== req.body.password) {
+      throw new Error('Passwords do not match');
+    }
+    return true;
+  }),
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      const { token, password } = req.body;
+
+      const seller = await Seller.findOne({
+        passwordResetToken: token,
+        passwordResetExpires: { $gt: new Date() }
+      }).select('+password');
+
+      if (!seller) {
+        return res.status(400).json({
+          error: 'Invalid or expired token',
+          message: 'Password reset token is invalid or has expired'
+        });
+      }
+
+      // Set new password (will be hashed by model middleware)
+      seller.password = password;
+      seller.passwordResetToken = undefined;
+      seller.passwordResetExpires = undefined;
+
+      await seller.save();
+
+      // Log password reset
+      await AuditLog.logAction({
+        action: 'SELLER_PASSWORD_RESET_COMPLETED',
+        performedBy: seller._id,
+        userType: 'seller',
+        userModel: 'Seller',
+        targetResource: 'Authentication',
+        targetId: seller._id,
+        details: { email: seller.email },
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+        severity: 'medium'
+      });
+
+      res.json({
+        message: 'Password reset successful',
+        note: 'You can now login with your new password'
+      });
+
+    } catch (error) {
+      logger.error('Seller password reset error', error);
+      res.status(500).json({
+        error: 'Password reset failed',
+        message: 'An error occurred while resetting your password'
+      });
+    }
+  }
+);
+
+// Admin: Manually reset seller password
+router.post('/:id/reset-password',
+  authenticate,
+  authorizeUserType(['admin']),
+  body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
+  body('confirmPassword').custom((value, { req }) => {
+    if (value !== req.body.password) {
+      throw new Error('Passwords do not match');
+    }
+    return true;
+  }),
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { password } = req.body;
+
+      const seller = await Seller.findById(id).select('+password');
+      if (!seller) {
+        return res.status(404).json({
+          error: 'Seller not found',
+          message: 'The requested seller does not exist'
+        });
+      }
+
+      // Update password; model pre-save hooks will hash it
+      seller.password = password;
+      seller.passwordResetToken = undefined;
+      seller.passwordResetExpires = undefined;
+
+      await seller.save();
+
+      // Audit log
+      await AuditLog.logAction({
+        action: 'ADMIN_MANUAL_SELLER_PASSWORD_RESET',
+        performedBy: req.user.id,
+        userType: 'admin',
+        userModel: 'Admin',
+        targetResource: 'Seller',
+        targetId: seller._id,
+        details: { 
+          targetSellerId: seller._id, 
+          targetSellerEmail: seller.email,
+          targetSellerName: `${seller.firstName} ${seller.lastName}`
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+        severity: 'high',
+        status: 'success'
+      });
+
+      res.json({ 
+        message: 'Seller password reset successfully',
+        seller: {
+          id: seller._id,
+          name: `${seller.firstName} ${seller.lastName}`,
+          email: seller.email,
+          businessName: seller.businessName
+        }
+      });
+
+    } catch (error) {
+      logger.error('Admin manual seller password reset error', error);
+      res.status(500).json({
+        error: 'Failed to reset password',
+        message: 'An error occurred while resetting the seller password'
       });
     }
   }

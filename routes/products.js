@@ -89,6 +89,49 @@ router.get('/categories', productRateLimit, async (req, res) => {
   }
 });
 
+// Get featured products (active + featured)
+router.get('/featured', productRateLimit, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit || '8');
+
+    // Retrieve featured products
+    const featured = await Product.findFeatured(limit)
+      .populate('seller', 'businessName profilePicture rating location')
+      .lean();
+
+    // Attach rating info similar to general list
+    const productsWithRating = await Promise.all(
+      featured.map(async (product) => {
+        const reviews = await Review.find({ product: product._id });
+        const avgRating = reviews.length > 0
+          ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+          : 0;
+
+        return {
+          ...product,
+          averageRating: Math.round(avgRating * 10) / 10,
+          reviewCount: reviews.length
+        };
+      })
+    );
+
+    return res.json({
+      success: true,
+      data: {
+        products: productsWithRating,
+        total: productsWithRating.length,
+      }
+    });
+  } catch (error) {
+    logger.error('Error fetching featured products', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch featured products',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
 // Get all products with filtering, sorting, and pagination
 router.get('/', productRateLimit, validatePagination, validateSearch, handleValidationErrors, async (req, res) => {
   try {
@@ -295,8 +338,10 @@ router.post('/',
       if (req.files && req.files.images) {
         const images = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
         
+        // Support both express-fileupload temp files and raw buffers
+        const sources = images.map(img => img.tempFilePath || img.data);
         const uploadResults = await uploadMultipleToCloudinary(
-          images.map(img => img.data),
+          sources,
           {
             folder: `gule/products/${req.user.id}`,
             transformation: [
@@ -470,8 +515,9 @@ router.put('/:id',
       if (req.files && req.files.images) {
         const images = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
         
+        const sources = images.map(img => img.tempFilePath || img.data);
         const uploadResults = await uploadMultipleToCloudinary(
-          images.map(img => img.data),
+          sources,
           {
             folder: `gule/products/${req.user.id}`,
             transformation: [

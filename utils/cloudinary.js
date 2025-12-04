@@ -23,12 +23,12 @@ const logger = require('./logger');
 })();
 
 /**
- * Upload file buffer to Cloudinary
- * @param {Buffer} fileBuffer - File buffer to upload
+ * Upload file to Cloudinary (supports Buffer or temp file path)
+ * @param {Buffer|string} fileInput - File buffer or temp file path
  * @param {Object} options - Upload options
  * @returns {Promise<Object>} Upload result
  */
-const uploadToCloudinary = (fileBuffer, options = {}) => {
+const uploadToCloudinary = (fileInput, options = {}) => {
   return new Promise((resolve, reject) => {
     const defaultOptions = {
       resource_type: 'auto',
@@ -37,9 +37,33 @@ const uploadToCloudinary = (fileBuffer, options = {}) => {
       ...options
     };
 
-    const uploadStream = cloudinary.uploader.upload_stream(
-      defaultOptions,
-      (error, result) => {
+    // Handle Buffer input via upload_stream
+    if (Buffer.isBuffer(fileInput)) {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        defaultOptions,
+        (error, result) => {
+          if (error) {
+            logger.error('Cloudinary upload error', error);
+            reject(new Error(`Failed to upload file: ${error.message}`));
+          } else {
+            logger.info('File uploaded to Cloudinary successfully', {
+              publicId: result.public_id,
+              url: result.secure_url,
+              format: result.format,
+              bytes: result.bytes
+            });
+            resolve(result);
+          }
+        }
+      );
+
+      uploadStream.end(fileInput);
+      return; // Important: stop here after stream upload
+    }
+
+    // Handle string path input via direct upload
+    if (typeof fileInput === 'string' && fileInput.length > 0) {
+      cloudinary.uploader.upload(fileInput, defaultOptions, (error, result) => {
         if (error) {
           logger.error('Cloudinary upload error', error);
           reject(new Error(`Failed to upload file: ${error.message}`));
@@ -52,10 +76,14 @@ const uploadToCloudinary = (fileBuffer, options = {}) => {
           });
           resolve(result);
         }
-      }
-    );
+      });
+      return;
+    }
 
-    uploadStream.end(fileBuffer);
+    // Invalid input
+    const err = new Error('Invalid file input: expected Buffer or file path');
+    logger.error('Cloudinary upload error', err);
+    reject(err);
   });
 };
 
@@ -84,18 +112,18 @@ const deleteFromCloudinary = (publicId, options = {}) => {
 
 /**
  * Upload multiple files to Cloudinary
- * @param {Array<Buffer>} fileBuffers - Array of file buffers
+ * @param {Array<Buffer|string>} fileInputs - Array of file buffers or temp file paths
  * @param {Object} options - Upload options
- * @returns {Promise<Array<Object>>} Array of upload results
+ * @returns {Promise<{successful: Array<Object>, failed: Array<Object>, totalUploaded: number, totalFailed: number}>}
  */
-const uploadMultipleToCloudinary = async (fileBuffers, options = {}) => {
+const uploadMultipleToCloudinary = async (fileInputs, options = {}) => {
   try {
-    const uploadPromises = fileBuffers.map((buffer, index) => {
+    const uploadPromises = fileInputs.map((input, index) => {
       const fileOptions = {
         ...options,
         public_id: options.public_id ? `${options.public_id}_${index}` : undefined
       };
-      return uploadToCloudinary(buffer, fileOptions);
+      return uploadToCloudinary(input, fileOptions);
     });
 
     const results = await Promise.allSettled(uploadPromises);

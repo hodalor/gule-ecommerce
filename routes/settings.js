@@ -347,6 +347,7 @@ router.put('/privacy',
     body('showSellerProfiles').optional().isBoolean().withMessage('showSellerProfiles must be a boolean'),
     body('showBuyerStats').optional().isBoolean().withMessage('showBuyerStats must be a boolean'),
     body('showSellerStats').optional().isBoolean().withMessage('showSellerStats must be a boolean'),
+    body('showBuyerDetailsToSellers').optional().isBoolean().withMessage('showBuyerDetailsToSellers must be a boolean'),
   ],
   handleValidationErrors,
   async (req, res) => {

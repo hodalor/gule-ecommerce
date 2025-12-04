@@ -839,8 +839,43 @@ const validateProductUpdate = [
 
   body('seoKeywords')
     .optional()
+    .customSanitizer((value) => {
+      // Allow both array and comma-separated string inputs
+      if (value === undefined || value === null) return [];
+      if (Array.isArray(value)) {
+        return value
+          .map(v => (typeof v === 'string' ? v.trim() : String(v).trim()))
+          .filter(Boolean);
+      }
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed) return [];
+        // If it's a JSON array string, parse it
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (Array.isArray(parsed)) {
+            return parsed
+              .map(v => (typeof v === 'string' ? v.trim() : String(v).trim()))
+              .filter(Boolean);
+          }
+        } catch (_) {}
+        // Fallback: split by comma
+        return trimmed
+          .split(',')
+          .map(k => k.trim())
+          .filter(Boolean);
+      }
+      return [];
+    })
     .isArray()
     .withMessage('SEO keywords must be an array'),
+
+  body('seoKeywords.*')
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ min: 1, max: 30 })
+    .withMessage('Each keyword must be between 1 and 30 characters'),
 
   handleValidationErrors
 ];

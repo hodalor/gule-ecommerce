@@ -47,8 +47,8 @@ router.get('/',
 
       // Build filter object
       const filter = {};
-      if (status) filter.accountStatus = status;
-      if (verified !== undefined) filter.isBusinessVerified = verified === 'true';
+      if (status) filter.status = status;
+      if (verified !== undefined) filter.isVerified = verified === 'true';
       if (search) {
         filter.$or = [
           { businessName: { $regex: search, $options: 'i' } },
@@ -152,8 +152,8 @@ router.get('/export',
           { 'contactInfo.phone': { $regex: search, $options: 'i' } }
         ];
       }
-      if (status) filter.accountStatus = status;
-      if (verified !== '') filter.isBusinessVerified = verified === 'true';
+      if (status) filter.status = status;
+      if (verified !== '') filter.isVerified = verified === 'true';
 
       const sellers = await Seller.find(filter)
         .select('-password')
@@ -186,17 +186,17 @@ router.get('/export',
         'ID',
         'Business Name',
         'Email',
-        'Account Status',
-        'Business Verified',
-        'Registration Date'
+        'Status',
+        'Verified',
+        'Created At'
       ];
       const rows = sellers.map(s => [
         s._id,
         s.businessName || `${s.firstName || ''} ${s.lastName || ''}`.trim(),
         s.email || '',
-        s.accountStatus || '',
-        s.isBusinessVerified ? 'true' : 'false',
-        (s.registrationDate || s.createdAt || new Date()).toISOString()
+        s.status || '',
+        s.isVerified ? 'true' : 'false',
+        (s.createdAt || new Date()).toISOString()
       ]);
       const csv = [headers.join(','), ...rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))].join('\n');
 
@@ -332,13 +332,9 @@ router.patch('/:id/status',
         });
       }
 
-      const oldStatus = seller.accountStatus;
-      seller.accountStatus = status;
+      const oldStatus = seller.status;
+      seller.status = status;
       seller.updatedAt = new Date();
-      
-      if (status === 'suspended' && reason) {
-        seller.suspensionReason = reason;
-      }
 
       await seller.save();
 
@@ -369,10 +365,10 @@ router.patch('/:id/status',
             id: seller._id,
             businessName: seller.businessName,
             email: seller.email,
-            accountStatus: seller.accountStatus
-          }
+          status: seller.status
         }
-      });
+      }
+    });
 
     } catch (error) {
       logger.error('Admin update seller status error', error);
@@ -406,14 +402,15 @@ router.patch('/:id/verify',
         });
       }
 
-      const wasVerified = seller.isBusinessVerified;
-      seller.isBusinessVerified = verified;
-      seller.businessVerificationStatus = verified ? 'verified' : 'pending';
-      seller.verificationDate = verified ? new Date() : null;
+      const wasVerified = seller.isVerified;
+      seller.isVerified = !!verified;
+      seller.verificationStatus = seller.isVerified ? 'verified' : 'pending';
+      seller.verifiedAt = seller.isVerified ? new Date() : null;
       seller.updatedAt = new Date();
 
-      if (!verified && reason) {
-        seller.verificationRejectionReason = reason;
+      // Store reason as notes when unverified or setting pending
+      if (!seller.isVerified && reason) {
+        seller.verificationNotes = reason;
       }
 
       await seller.save();
@@ -439,16 +436,16 @@ router.patch('/:id/verify',
 
       res.json({
         success: true,
-        message: `Seller business ${verified ? 'verified' : 'unverified'} successfully`,
+        message: `Seller business ${seller.isVerified ? 'verified' : 'set to pending'} successfully`,
         data: {
           seller: {
             id: seller._id,
             businessName: seller.businessName,
             email: seller.email,
-            isBusinessVerified: seller.isBusinessVerified,
-            businessVerificationStatus: seller.businessVerificationStatus,
-            verificationDate: seller.verificationDate,
-            verificationRejectionReason: seller.verificationRejectionReason || ''
+            isVerified: seller.isVerified,
+            verificationStatus: seller.verificationStatus,
+            verifiedAt: seller.verifiedAt,
+            verificationNotes: seller.verificationNotes || ''
           }
         }
       });
@@ -503,9 +500,9 @@ router.delete('/:id',
         id: seller._id,
         businessName: seller.businessName,
         email: seller.email,
-        accountStatus: seller.accountStatus,
-        isBusinessVerified: seller.isBusinessVerified,
-        registrationDate: seller.registrationDate
+        status: seller.status,
+        isVerified: seller.isVerified,
+        createdAt: seller.createdAt
       };
 
       await Seller.findByIdAndDelete(req.params.id);
@@ -562,36 +559,35 @@ router.patch('/bulk/update',
 
       switch (action) {
         case 'activate':
-          updateData = { accountStatus: 'active', updatedAt: new Date() };
+          updateData = { status: 'active', updatedAt: new Date() };
           newStatus = 'active';
           break;
         case 'deactivate':
-          updateData = { accountStatus: 'inactive', updatedAt: new Date() };
+          updateData = { status: 'inactive', updatedAt: new Date() };
           newStatus = 'inactive';
           break;
         case 'suspend':
           updateData = { 
-            accountStatus: 'suspended', 
-            suspensionReason: reason || 'Suspended by admin',
+            status: 'suspended',
             updatedAt: new Date() 
           };
           newStatus = 'suspended';
           break;
         case 'verify':
           updateData = { 
-            isBusinessVerified: true, 
-            businessVerificationStatus: 'verified',
-            verificationDate: new Date(),
+            isVerified: true, 
+            verificationStatus: 'verified',
+            verifiedAt: new Date(),
             updatedAt: new Date() 
           };
           newStatus = 'verified';
           break;
         case 'unverify':
           updateData = { 
-            isBusinessVerified: false, 
-            businessVerificationStatus: 'pending',
-            verificationDate: null,
-            verificationRejectionReason: reason || 'Unverified by admin',
+            isVerified: false, 
+            verificationStatus: 'pending',
+            verifiedAt: null,
+            verificationNotes: reason || 'Unverified by admin',
             updatedAt: new Date() 
           };
           newStatus = 'unverified';
@@ -654,19 +650,19 @@ router.get('/stats/summary',
             _id: null,
             totalSellers: { $sum: 1 },
             activeSellers: {
-              $sum: { $cond: [{ $eq: ['$accountStatus', 'active'] }, 1, 0] }
+              $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] }
             },
             inactiveSellers: {
-              $sum: { $cond: [{ $eq: ['$accountStatus', 'inactive'] }, 1, 0] }
+              $sum: { $cond: [{ $eq: ['$status', 'inactive'] }, 1, 0] }
             },
             suspendedSellers: {
-              $sum: { $cond: [{ $eq: ['$accountStatus', 'suspended'] }, 1, 0] }
+              $sum: { $cond: [{ $eq: ['$status', 'suspended'] }, 1, 0] }
             },
             verifiedSellers: {
-              $sum: { $cond: [{ $eq: ['$isBusinessVerified', true] }, 1, 0] }
+              $sum: { $cond: [{ $eq: ['$isVerified', true] }, 1, 0] }
             },
             pendingSellers: {
-              $sum: { $cond: [{ $eq: ['$accountStatus', 'pending'] }, 1, 0] }
+              $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] }
             }
           }
         }
@@ -677,7 +673,7 @@ router.get('/stats/summary',
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
       const recentRegistrations = await Seller.countDocuments({
-        registrationDate: { $gte: thirtyDaysAgo }
+        createdAt: { $gte: thirtyDaysAgo }
       });
 
       const result = stats[0] || {

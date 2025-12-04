@@ -7,6 +7,7 @@ const User = require('../models/User');
 const Seller = require('../models/Seller');
 const EscrowTransaction = require('../models/Escrow');
 const Escrow = require('../models/Escrow');
+const AdminSettings = require('../models/AdminSettings');
 const AuditLog = require('../models/AuditLog');
 const { authenticate, authorizeUserType } = require('../middleware/auth');
 const { 
@@ -41,6 +42,44 @@ const orderRateLimit = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+// Helper function to get privacy settings
+const getPrivacySettings = async () => {
+  try {
+    const settings = await AdminSettings.find({ category: 'privacy' }).lean();
+    const privacyMap = {};
+    settings.forEach(setting => {
+      privacyMap[setting.settingKey] = setting.value;
+    });
+    return privacyMap;
+  } catch (error) {
+    logger.error('Failed to fetch privacy settings', error);
+    // Return default values if settings fetch fails
+    return {
+      share_buyer_contact: false,
+      share_buyer_address: true
+    };
+  }
+};
+
+// Helper function to filter buyer information based on privacy settings
+const filterBuyerInfo = (buyer, privacySettings) => {
+  if (!buyer) return buyer;
+  
+  const filteredBuyer = { ...buyer };
+  
+  // If share_buyer_contact is false, remove contact information
+  if (!privacySettings.share_buyer_contact) {
+    delete filteredBuyer.email;
+    delete filteredBuyer.phone;
+    delete filteredBuyer.firstName;
+    delete filteredBuyer.lastName;
+    // Keep only essential info for order processing
+    filteredBuyer.displayName = 'Customer';
+  }
+  
+  return filteredBuyer;
+};
 
 // Base GET route for /api/orders - returns available endpoints
 router.get('/', (req, res) => {
@@ -387,28 +426,55 @@ router.get('/seller-orders',
     try {
       const { page = 1, limit = 10, status, sort = '-createdAt' } = req.query;
 
+      // Get privacy settings
+      const privacySettings = await getPrivacySettings();
+
       const filter = { 'items.seller': req.user.id };
       if (status) filter.status = status;
 
       const skip = (parseInt(page) - 1) * parseInt(limit);
 
       const orders = await Order.find(filter)
-        .populate('buyer', 'firstName lastName email profilePicture')
+        .populate('buyer', 'firstName lastName email phone profilePicture')
         .populate('items.product', 'name images')
+        .populate('items.seller', '_id businessName rating')
         .sort(sort)
         .skip(skip)
         .limit(parseInt(limit))
         .lean();
 
-      // Filter items to only show seller's items
-      const filteredOrders = orders.map(order => ({
-        ...order,
-        items: order.items.filter(item => item.seller.toString() === req.user.id),
-        // Recalculate totals for seller's items only
-        sellerSubtotal: order.items
-          .filter(item => item.seller.toString() === req.user.id)
-          .reduce((sum, item) => sum + item.total, 0)
-      }));
+      // Filter items to only show seller's items and apply privacy filtering
+      const filteredOrders = orders.map(order => {
+        const filteredOrder = {
+          ...order,
+          items: order.items.filter(item => {
+            const sellerId = item.seller?._id ? item.seller._id.toString() : item.seller.toString();
+            return sellerId === req.user.id;
+          }),
+          // Recalculate totals for seller's items only
+          sellerSubtotal: order.items
+            .filter(item => {
+              const sellerId = item.seller?._id ? item.seller._id.toString() : item.seller.toString();
+              return sellerId === req.user.id;
+            })
+            .reduce((sum, item) => sum + item.total, 0)
+        };
+
+        // Apply buyer information filtering based on privacy settings
+        filteredOrder.buyer = filterBuyerInfo(order.buyer, privacySettings);
+
+        // Also filter shipping address if share_buyer_address is false
+        if (!privacySettings.share_buyer_address && filteredOrder.shippingAddress) {
+          filteredOrder.shippingAddress = {
+            city: filteredOrder.shippingAddress.city,
+            state: filteredOrder.shippingAddress.state,
+            country: filteredOrder.shippingAddress.country
+            // Remove street, zipCode, and other detailed address info
+          };
+        }
+
+        return filteredOrder;
+      });
 
       const total = await Order.countDocuments(filter);
 
@@ -441,7 +507,7 @@ router.get('/seller-orders',
 router.get('/:id', orderRateLimit, authenticate, async (req, res) => {
   try {
     const order = await Order.findById(req.params.id)
-      .populate('buyer', 'firstName lastName email profilePicture')
+      .populate('buyer', 'firstName lastName email phone profilePicture')
       .populate('items.product', 'name images description')
       .populate('items.seller', 'businessName profilePicture contactInfo')
       .lean();
@@ -465,9 +531,23 @@ router.get('/:id', orderRateLimit, authenticate, async (req, res) => {
       });
     }
 
-    // If seller, filter items to only show their items
+    // If seller, filter items to only show their items and apply privacy filtering
     if (isSeller && !isBuyer && !isAdmin) {
       order.items = order.items.filter(item => item.seller._id.toString() === req.user.id);
+      
+      // Get privacy settings and filter buyer information
+      const privacySettings = await getPrivacySettings();
+      order.buyer = filterBuyerInfo(order.buyer, privacySettings);
+      
+      // Also filter shipping address if share_buyer_address is false
+      if (!privacySettings.share_buyer_address && order.shippingAddress) {
+        order.shippingAddress = {
+          city: order.shippingAddress.city,
+          state: order.shippingAddress.state,
+          country: order.shippingAddress.country
+          // Remove street, zipCode, and other detailed address info
+        };
+      }
     }
 
     // Get escrow transactions for this order

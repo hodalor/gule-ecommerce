@@ -314,6 +314,28 @@ const sellerSchema = new mongoose.Schema({
   lockUntil: {
     type: Date,
     select: false
+  },
+  // Password reset fields
+  passwordResetToken: {
+    type: String,
+    select: false
+  },
+  passwordResetExpires: {
+    type: Date,
+    select: false
+  },
+  // Email verification fields
+  emailVerificationToken: {
+    type: String,
+    select: false
+  },
+  emailVerificationExpires: {
+    type: Date,
+    select: false
+  },
+  isEmailVerified: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true,
