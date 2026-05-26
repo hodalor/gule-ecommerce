@@ -13,13 +13,11 @@ import {
   ExclamationTriangleIcon,
   ClockIcon,
   CheckCircleIcon,
-  XCircleIcon,
   ArrowUpIcon,
   ChatBubbleLeftRightIcon,
   MagnifyingGlassIcon,
   DocumentArrowDownIcon,
   EyeIcon,
-  UserIcon,
   BuildingStorefrontIcon,
   ShoppingBagIcon
 } from '@heroicons/react/24/outline';
@@ -29,14 +27,12 @@ const ComplaintsManagement = () => {
   const { 
     complaints, 
     loading, 
-    error, 
     pagination 
   } = useSelector((state) => state.complaints);
   const { user: currentUser } = useSelector((state) => state.auth);
 
   const [activeTab, setActiveTab] = useState('all');
   const [showModal, setShowModal] = useState(false);
-  const [modalMode, setModalMode] = useState('view');
   const [selectedComplaint, setSelectedComplaint] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -68,11 +64,13 @@ const ComplaintsManagement = () => {
     'other'
   ];
 
+  const pageSize = pagination?.itemsPerPage || 20;
+
   useEffect(() => {
     const fetchData = () => {
       dispatch(fetchComplaints({ 
         page: pagination?.currentPage || 1, 
-        limit: pagination?.itemsPerPage || 20,
+        limit: pageSize,
         search: searchTerm,
         status: activeTab !== 'all' ? activeTab : statusFilter,
         priority: priorityFilter,
@@ -82,10 +80,9 @@ const ComplaintsManagement = () => {
     };
 
     fetchData();
-  }, [dispatch, activeTab, searchTerm, statusFilter, priorityFilter, categoryFilter, dateRange, pagination?.currentPage]);
+  }, [dispatch, activeTab, searchTerm, statusFilter, priorityFilter, categoryFilter, dateRange, pagination?.currentPage, pageSize]);
 
   const handleViewComplaint = (complaint) => {
-    setModalMode('view');
     setSelectedComplaint(complaint);
     setNewNote('');
     setAssigneeId(complaint.assignedTo || '');

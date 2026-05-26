@@ -8,7 +8,7 @@ const AdminLayout = () => {
   const location = useLocation();
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen overflow-hidden bg-slate-100 text-slate-900">
       {/* Sidebar */}
       <Sidebar 
         sidebarOpen={sidebarOpen} 
@@ -16,7 +16,7 @@ const AdminLayout = () => {
       />
 
       {/* Main content area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Topbar */}
         <Topbar 
           setSidebarOpen={setSidebarOpen}
@@ -24,8 +24,8 @@ const AdminLayout = () => {
         />
 
         {/* Main content */}
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 p-6">
-          <div className="max-w-7xl mx-auto">
+        <main className="flex-1 overflow-x-hidden overflow-y-auto px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+          <div className="mx-auto w-full max-w-7xl">
             <Outlet />
           </div>
         </main>
@@ -34,7 +34,7 @@ const AdminLayout = () => {
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div 
-          className="fixed inset-0 z-40 bg-gray-600 bg-opacity-75 lg:hidden"
+          className="fixed inset-0 z-40 bg-slate-950/50 backdrop-blur-[1px] lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}

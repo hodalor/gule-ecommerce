@@ -1,16 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   fetchAuditLogs,
-  fetchAuditLogDetails,
-  exportAuditLogs,
-  fetchAuditStats,
-  setFilters,
-  clearFilters,
-  setCurrentPage,
-  setPageSize,
-  setSelectedLog,
-  clearSelectedLog
+  exportAuditLogs
 } from '../../store/slices/auditSlice';
 import {
   MagnifyingGlassIcon,
@@ -63,7 +55,7 @@ const AuditLogs = () => {
   const severityLevels = ['low', 'medium', 'high', 'critical'];
 
   // Real-time data fetching
-  const fetchLatestLogs = () => {
+  const fetchLatestLogs = useCallback(() => {
     const filters = {
       search: searchTerm,
       action: actionFilter,
@@ -76,7 +68,7 @@ const AuditLogs = () => {
     };
     dispatch(fetchAuditLogs(filters));
     setLastRefresh(new Date());
-  };
+  }, [dispatch, searchTerm, actionFilter, userFilter, dateRange.start, dateRange.end, severityFilter, currentPage]);
 
   // Set up real-time polling
   useEffect(() => {
@@ -102,7 +94,7 @@ const AuditLogs = () => {
         intervalRef.current = null;
       }
     };
-  }, [isRealTimeEnabled, searchTerm, actionFilter, userFilter, dateRange, severityFilter, currentPage]);
+  }, [isRealTimeEnabled, fetchLatestLogs]);
 
   // WebSocket real-time updates
   useEffect(() => {
@@ -125,7 +117,7 @@ const AuditLogs = () => {
         socketService.offAuditLogUpdate(handleAuditLogUpdate);
       };
     }
-  }, [isRealTimeEnabled]);
+  }, [isRealTimeEnabled, fetchLatestLogs]);
 
   // Manual refresh
   const handleManualRefresh = () => {

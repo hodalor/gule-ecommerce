@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   MagnifyingGlassIcon,
-  FunnelIcon,
   EyeIcon,
   TrashIcon,
   ExclamationTriangleIcon,
@@ -19,20 +18,16 @@ import {
   fetchReviewById,
   updateReviewStatus,
   deleteReview,
-  bulkUpdateReviews,
-  fetchReviewReports
+  bulkUpdateReviews
 } from '../../store/slices/reviewSlice';
 
 const ReviewManagement = () => {
   const dispatch = useDispatch();
-  const { user } = useSelector((state) => state.auth);
   const { 
     reviews, 
     loading, 
-    error, 
     pagination, 
-    selectedReview,
-    reviewReports 
+    selectedReview 
   } = useSelector((state) => state.reviews);
 
   // Local state management
@@ -41,7 +36,6 @@ const ReviewManagement = () => {
   const [selectedReviews, setSelectedReviews] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState('');
-  const [selectedReviewLocal, setSelectedReview] = useState(null);
   const [filters, setFilters] = useState({
     rating: '',
     status: '',
@@ -153,7 +147,6 @@ const ReviewManagement = () => {
   const closeModal = () => {
     setShowModal(false);
     setModalType('');
-    setSelectedReview(null);
   };
 
   // Filter reviews based on search and filters

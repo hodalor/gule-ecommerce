@@ -19,7 +19,7 @@ export const updatePrivacySetting = createAsyncThunk(
   'settings/updatePrivacySetting',
   async ({ setting, value }, { rejectWithValue }) => {
     try {
-      const response = await axios.patch('/api/settings/privacy', {
+      await axios.patch('/api/settings/privacy', {
         [setting]: value,
       });
       return { setting, value };
@@ -124,6 +124,54 @@ export const restoreSystem = createAsyncThunk(
   }
 );
 
+export const fetchHomepageContent = createAsyncThunk(
+  'settings/fetchHomepageContent',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await api.get('/settings/homepage-content');
+      return response.data?.data || {};
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch homepage content');
+    }
+  }
+);
+
+export const updateHomepageContent = createAsyncThunk(
+  'settings/updateHomepageContent',
+  async (contentData, { rejectWithValue }) => {
+    try {
+      const formData = new FormData();
+      formData.append('content', JSON.stringify({
+        heroBanners: contentData.heroBanners?.map(({ imageFile, ...item }) => item) || [],
+        promoAds: contentData.promoAds?.map(({ imageFile, ...item }) => item) || [],
+        highlightedCategoryIds: contentData.highlightedCategoryIds || []
+      }));
+
+      contentData.heroBanners?.forEach((item, index) => {
+        if (item.imageFile instanceof File) {
+          formData.append(item.imageUploadField || `hero_banner_${index}`, item.imageFile);
+        }
+      });
+
+      contentData.promoAds?.forEach((item, index) => {
+        if (item.imageFile instanceof File) {
+          formData.append(item.imageUploadField || `promo_ad_${index}`, item.imageFile);
+        }
+      });
+
+      const response = await api.put('/settings/homepage-content', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      return response.data?.data || {};
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to update homepage content');
+    }
+  }
+);
+
 const initialState = {
   privacySettings: {
     shareBuyerName: false,
@@ -147,6 +195,11 @@ const initialState = {
     recommendationsEnabled: true,
     featureRatePerDay: 5,
     featurePaymentRequired: false,
+  },
+  homepageContent: {
+    heroBanners: [],
+    promoAds: [],
+    highlightedCategoryIds: []
   },
   loading: false,
   error: null,
@@ -301,6 +354,38 @@ const settingsSlice = createSlice({
         state.featureSettings[setting] = value;
       })
       .addCase(updateFeatureSetting.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      // Fetch homepage content
+      .addCase(fetchHomepageContent.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchHomepageContent.fulfilled, (state, action) => {
+        state.loading = false;
+        state.homepageContent = {
+          ...state.homepageContent,
+          ...action.payload
+        };
+      })
+      .addCase(fetchHomepageContent.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      // Update homepage content
+      .addCase(updateHomepageContent.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(updateHomepageContent.fulfilled, (state, action) => {
+        state.loading = false;
+        state.homepageContent = {
+          ...state.homepageContent,
+          ...action.payload
+        };
+      })
+      .addCase(updateHomepageContent.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       });

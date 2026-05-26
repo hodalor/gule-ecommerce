@@ -97,13 +97,14 @@ const Topbar = ({ setSidebarOpen, currentPath }) => {
   ];
 
   const unreadCount = notifications.filter(n => n.unread).length;
+  const pageTitle = getPageTitle(currentPath);
 
   return (
-    <div className="relative z-10 flex-shrink-0 flex h-16 bg-white shadow border-b border-gray-200">
+    <div className="sticky top-0 z-30 flex h-20 flex-shrink-0 border-b border-slate-200 bg-white/90 backdrop-blur">
       {/* Mobile menu button */}
       <button
         type="button"
-        className="px-4 border-r border-gray-200 text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 lg:hidden"
+        className="border-r border-slate-200 px-4 text-slate-500 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 lg:hidden"
         onClick={() => setSidebarOpen(true)}
       >
         <span className="sr-only">Open sidebar</span>
@@ -111,26 +112,29 @@ const Topbar = ({ setSidebarOpen, currentPath }) => {
       </button>
 
       {/* Page title */}
-      <div className="flex-1 px-4 flex justify-between items-center">
-        <div className="flex-1">
-          <h1 className="text-2xl font-semibold text-gray-900">
-            {getPageTitle(currentPath)}
+      <div className="flex flex-1 items-center justify-between px-4 sm:px-6">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+            Admin workspace
+          </p>
+          <h1 className="truncate text-2xl font-bold text-slate-900">
+            {pageTitle}
           </h1>
         </div>
 
         {/* Right side items */}
-        <div className="ml-4 flex items-center md:ml-6 space-x-4">
+        <div className="ml-4 flex items-center gap-3 md:ml-6">
           {/* Notifications */}
           <div className="relative" ref={notificationsRef}>
             <button
               type="button"
-              className="bg-white p-1 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 relative"
+              className="relative rounded-2xl border border-slate-200 bg-white p-2.5 text-slate-500 shadow-sm transition hover:bg-slate-50 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
               onClick={() => setNotificationsOpen(!notificationsOpen)}
             >
               <span className="sr-only">View notifications</span>
-              <BellIcon className="h-6 w-6" aria-hidden="true" />
+              <BellIcon className="h-5 w-5" aria-hidden="true" />
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-semibold text-white">
                   {unreadCount}
                 </span>
               )}
@@ -138,38 +142,38 @@ const Topbar = ({ setSidebarOpen, currentPath }) => {
 
             {/* Notifications dropdown */}
             {notificationsOpen && (
-              <div className="origin-top-right absolute right-0 mt-2 w-80 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none">
+              <div className="absolute right-0 mt-3 w-80 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60">
                 <div className="py-1">
-                  <div className="px-4 py-2 border-b border-gray-200">
-                    <h3 className="text-sm font-medium text-gray-900">Notifications</h3>
+                  <div className="border-b border-slate-200 px-4 py-3">
+                    <h3 className="text-sm font-semibold text-slate-900">Notifications</h3>
                   </div>
                   <div className="max-h-64 overflow-y-auto">
                     {notifications.map((notification) => (
                       <div
                         key={notification.id}
-                        className={`px-4 py-3 hover:bg-gray-50 ${
-                          notification.unread ? 'bg-blue-50' : ''
+                        className={`px-4 py-3 transition hover:bg-slate-50 ${
+                          notification.unread ? 'bg-primary-50/70' : ''
                         }`}
                       >
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
-                            <p className="text-sm font-medium text-gray-900">
+                            <p className="text-sm font-medium text-slate-900">
                               {notification.title}
                             </p>
-                            <p className="text-sm text-gray-500 mt-1">
+                            <p className="mt-1 text-sm text-slate-500">
                               {notification.message}
                             </p>
                           </div>
                           {notification.unread && (
-                            <div className="ml-2 h-2 w-2 bg-blue-500 rounded-full"></div>
+                            <div className="ml-2 mt-1 h-2.5 w-2.5 rounded-full bg-primary-500"></div>
                           )}
                         </div>
-                        <p className="text-xs text-gray-400 mt-2">{notification.time}</p>
+                        <p className="mt-2 text-xs text-slate-400">{notification.time}</p>
                       </div>
                     ))}
                   </div>
-                  <div className="px-4 py-2 border-t border-gray-200">
-                    <button className="text-sm text-primary-600 hover:text-primary-500">
+                  <div className="border-t border-slate-200 px-4 py-3">
+                    <button className="text-sm font-medium text-primary-600 transition hover:text-primary-500">
                       View all notifications
                     </button>
                   </div>
@@ -182,36 +186,36 @@ const Topbar = ({ setSidebarOpen, currentPath }) => {
           <div className="relative" ref={userMenuRef}>
             <button
               type="button"
-              className="max-w-xs bg-white flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+              className="flex max-w-xs items-center rounded-2xl border border-slate-200 bg-white px-2.5 py-2 text-sm shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
               onClick={() => setUserMenuOpen(!userMenuOpen)}
             >
               <span className="sr-only">Open user menu</span>
               <img
-                className="h-8 w-8 rounded-full"
+                className="h-10 w-10 rounded-2xl object-cover"
                 src={user?.photo || `https://ui-avatars.com/api/?name=${user?.fullName || 'Admin'}&background=3b82f6&color=fff`}
                 alt=""
               />
               <div className="ml-3 text-left">
-                <p className="text-sm font-medium text-gray-700">
+                <p className="text-sm font-semibold text-slate-800">
                   {user?.fullName || 'Admin User'}
                 </p>
-                <p className="text-xs text-gray-500">{user?.role || 'Admin'}</p>
+                <p className="text-xs text-slate-500">{String(user?.role || 'Admin').replace(/_/g, ' ')}</p>
               </div>
-              <ChevronDownIcon className="ml-2 h-4 w-4 text-gray-400" />
+              <ChevronDownIcon className="ml-2 h-4 w-4 text-slate-400" />
             </button>
 
             {/* User dropdown menu */}
             {userMenuOpen && (
-              <div className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none">
-                <div className="py-1">
+              <div className="absolute right-0 mt-3 w-56 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60">
+                <div className="py-2">
                   <button
                     onClick={() => {
                       setUserMenuOpen(false);
                       navigate('/admin/profile');
                     }}
-                    className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+                    className="flex w-full items-center px-4 py-3 text-left text-sm text-slate-700 transition hover:bg-slate-50"
                   >
-                    <UserCircleIcon className="mr-3 h-5 w-5 text-gray-400" />
+                    <UserCircleIcon className="mr-3 h-5 w-5 text-slate-400" />
                     Your Profile
                   </button>
                   <button
@@ -219,17 +223,17 @@ const Topbar = ({ setSidebarOpen, currentPath }) => {
                       setUserMenuOpen(false);
                       navigate('/admin/settings');
                     }}
-                    className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+                    className="flex w-full items-center px-4 py-3 text-left text-sm text-slate-700 transition hover:bg-slate-50"
                   >
-                    <Cog6ToothIcon className="mr-3 h-5 w-5 text-gray-400" />
+                    <Cog6ToothIcon className="mr-3 h-5 w-5 text-slate-400" />
                     Settings
                   </button>
-                  <div className="border-t border-gray-100"></div>
+                  <div className="mx-4 border-t border-slate-100"></div>
                   <button
                     onClick={handleLogout}
-                    className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+                    className="flex w-full items-center px-4 py-3 text-left text-sm text-red-600 transition hover:bg-red-50"
                   >
-                    <ArrowRightOnRectangleIcon className="mr-3 h-5 w-5 text-gray-400" />
+                    <ArrowRightOnRectangleIcon className="mr-3 h-5 w-5 text-red-400" />
                     Sign out
                   </button>
                 </div>

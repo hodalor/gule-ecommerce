@@ -20,16 +20,16 @@ import {
   ArrowPathIcon,
   ExclamationTriangleIcon,
   CheckCircleIcon,
-  SparklesIcon
+  SparklesIcon,
+  PhotoIcon
 } from '@heroicons/react/24/outline';
+import ContentSettingsTab from '../../components/settings/ContentSettingsTab';
 
 const Settings = () => {
   const dispatch = useDispatch();
   const { 
     systemSettings, 
     featureSettings,
-    loading, 
-    error,
     lastBackup 
   } = useSelector((state) => state.settings);
   const { user } = useSelector((state) => state.auth);
@@ -73,6 +73,7 @@ const Settings = () => {
     { id: 'security', name: 'Security', icon: ShieldCheckIcon },
     { id: 'notifications', name: 'Notifications', icon: BellIcon },
     { id: 'features', name: 'Features', icon: SparklesIcon },
+    { id: 'content', name: 'Content', icon: PhotoIcon },
     { id: 'localization', name: 'Localization', icon: GlobeAltIcon },
     { id: 'backup', name: 'Backup & Restore', icon: DocumentDuplicateIcon }
   ];
@@ -602,6 +603,11 @@ const Settings = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Localization Settings */}
+      {activeTab === 'content' && (
+        <ContentSettingsTab />
       )}
 
       {/* Localization Settings */}

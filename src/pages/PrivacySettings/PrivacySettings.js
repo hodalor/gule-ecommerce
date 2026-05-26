@@ -3,8 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import {
   fetchPrivacySettings,
   updatePrivacySetting,
-  togglePreviewMode,
-  setPreviewMode,
+  togglePreviewMode
 } from '../../store/slices/settingsSlice';
 import {
   EyeIcon,

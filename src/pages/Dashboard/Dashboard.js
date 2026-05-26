@@ -22,10 +22,41 @@ import {
   StarIcon
 } from '@heroicons/react/24/outline';
 
+const DashboardSkeleton = () => (
+  <div className="space-y-6 animate-pulse">
+    <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="h-6 w-48 rounded bg-slate-200" />
+      <div className="mt-3 h-4 w-72 rounded bg-slate-100" />
+    </div>
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      {[...Array(4)].map((_, index) => (
+        <div key={index} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="h-10 w-10 rounded-xl bg-slate-200" />
+          <div className="mt-4 h-4 w-24 rounded bg-slate-100" />
+          <div className="mt-3 h-8 w-20 rounded bg-slate-200" />
+        </div>
+      ))}
+    </div>
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+      {[...Array(2)].map((_, index) => (
+        <div key={index} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="h-5 w-36 rounded bg-slate-200" />
+          <div className="mt-5 space-y-3">
+            {[...Array(4)].map((__, inner) => (
+              <div key={inner} className="h-14 rounded-xl bg-slate-100" />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 const Dashboard = () => {
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
   const { statistics, recentActivities, loading, error } = useSelector((state) => state.dashboard);
+  const hasConnectionIssue = typeof error === 'string' && error.toLowerCase().includes('network');
 
   useEffect(() => {
     dispatch(fetchDashboardStatistics());
@@ -33,27 +64,31 @@ const Dashboard = () => {
   }, [dispatch]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-600"></div>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-red-500 text-xl mb-4">Error loading dashboard</div>
-          <div className="text-gray-600 mb-4">{error}</div>
+      <div className="rounded-3xl border border-red-200 bg-white p-8 shadow-sm">
+        <div className="mx-auto max-w-2xl text-center">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50">
+            <ExclamationTriangleIcon className="h-8 w-8 text-red-500" />
+          </div>
+          <div className="mt-5 text-2xl font-bold text-slate-900">Dashboard temporarily unavailable</div>
+          <div className="mt-3 text-sm text-slate-600">{error}</div>
+          {hasConnectionIssue && (
+            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              The admin app could not reach the backend. If the API was starting up, retry now and the dashboard should recover automatically.
+            </div>
+          )}
           <button 
             onClick={() => {
               dispatch(fetchDashboardStatistics());
               dispatch(fetchRecentActivities({ limit: 10 }));
             }}
-            className="bg-primary-600 text-white px-4 py-2 rounded hover:bg-primary-700"
+            className="mt-6 inline-flex items-center rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-700"
           >
-            Retry
+            Retry Dashboard
           </button>
         </div>
       </div>
@@ -66,49 +101,55 @@ const Dashboard = () => {
       name: 'Total Users',
       value: (statistics.users?.buyers?.total || 0) + (statistics.users?.sellers?.total || 0),
       change: '+12%',
-      changeType: 'positive',
+      changeType: 'increase',
       icon: UsersIcon,
-      color: 'bg-blue-500'
+      color: 'bg-blue-500',
+      link: '/admin/users'
     },
     {
       name: 'Total Products',
       value: statistics.products?.total || 0,
       change: '+8%',
-      changeType: 'positive',
+      changeType: 'increase',
       icon: ShoppingBagIcon,
-      color: 'bg-green-500'
+      color: 'bg-green-500',
+      link: '/admin/products'
     },
     {
       name: 'Total Revenue',
       value: `$${(statistics.orders?.totalRevenue || 0).toLocaleString()}`,
       change: '+15%',
-      changeType: 'positive',
+      changeType: 'increase',
       icon: CurrencyDollarIcon,
-      color: 'bg-yellow-500'
+      color: 'bg-yellow-500',
+      link: '/admin/finance'
     },
     {
       name: 'Total Orders',
       value: statistics.orders?.totalOrders || 0,
       change: '+10%',
-      changeType: 'positive',
+      changeType: 'increase',
       icon: ChartBarIcon,
-      color: 'bg-purple-500'
+      color: 'bg-purple-500',
+      link: '/admin/orders'
     },
     {
       name: 'Pending Orders',
       value: statistics.orders?.pendingOrders || 0,
       change: '-5%',
-      changeType: 'negative',
+      changeType: 'decrease',
       icon: TruckIcon,
-      color: 'bg-orange-500'
+      color: 'bg-orange-500',
+      link: '/admin/orders'
     },
     {
       name: 'Average Rating',
       value: (statistics.reviews?.averageRating || 0).toFixed(1),
       change: '+0.2',
-      changeType: 'positive',
+      changeType: 'increase',
       icon: StarIcon,
-      color: 'bg-pink-500'
+      color: 'bg-pink-500',
+      link: '/admin/reviews'
     }
   ];
 
@@ -169,18 +210,18 @@ const Dashboard = () => {
   return (
     <div className="space-y-6">
       {/* Welcome Section */}
-      <div className="bg-white shadow rounded-lg p-6">
+      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">
+            <h1 className="text-2xl font-black text-slate-900">
               Welcome back, {user?.fullName || 'Admin'}!
             </h1>
-            <p className="text-gray-600 mt-1">
+            <p className="mt-1 text-slate-600">
               Here's what's happening with your marketplace today.
             </p>
           </div>
           <div className="text-right">
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-slate-500">
               {new Date().toLocaleDateString('en-US', {
                 weekday: 'long',
                 year: 'numeric',
@@ -188,7 +229,7 @@ const Dashboard = () => {
                 day: 'numeric'
               })}
             </p>
-            <p className="text-lg font-semibold text-gray-900">
+            <p className="text-lg font-semibold text-slate-900">
               {user?.role || 'Admin'}
             </p>
           </div>
@@ -201,15 +242,15 @@ const Dashboard = () => {
           <Link 
             key={stat.name} 
             to={stat.link}
-            className="bg-white shadow rounded-lg p-6 hover:shadow-lg transition-shadow duration-200 block"
+            className="block rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg"
           >
             <div className="flex items-center">
               <div className={`${stat.color} p-3 rounded-lg`}>
                 <stat.icon className="h-6 w-6 text-white" />
               </div>
               <div className="ml-4 flex-1">
-                <p className="text-sm font-medium text-gray-600">{stat.name}</p>
-                <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
+                <p className="text-sm font-medium text-slate-500">{stat.name}</p>
+                <p className="text-2xl font-black text-slate-900">{stat.value}</p>
               </div>
             </div>
             <div className="mt-4 flex items-center">
@@ -234,9 +275,9 @@ const Dashboard = () => {
       {/* Recent Activity and Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Activity */}
-        <div className="bg-white shadow rounded-lg">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-medium text-gray-900">Recent Activity</h3>
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 px-6 py-4">
+            <h3 className="text-lg font-semibold text-slate-900">Recent Activity</h3>
           </div>
           <div className="p-6">
             <div className="space-y-4">
@@ -269,9 +310,9 @@ const Dashboard = () => {
         </div>
 
         {/* Quick Actions */}
-        <div className="bg-white shadow rounded-lg">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-medium text-gray-900">Quick Actions</h3>
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 px-6 py-4">
+            <h3 className="text-lg font-semibold text-slate-900">Quick Actions</h3>
           </div>
           <div className="p-6">
             <div className="grid grid-cols-2 gap-4">
@@ -337,9 +378,9 @@ const Dashboard = () => {
       </div>
 
       {/* System Status */}
-      <div className="bg-white shadow rounded-lg">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900">System Status</h3>
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 px-6 py-4">
+          <h3 className="text-lg font-semibold text-slate-900">System Status</h3>
         </div>
         <div className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -369,10 +410,10 @@ const Dashboard = () => {
       </div>
 
       {/* System Alerts */}
-      <div className="bg-white shadow rounded-lg">
-        <div className="px-6 py-4 border-b border-gray-200">
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 px-6 py-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-medium text-gray-900">System Alerts</h3>
+            <h3 className="text-lg font-semibold text-slate-900">System Alerts</h3>
             <BellIcon className="h-5 w-5 text-gray-400" />
           </div>
         </div>

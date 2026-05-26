@@ -22,17 +22,14 @@ import {
   updateCategory,
   deleteCategory,
   bulkUpdateCategories,
-  fetchCategoryStatistics,
-  exportCategories
+  fetchCategoryStatistics
 } from '../../store/slices/categorySlice';
 
 const CategoryManagement = () => {
   const dispatch = useDispatch();
-  const { user } = useSelector((state) => state.auth);
   const {
     categories,
     loading,
-    error,
     pagination,
     selectedCategory,
     categoryStatistics

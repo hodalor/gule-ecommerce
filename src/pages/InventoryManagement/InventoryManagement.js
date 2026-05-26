@@ -2,11 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   fetchInventory,
-  updateStock,
-  setLowStockAlert,
   bulkUpdateStock,
-  fetchStockHistory,
-  generateStockReport,
   updateInventoryItem,
   flagLowStock,
   requestRestock,
@@ -23,7 +19,6 @@ import {
   EyeIcon,
   PencilIcon,
   BuildingStorefrontIcon,
-  TagIcon,
   ChartBarIcon,
   ClockIcon
 } from '@heroicons/react/24/outline';
@@ -33,7 +28,6 @@ const InventoryManagement = () => {
   const { 
     inventory, 
     loading, 
-    error, 
     pagination,
     stats 
   } = useSelector((state) => state.inventory);

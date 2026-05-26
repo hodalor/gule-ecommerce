@@ -20,9 +20,7 @@ import {
   ShoppingBagIcon,
   ExclamationTriangleIcon,
   CheckCircleIcon,
-  XCircleIcon,
   DocumentArrowDownIcon,
-  FunnelIcon,
   KeyIcon
 } from '@heroicons/react/24/outline';
 import api from '../../utils/api';
@@ -33,7 +31,6 @@ const UserManagement = () => {
   const { 
     users, 
     loading, 
-    error, 
     pagination 
   } = useSelector((state) => state.users);
   const { user: currentUser } = useSelector((state) => state.auth);

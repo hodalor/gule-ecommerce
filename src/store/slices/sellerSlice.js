@@ -1,8 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../utils/api';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
-
 // Async thunks for seller management
 export const fetchSellers = createAsyncThunk(
   'adminSellers/fetchSellers',

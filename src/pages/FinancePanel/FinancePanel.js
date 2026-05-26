@@ -25,8 +25,7 @@ const FinancePanel = () => {
     transactions, 
     escrowFunds, 
     financialSummary,
-    loading, 
-    error 
+    
   } = useSelector((state) => state.finance);
   const { user } = useSelector((state) => state.auth);
 
@@ -34,7 +33,6 @@ const FinancePanel = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
-  const [selectedTransactions, setSelectedTransactions] = useState([]);
 
   const tabs = [
     { id: 'overview', name: 'Overview', icon: CurrencyDollarIcon },

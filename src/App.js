@@ -1,8 +1,6 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Provider, useDispatch, useSelector } from 'react-redux';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
-import CssBaseline from '@mui/material/CssBaseline';
 import { store } from './store';
 import { checkAuthStatus } from './store/slices/authSlice';
 import { Toaster } from 'react-hot-toast';
@@ -67,19 +65,6 @@ const AuthCheck = ({ children }) => {
   return children;
 };
 
-// Create Material-UI theme
-const theme = createTheme({
-  palette: {
-    mode: 'light',
-    primary: {
-      main: '#1976d2',
-    },
-    secondary: {
-      main: '#dc004e',
-    },
-  },
-});
-
 function AppContent() {
   return (
     <Router>
@@ -132,13 +117,10 @@ function AppContent() {
 function App() {
   return (
     <Provider store={store}>
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <div className="App">
-          <AppContent />
-        </div>
-        <Toaster position="top-right" />
-      </ThemeProvider>
+      <div className="App">
+        <AppContent />
+      </div>
+      <Toaster position="top-right" />
     </Provider>
   );
 }

@@ -16,14 +16,11 @@ export const fetchDashboardStatistics = createAsyncThunk(
 
 export const fetchRecentActivities = createAsyncThunk(
   'dashboard/fetchRecentActivities',
-  async ({ limit = 10 } = {}, { rejectWithValue }) => {
-    try {
-      // For now, return empty array since audit logs endpoint doesn't exist
-      // TODO: Implement audit logs endpoint in backend
-      return [];
-    } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch recent activities');
-    }
+  async ({ limit = 10 } = {}) => {
+    void limit;
+    // For now, return empty array since audit logs endpoint doesn't exist
+    // TODO: Implement audit logs endpoint in backend
+    return [];
   }
 );
 

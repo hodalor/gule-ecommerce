@@ -7,13 +7,10 @@ import {
   releaseEscrowFunds,
   refundEscrowFunds,
   bulkUpdateEscrow,
-  fetchEscrowStatistics,
-  setFilters,
-  clearError
+  fetchEscrowStatistics
 } from '../../store/slices/escrowSlice';
 import {
   MagnifyingGlassIcon,
-  FunnelIcon,
   EyeIcon,
   CheckCircleIcon,
   XCircleIcon,
@@ -29,15 +26,12 @@ import {
 
 const EscrowManagement = () => {
   const dispatch = useDispatch();
-  const { user } = useSelector((state) => state.auth);
   const { 
     transactions, 
     loading, 
-    error, 
     pagination, 
     statistics, 
-    selectedTransaction,
-    filters: reduxFilters 
+    selectedTransaction
   } = useSelector((state) => state.escrow);
 
   // Local state management
@@ -53,11 +47,13 @@ const EscrowManagement = () => {
     disputeStatus: ''
   });
 
+  const pageSize = pagination?.itemsPerPage || 20;
+
   useEffect(() => {
     const fetchData = () => {
       dispatch(fetchEscrowTransactions({ 
         page: pagination?.currentPage || 1, 
-        limit: pagination?.itemsPerPage || 20,
+        limit: pageSize,
         search: searchTerm,
         status: selectedTab !== 'all' ? selectedTab : filters.status,
         dateRange: filters.dateRange,
@@ -68,7 +64,7 @@ const EscrowManagement = () => {
 
     fetchData();
     dispatch(fetchEscrowStatistics());
-  }, [dispatch, selectedTab, filters, searchTerm, pagination?.currentPage]);
+  }, [dispatch, selectedTab, filters, searchTerm, pagination?.currentPage, pageSize]);
 
   const handleSearch = (e) => {
     setSearchTerm(e.target.value);
@@ -384,7 +380,7 @@ const EscrowManagement = () => {
             {/* Status Filter */}
             <select
               value={filters.status}
-              onChange={(e) => setFilters({...filters, status: e.target.value})}
+              onChange={(e) => setLocalFilters((prev) => ({ ...prev, status: e.target.value }))}
               className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
             >
               <option value="">All Status</option>
@@ -397,7 +393,7 @@ const EscrowManagement = () => {
             {/* Dispute Status Filter */}
             <select
               value={filters.disputeStatus}
-              onChange={(e) => setFilters({...filters, disputeStatus: e.target.value})}
+              onChange={(e) => setLocalFilters((prev) => ({ ...prev, disputeStatus: e.target.value }))}
               className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
             >
               <option value="">All Dispute Status</option>

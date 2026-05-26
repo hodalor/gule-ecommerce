@@ -13,12 +13,10 @@ import {
   sendSellerPasswordReset
 } from '../../store/slices/sellerSlice';
 import {
-  PlusIcon,
   PencilIcon,
   TrashIcon,
   EyeIcon,
   MagnifyingGlassIcon,
-  FunnelIcon,
   DocumentArrowDownIcon,
   BuildingStorefrontIcon,
   CheckCircleIcon,
@@ -27,7 +25,6 @@ import {
   ClockIcon,
   DocumentTextIcon,
   CurrencyDollarIcon,
-  ChartBarIcon,
   KeyIcon
 } from '@heroicons/react/24/outline';
 
@@ -51,7 +48,6 @@ const SellerManagement = () => {
   
   const [showDocumentModal, setShowDocumentModal] = useState(false);
   const [selectedDocuments, setSelectedDocuments] = useState([]);
-  const [dateRange, setDateRange] = useState({ start: '', end: '' });
 
   // Password reset modal states
   const [showPasswordResetModal, setShowPasswordResetModal] = useState(false);
@@ -89,7 +85,7 @@ const SellerManagement = () => {
 
     fetchData();
     dispatch(fetchSellerStatistics());
-  }, [dispatch, searchTerm, statusFilter, verificationFilter, pagination?.currentPage]);
+  }, [dispatch, searchTerm, statusFilter, verificationFilter, pagination?.currentPage, perPage]);
 
   const handleStatusChange = async (sellerId, newStatus, reason = '') => {
     try {
@@ -104,8 +100,7 @@ const SellerManagement = () => {
         limit: perPage,
         search: searchTerm,
         status: statusFilter,
-        verified: verificationFilter,
-        dateRange: dateRange.start && dateRange.end ? dateRange : undefined
+        verified: verificationFilter
       }));
     } catch (err) {
       console.error('Failed to update seller status:', err);
@@ -132,8 +127,7 @@ const SellerManagement = () => {
         limit: perPage,
         search: searchTerm,
         status: statusFilter,
-        verified: verificationFilter,
-        dateRange: dateRange.start && dateRange.end ? dateRange : undefined
+        verified: verificationFilter
       }));
     } catch (err) {
       console.error('Failed to update verification status:', err);
@@ -204,8 +198,7 @@ const SellerManagement = () => {
           limit: perPage,
           search: searchTerm,
           status: statusFilter,
-          verified: verificationFilter,
-          dateRange: dateRange.start && dateRange.end ? dateRange : undefined
+          verified: verificationFilter
         }));
       } catch (err) {
         console.error('Bulk action failed:', err);
@@ -352,8 +345,7 @@ const SellerManagement = () => {
           limit: pagination?.itemsPerPage || 20,
           search: searchTerm,
           status: statusFilter,
-          verificationStatus: verificationFilter,
-          dateRange: dateRange.start && dateRange.end ? dateRange : undefined
+          verificationStatus: verificationFilter
         }));
       } catch (err) {
         console.error('Failed to delete seller:', err);
