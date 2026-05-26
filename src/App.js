@@ -21,6 +21,7 @@ import AdminManagement from './pages/AdminManagement/AdminManagement';
 import OrderManagement from './pages/OrderManagement/OrderManagement';
 import UserManagement from './pages/UserManagement/UserManagement';
 import ProductManagement from './pages/ProductManagement/ProductManagement';
+import FeaturedRequests from './pages/ProductManagement/FeaturedRequests';
 import SellerManagement from './pages/SellerManagement/SellerManagement';
 import ReviewManagement from './pages/ReviewManagement/ReviewManagement';
 import CategoryManagement from './pages/CategoryManagement/CategoryManagement';
@@ -100,6 +101,7 @@ function AppContent() {
             <Route path="admins" element={<AdminManagement />} />
             <Route path="orders" element={<OrderManagement />} />
             <Route path="products" element={<ProductManagement />} />
+            <Route path="products/featured-requests" element={<FeaturedRequests />} />
             <Route path="sellers" element={<SellerManagement />} />
             <Route path="reviews" element={<ReviewManagement />} />
             <Route path="categories" element={<CategoryManagement />} />

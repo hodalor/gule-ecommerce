@@ -145,6 +145,8 @@ const initialState = {
     wishlistEnabled: true,
     compareEnabled: false,
     recommendationsEnabled: true,
+    featureRatePerDay: 5,
+    featurePaymentRequired: false,
   },
   loading: false,
   error: null,

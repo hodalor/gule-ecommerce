@@ -57,7 +57,7 @@ const Settings = () => {
     notificationFrequency: 'immediate',
     timezone: 'UTC',
     dateFormat: 'MM/DD/YYYY',
-    currency: 'USD',
+    currency: 'ZMW',
     language: 'en',
     enableAnalytics: true,
     enableCookies: true,
@@ -82,7 +82,7 @@ const Settings = () => {
     'Europe/Paris', 'Asia/Tokyo', 'Asia/Shanghai', 'Australia/Sydney'
   ];
 
-  const currencies = ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD'];
+  const currencies = ['ZMW', 'USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD'];
   const languages = [
     { code: 'en', name: 'English' },
     { code: 'es', name: 'Spanish' },
@@ -547,6 +547,57 @@ const Settings = () => {
                   />
                   <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
                 </label>
+              </div>
+
+              {/* Featured Request Settings */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Featured Rate Per Day (ZMW)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={featureSettings?.featureRatePerDay ?? 5}
+                    onChange={async (e) => {
+                      const value = Math.max(1, parseInt(e.target.value || '5', 10));
+                      dispatch(updateFeatureSettingLocal({ setting: 'featureRatePerDay', value }));
+                      try {
+                        await dispatch(updateFeatureSetting({ setting: 'featureRatePerDay', value })).unwrap?.();
+                        localStorage.setItem('featureRatePerDay', String(value));
+                        toast.success('Featured rate updated');
+                      } catch (err) {
+                        toast.error('Failed to update rate');
+                      }
+                    }}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Used to calculate the total cost when sellers request featuring.</p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-900">Payment Required for Feature Requests</h4>
+                    <p className="text-sm text-gray-500">When enabled, sellers must pay before submission.</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={!!featureSettings?.featurePaymentRequired}
+                      onChange={async (e) => {
+                        const checked = e.target.checked;
+                        dispatch(updateFeatureSettingLocal({ setting: 'featurePaymentRequired', value: checked }));
+                        try {
+                          await dispatch(updateFeatureSetting({ setting: 'featurePaymentRequired', value: checked })).unwrap?.();
+                          localStorage.setItem('featurePaymentRequired', JSON.stringify(checked));
+                          toast.success(checked ? 'Payment requirement enabled' : 'Payment requirement disabled');
+                        } catch (err) {
+                          toast.error('Failed to update setting');
+                        }
+                      }}
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                  </label>
+                </div>
               </div>
             </div>
           </div>

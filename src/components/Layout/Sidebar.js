@@ -57,6 +57,13 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
       current: location.pathname.startsWith('/admin/products'),
       roles: ['Super Admin', 'Admin', 'Inventory Manager']
     },
+    {
+      name: 'Featured Requests',
+      href: '/admin/products/featured-requests',
+      icon: StarIcon,
+      current: location.pathname.startsWith('/admin/products/featured-requests'),
+      roles: ['Super Admin', 'Admin', 'Inventory Manager']
+    },
     { 
       name: 'Seller Management', 
       href: '/admin/sellers', 
