@@ -1,5 +1,4 @@
 const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
 // Import the Admin model
@@ -61,14 +60,16 @@ const createAdminUser = async () => {
       const testPassword = 'admin123';
       const isPasswordValid = await existingAdmin.comparePassword(testPassword);
       console.log(`- Password test (${testPassword}):`, isPasswordValid ? '✅ Valid' : '❌ Invalid');
+
+      if (!isPasswordValid) {
+        existingAdmin.password = testPassword;
+        await existingAdmin.save();
+        console.log('🔧 Admin password repaired and reset to admin123');
+      }
       
       mongoose.disconnect();
       return;
     }
-
-    // Create new admin user
-    const saltRounds = 12;
-    const hashedPassword = await bcrypt.hash('admin123', saltRounds);
 
     // Create admin user with all required fields
     const adminData = {
@@ -76,7 +77,7 @@ const createAdminUser = async () => {
       firstName: 'Super',
       lastName: 'Admin',
       email: 'admin@gule.com',
-      password: hashedPassword,
+      password: 'admin123',
       role: 'super_admin',
       department: 'administration',
       jobTitle: 'System Administrator',

@@ -48,6 +48,13 @@ const commonValidations = {
     .normalizeEmail()
     .toLowerCase(),
 
+  emailOptional: (field = 'email') => body(field)
+    .optional({ checkFalsy: true })
+    .isEmail()
+    .withMessage('Please provide a valid email address')
+    .normalizeEmail()
+    .toLowerCase(),
+
   // Password validation
   password: (field = 'password') => body(field)
     .isLength({ min: 8, max: 128 })
@@ -137,9 +144,14 @@ const commonValidations = {
 const validateUserRegistration = [
   commonValidations.name('firstName'),
   commonValidations.name('lastName'),
-  commonValidations.email(),
+  commonValidations.emailOptional(),
   commonValidations.password(),
-  commonValidations.phone(),
+  body('phone')
+    .trim()
+    .notEmpty()
+    .withMessage('Phone number is required')
+    .matches(/^[+]?[0-9\s\-()]{7,15}$/)
+    .withMessage('Please provide a valid phone number'),
   
   body('address.street')
     .optional()
@@ -245,10 +257,26 @@ const validateSellerRegistration = [
  * Login validation
  */
 const validateLogin = [
-  commonValidations.email(),
+  body().custom((value) => {
+    if (!value?.identifier && !value?.email) {
+      throw new Error('Email or phone number is required');
+    }
+    return true;
+  }),
+  body('identifier')
+    .optional({ checkFalsy: true })
+    .trim()
+    .isLength({ min: 3, max: 100 })
+    .withMessage('Email or phone number must be between 3 and 100 characters'),
+  commonValidations.emailOptional(),
   body('password')
     .notEmpty()
     .withMessage('Password is required'),
+
+  body('userType')
+    .optional()
+    .isIn(['buyer', 'seller', 'admin'])
+    .withMessage('User type must be buyer, seller, or admin'),
   
   body('rememberMe')
     .optional()

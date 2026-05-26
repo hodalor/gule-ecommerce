@@ -11,6 +11,7 @@ const xss = require('xss-clean');
 const hpp = require('hpp');
 const fileUpload = require('express-fileupload');
 const path = require('path');
+const net = require('net');
 const winston = require('winston');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
@@ -534,8 +535,36 @@ const HOST = process.env.HOST || 'localhost';
 
 let serverInstance;
 
+const checkPortAvailability = (port, host) => new Promise((resolve, reject) => {
+  const tester = net.createServer();
+
+  tester.once('error', (error) => {
+    if (error.code === 'EADDRINUSE') {
+      resolve(false);
+      return;
+    }
+
+    reject(error);
+  });
+
+  tester.once('listening', () => {
+    tester.close(() => resolve(true));
+  });
+
+  tester.listen(port, host);
+});
+
 const startServer = async () => {
   try {
+    const portAvailable = await checkPortAvailability(PORT, HOST);
+
+    if (!portAvailable) {
+      logger.error(`Port ${PORT} is already in use`);
+      logger.warn('Skipping database initialization because another process is already listening on the configured port');
+      process.exit(1);
+      return;
+    }
+
     // Initialize database
     await initializeDatabase();
     logger.info('Database initialized successfully');

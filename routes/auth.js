@@ -11,6 +11,7 @@ const { User, Seller, Admin, AuditLog } = require('../models');
 // Import middleware
 const { 
   authenticate, 
+  authorizeUserType,
   generateToken,
   generateRefreshToken,
   verifyRefreshToken,
@@ -32,6 +33,58 @@ const logger = require('../utils/logger');
 
 
 const router = express.Router();
+
+
+const normalizeAuthUser = (user, userType) => {
+  const baseUser = {
+    id: user._id,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    name: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+    email: user.email,
+    phone: user.phone || '',
+    userType,
+    isVerified: Boolean(
+      user.isVerified ??
+      user.isEmailVerified ??
+      (user.verificationStatus === 'verified')
+    ),
+    isActive: user.isActive !== false,
+    lastLogin: user.lastLogin || null,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+    address: user.address || {}
+  };
+
+  if (userType === 'seller') {
+    return {
+      ...baseUser,
+      businessName: user.businessName,
+      businessType: user.businessType,
+      verificationStatus: user.verificationStatus,
+      taxNumber: user.taxNumber || '',
+      businessAddress: user.businessAddress || {},
+      businessRegistrationNumber: user.businessRegistrationNumber || ''
+    };
+  }
+
+  if (userType === 'admin') {
+    return {
+      ...baseUser,
+      role: user.role,
+      permissions: user.permissions,
+      employeeId: user.employeeId
+    };
+  }
+
+  return baseUser;
+};
+
+const normalizeOptionalEmail = (value) => {
+  if (typeof value !== 'string') return '';
+  return value.trim().toLowerCase();
+};
+
 
 // Rate limiting for auth endpoints
 const strictAuthLimiter = rateLimit({
@@ -61,11 +114,14 @@ router.post('/register/buyer',
         dateOfBirth,
         address 
       } = req.body;
+      const normalizedEmail = normalizeOptionalEmail(email);
 
       // Check if user already exists
-      const existingBuyer = await User.findOne({ 
-        $or: [{ email }, { phone }] 
-      });
+      const duplicateChecks = [{ phone }];
+      if (normalizedEmail) {
+        duplicateChecks.push({ email: normalizedEmail });
+      }
+      const existingBuyer = await User.findOne({ $or: duplicateChecks });
       
       if (existingBuyer) {
         // Log registration attempt for duplicate user (optional logging)
@@ -117,36 +173,39 @@ router.post('/register/buyer',
       const buyer = new User({
         firstName,
         lastName,
-        email,
+        email: normalizedEmail || undefined,
         password,
         phone,
         dateOfBirth,
         address,
-        isEmailVerified: false,
-        isPhoneVerified: false,
-        registrationDate: new Date(),
-        lastLoginDate: null,
-        accountStatus: 'active'
+        isVerified: !normalizedEmail,
+        isEmailVerified: !normalizedEmail,
+        isActive: true,
+        lastLogin: null
       });
 
       await buyer.save();
 
       // Generate email verification token
-      const emailVerificationToken = crypto.randomBytes(32).toString('hex');
-      buyer.emailVerificationToken = emailVerificationToken;
-      buyer.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-      await buyer.save();
+      let emailVerificationSent = false;
+      if (normalizedEmail) {
+        const emailVerificationToken = crypto.randomBytes(32).toString('hex');
+        buyer.emailVerificationToken = emailVerificationToken;
+        buyer.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+        await buyer.save();
 
-      // Send verification email
-      try {
-        await sendVerificationEmail(
-          email,
-          `${firstName} ${lastName}`,
-          emailVerificationToken,
-          'buyer'
-        );
-      } catch (emailError) {
-        logger.error('Failed to send verification email', emailError);
+        // Send verification email
+        try {
+          await sendVerificationEmail(
+            normalizedEmail,
+            `${firstName} ${lastName}`,
+            emailVerificationToken,
+            'buyer'
+          );
+          emailVerificationSent = true;
+        } catch (emailError) {
+          logger.error('Failed to send verification email', emailError);
+        }
       }
 
       // Log successful registration
@@ -198,19 +257,9 @@ router.post('/register/buyer',
 
       res.status(201).json({
         message: 'Registration successful',
-        user: {
-          id: buyer._id,
-          firstName: buyer.firstName,
-          lastName: buyer.lastName,
-          email: buyer.email,
-          phone: buyer.phone,
-          userType: 'buyer',
-          isEmailVerified: buyer.isEmailVerified,
-          isPhoneVerified: buyer.isPhoneVerified,
-          accountStatus: buyer.accountStatus
-        },
+        user: normalizeAuthUser(buyer, 'buyer'),
         accessToken,
-        emailVerificationSent: true
+        emailVerificationSent
       });
 
     } catch (error) {
@@ -296,7 +345,7 @@ router.post('/register/seller',
         query.$or.push({ businessRegistrationNumber });
       }
       if (taxId) {
-        query.$or.push({ taxId });
+        query.$or.push({ taxNumber: taxId });
       }
 
       const existingSeller = await Seller.findOne(query);
@@ -342,7 +391,7 @@ router.post('/register/seller',
         } else if (businessRegistrationNumber && existingSeller.businessRegistrationNumber === businessRegistrationNumber) {
           conflictField = 'businessRegistrationNumber';
           conflictMessage = 'A seller account with this business registration number already exists';
-        } else if (taxId && existingSeller.taxId === taxId) {
+        } else if (taxId && existingSeller.taxNumber === taxId) {
           conflictField = 'taxId';
           conflictMessage = 'A seller account with this tax ID already exists';
         } else {
@@ -368,17 +417,17 @@ router.post('/register/seller',
         businessName,
         businessType,
         businessRegistrationNumber,
-        taxId,
+        taxNumber: taxId,
         businessAddress,
         businessDescription,
         website,
         socialMedia,
+        isVerified: false,
         isEmailVerified: false,
-        isPhoneVerified: false,
         verificationStatus: 'pending',
-        accountStatus: 'pending_verification',
-        registrationDate: new Date(),
-        lastLoginDate: null
+        isActive: true,
+        status: 'active',
+        lastLogin: null
       });
 
       await seller.save();
@@ -437,19 +486,7 @@ router.post('/register/seller',
       res.status(201).json({
         success: true,
         message: 'Seller registration successful! Please check your email for verification instructions.',
-        user: {
-          id: seller._id,
-          firstName: seller.firstName,
-          lastName: seller.lastName,
-          email: seller.email,
-          phone: seller.phone,
-          businessName: seller.businessName,
-          businessType: seller.businessType,
-          userType: 'seller',
-          isEmailVerified: seller.isEmailVerified,
-          verificationStatus: seller.verificationStatus,
-          accountStatus: seller.accountStatus
-        },
+        user: normalizeAuthUser(seller, 'seller'),
         accessToken,
         emailVerificationSent: true,
         nextSteps: [
@@ -512,9 +549,10 @@ router.post('/login',
   handleValidationErrors,
   async (req, res) => {
     try {
-      const { email, password, userType } = req.body;
+      const { identifier, email, password, userType } = req.body;
+      const loginIdentifier = (identifier || email || '').trim();
       logger.info('Login attempt', {
-        email,
+        identifier: loginIdentifier,
         userType,
         ip: req.ip,
         userAgent: req.get('User-Agent')
@@ -542,9 +580,18 @@ router.post('/login',
       }
 
       // Find user
-      user = await Model.findOne({ email }).select('+password');
+      const isEmailIdentifier = loginIdentifier.includes('@');
+      const lookupQuery = isEmailIdentifier
+        ? { email: loginIdentifier.toLowerCase() }
+        : {
+            $or: [
+              { phone: loginIdentifier },
+              { email: loginIdentifier.toLowerCase() }
+            ]
+          };
+      user = await Model.findOne(lookupQuery).select('+password');
 
-      console.log('Login attempt for:', email, 'User found:', !!user);
+      console.log('Login attempt for:', loginIdentifier, 'User found:', !!user);
       if (user) {
         console.log('User password exists:', !!user.password);
         console.log('Password length:', user.password ? user.password.length : 'N/A');
@@ -560,7 +607,7 @@ router.post('/login',
             performedBy: null,
             userType: userType,
             targetResource: 'Authentication',
-            description: `Failed login attempt - user not found for email: ${email}`,
+            description: `Failed login attempt - user not found for identifier: ${loginIdentifier}`,
             severity: 'medium',
             status: 'failure',
             session: {
@@ -568,7 +615,7 @@ router.post('/login',
               userAgent: req.get('User-Agent')
             },
             metadata: { 
-              email, 
+              identifier: loginIdentifier, 
               reason: 'user_not_found',
               attemptTime: new Date()
             }
@@ -579,7 +626,7 @@ router.post('/login',
 
         return res.status(401).json({
           error: 'Invalid credentials',
-          message: 'Email or password is incorrect'
+          message: 'Email/phone or password is incorrect'
         });
       }
 
@@ -600,7 +647,7 @@ router.post('/login',
             userType: userType,
             targetResource: 'Authentication',
             targetId: user._id,
-            description: `Failed login attempt - invalid password for user: ${email}`,
+            description: `Failed login attempt - invalid password for user: ${loginIdentifier}`,
             severity: 'medium',
             status: 'failure',
             session: {
@@ -608,7 +655,7 @@ router.post('/login',
               userAgent: req.get('User-Agent')
             },
             metadata: { 
-              email, 
+              identifier: loginIdentifier, 
               reason: 'invalid_password',
               attemptTime: new Date(),
               userId: user._id
@@ -620,12 +667,12 @@ router.post('/login',
 
         return res.status(401).json({
           error: 'Invalid credentials',
-          message: 'Email or password is incorrect'
+          message: 'Email/phone or password is incorrect'
         });
       }
 
       // Check account status
-      if (user.accountStatus === 'suspended') {
+      if (user.isActive === false || user.status === 'suspended') {
         // Log suspended account login attempt
         try {
           await AuditLog.create({
@@ -636,7 +683,7 @@ router.post('/login',
             userType: userType,
             targetResource: 'Authentication',
             targetId: user._id,
-            description: `Login attempt on suspended account for user: ${email}`,
+            description: `Login attempt on suspended account for user: ${loginIdentifier}`,
             severity: 'high',
             status: 'failure',
             session: {
@@ -644,7 +691,7 @@ router.post('/login',
               userAgent: req.get('User-Agent')
             },
             metadata: { 
-              email, 
+              identifier: loginIdentifier, 
               reason: 'account_suspended',
               attemptTime: new Date(),
               userId: user._id,
@@ -661,7 +708,7 @@ router.post('/login',
         });
       }
 
-      if (user.accountStatus === 'deactivated') {
+      if (user.status === 'inactive') {
         return res.status(403).json({
           error: 'Account deactivated',
           message: 'Your account has been deactivated. Please contact support to reactivate.'
@@ -707,7 +754,7 @@ router.post('/login',
           userType: userType,
           targetResource: 'Authentication',
           targetId: user._id,
-          description: `Successful login for user: ${email}`,
+          description: `Successful login for user: ${loginIdentifier}`,
           severity: 'low',
           status: 'success',
           session: {
@@ -715,7 +762,7 @@ router.post('/login',
             userAgent: req.get('User-Agent')
           },
           metadata: { 
-            email, 
+            identifier: loginIdentifier, 
             loginTime: new Date(),
             userId: user._id,
             userType: userType,
@@ -727,35 +774,9 @@ router.post('/login',
         logger.warn('Failed to log audit entry for successful login', { error: auditError.message });
       }
 
-      // Prepare user data for response
-      const userData = {
-        id: user._id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        phone: user.phone,
-        userType,
-        isEmailVerified: user.isEmailVerified,
-        isPhoneVerified: user.isPhoneVerified,
-        accountStatus: user.accountStatus,
-        lastLogin: user.lastLogin,
-        lastLoginDate: user.lastLogin
-      };
-
-      // Add type-specific data
-      if (userType === 'seller') {
-        userData.businessName = user.businessName;
-        userData.businessType = user.businessType;
-        userData.verificationStatus = user.verificationStatus;
-      } else if (userType === 'admin') {
-        userData.role = user.role;
-        userData.permissions = user.permissions;
-        userData.employeeId = user.employeeId;
-      }
-
       res.json({
         message: 'Login successful',
-        user: userData,
+        user: normalizeAuthUser(user, userType),
         accessToken
       });
 
@@ -768,7 +789,7 @@ router.post('/login',
           userId: null,
           userType: req.body.userType || 'unknown',
           resourceType: 'Authentication',
-          details: { error: error.message, email: req.body.email },
+          details: { error: error.message, identifier: req.body.identifier || req.body.email },
           ipAddress: req.ip,
           userAgent: req.get('User-Agent'),
           severity: 'high',
@@ -838,6 +859,146 @@ router.post('/refresh-token',
   }
 );
 
+// Upgrade a general buyer account into a seller account
+router.post('/upgrade-to-seller',
+  authenticate,
+  authorizeUserType(['buyer']),
+  body('businessName')
+    .trim()
+    .isLength({ min: 2, max: 100 })
+    .withMessage('Business name must be between 2 and 100 characters'),
+  body('businessPhone')
+    .trim()
+    .notEmpty()
+    .withMessage('Business phone is required')
+    .matches(/^[+]?[0-9\s\-()]{7,15}$/)
+    .withMessage('Please provide a valid business phone number'),
+  body('businessEmail')
+    .optional({ checkFalsy: true })
+    .isEmail()
+    .withMessage('Please provide a valid business email address')
+    .normalizeEmail()
+    .toLowerCase(),
+  body('businessType')
+    .optional()
+    .isIn(['individual', 'company', 'partnership'])
+    .withMessage('Business type must be individual, company, or partnership'),
+  body('isRegistered')
+    .optional()
+    .isBoolean()
+    .withMessage('Registered status must be true or false')
+    .toBoolean(),
+  body('businessRegistrationNumber')
+    .optional({ checkFalsy: true })
+    .trim()
+    .isLength({ max: 50 })
+    .withMessage('Business registration number must not exceed 50 characters'),
+  body('currentPassword')
+    .notEmpty()
+    .withMessage('Current password is required'),
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      const {
+        businessName,
+        businessPhone,
+        businessEmail,
+        businessType = 'individual',
+        businessDescription = '',
+        businessAddress = {},
+        isRegistered = false,
+        businessRegistrationNumber = '',
+        currentPassword
+      } = req.body;
+
+      const buyer = await User.findById(req.user.id).select('+password');
+      if (!buyer) {
+        return res.status(404).json({
+          success: false,
+          message: 'Buyer account not found'
+        });
+      }
+
+      const isPasswordValid = await buyer.comparePassword(currentPassword);
+      if (!isPasswordValid) {
+        return res.status(401).json({
+          success: false,
+          message: 'Current password is incorrect'
+        });
+      }
+
+      const sellerEmail = normalizeOptionalEmail(businessEmail) || normalizeOptionalEmail(buyer.email);
+      if (!sellerEmail) {
+        return res.status(400).json({
+          success: false,
+          message: 'Business email is required before becoming a seller'
+        });
+      }
+
+      const duplicateChecks = [
+        { email: sellerEmail },
+        { phone: businessPhone }
+      ];
+
+      if (isRegistered && businessRegistrationNumber) {
+        duplicateChecks.push({ businessRegistrationNumber: businessRegistrationNumber.trim() });
+      }
+
+      const existingSeller = await Seller.findOne({ $or: duplicateChecks });
+      if (existingSeller) {
+        return res.status(409).json({
+          success: false,
+          message: 'A seller account already exists with this email, phone, or registration number'
+        });
+      }
+
+      const seller = new Seller({
+        firstName: buyer.firstName,
+        lastName: buyer.lastName,
+        email: sellerEmail,
+        password: currentPassword,
+        phone: businessPhone,
+        businessName,
+        businessType,
+        businessDescription,
+        businessRegistrationNumber: isRegistered ? businessRegistrationNumber.trim() : '',
+        businessAddress,
+        isVerified: buyer.isVerified === true,
+        isEmailVerified: Boolean(buyer.isEmailVerified || buyer.isVerified),
+        verificationStatus: 'pending',
+        isActive: true,
+        status: 'active',
+        lastLogin: null
+      });
+
+      await seller.save();
+
+      const accessToken = generateToken(seller._id, seller.role, 'seller');
+      const refreshToken = generateRefreshToken(seller._id, 'seller');
+
+      res.cookie('refreshToken', refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000
+      });
+
+      res.json({
+        success: true,
+        message: 'Seller profile created successfully. You can now manage your store account.',
+        user: normalizeAuthUser(seller, 'seller'),
+        accessToken
+      });
+    } catch (error) {
+      logger.error('Seller upgrade error', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to create seller profile'
+      });
+    }
+  }
+);
+
 // Logout
 router.post('/logout',
   authenticate,
@@ -896,7 +1057,7 @@ router.post('/verify-email',
     try {
       const { token, userType } = req.body;
 
-      const Model = userType === 'buyer' ? Buyer : Seller;
+      const Model = userType === 'buyer' ? User : Seller;
       
       const user = await Model.findOne({
         emailVerificationToken: token,
@@ -911,6 +1072,9 @@ router.post('/verify-email',
       }
 
       user.isEmailVerified = true;
+      if (userType === 'buyer') {
+        user.isVerified = true;
+      }
       user.emailVerificationToken = undefined;
       user.emailVerificationExpires = undefined;
       await user.save();
@@ -945,11 +1109,7 @@ router.post('/verify-email',
 
       res.json({
         message: 'Email verified successfully',
-        user: {
-          id: user._id,
-          email: user.email,
-          isEmailVerified: user.isEmailVerified
-        }
+        user: normalizeAuthUser(user, userType)
       });
 
     } catch (error) {
@@ -1217,7 +1377,7 @@ router.get('/me',
     try {
       const { userType, id } = req.user;
       
-      const Model = userType === 'buyer' ? Buyer : 
+      const Model = userType === 'buyer' ? User : 
                    userType === 'seller' ? Seller : Admin;
       
       const user = await Model.findById(id).select('-password');
@@ -1230,7 +1390,7 @@ router.get('/me',
       }
 
       res.json({
-        user: user.toJSON()
+        user: normalizeAuthUser(user, userType)
       });
 
     } catch (error) {

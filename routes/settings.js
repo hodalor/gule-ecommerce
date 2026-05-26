@@ -7,6 +7,7 @@ const AuditLog = require('../models/AuditLog');
 const { authenticate, authorize } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validation');
 const logger = require('../config/logger');
+const { uploadToCloudinary } = require('../utils/cloudinary');
 
 // Rate limiting for settings endpoints
 const settingsRateLimit = rateLimit({
@@ -57,6 +58,136 @@ const updateRateLimit = rateLimit({
 
 // Apply rate limiting to all routes
 router.use(settingsRateLimit);
+
+const DEFAULT_HOMEPAGE_CONTENT = {
+  heroBanners: [
+    {
+      id: 'hero-1',
+      title: 'Shop trusted products from local sellers',
+      subtitle: 'Fast discovery, smooth ordering, and a modern multi-vendor buying experience.',
+      ctaText: 'Shop products',
+      ctaLink: '/products',
+      imageUrl: '',
+      publicId: '',
+      showOverlay: true,
+      showContent: true,
+      isActive: true
+    },
+    {
+      id: 'hero-2',
+      title: 'Start as a buyer, upgrade later to seller',
+      subtitle: 'Create one general account first, then add your business profile when you are ready to sell.',
+      ctaText: 'Become a seller',
+      ctaLink: '/become-seller',
+      imageUrl: '',
+      publicId: '',
+      showOverlay: true,
+      showContent: true,
+      isActive: true
+    },
+    {
+      id: 'hero-3',
+      title: 'Featured products get priority placement',
+      subtitle: 'Promote top products first while keeping new arrivals visible for ongoing discovery.',
+      ctaText: 'See all products',
+      ctaLink: '/products',
+      imageUrl: '',
+      publicId: '',
+      showOverlay: true,
+      showContent: true,
+      isActive: true
+    }
+  ],
+  promoAds: [
+    {
+      id: 'promo-1',
+      title: 'Sell on Gule',
+      text: 'Open your seller profile and start listing products.',
+      ctaText: 'Sell now',
+      ctaLink: '/become-seller',
+      imageUrl: '',
+      publicId: '',
+      isActive: true
+    },
+    {
+      id: 'promo-2',
+      title: 'Track orders',
+      text: 'Keep buyers updated and manage orders smoothly.',
+      ctaText: 'View products',
+      ctaLink: '/products',
+      imageUrl: '',
+      publicId: '',
+      isActive: true
+    },
+    {
+      id: 'promo-3',
+      title: 'Browse all deals',
+      text: 'Take buyers directly into the full catalog.',
+      ctaText: 'See all products',
+      ctaLink: '/products',
+      imageUrl: '',
+      publicId: '',
+      isActive: true
+    }
+  ],
+  highlightedCategoryIds: []
+};
+
+const normalizeContentItem = (item, prefix, index, type) => ({
+  id: item?.id || `${prefix}-${index + 1}`,
+  title: item?.title || '',
+  subtitle: type === 'hero' ? (item?.subtitle || '') : undefined,
+  text: type === 'promo' ? (item?.text || '') : undefined,
+  ctaText: item?.ctaText || '',
+  ctaLink: item?.ctaLink || '/products',
+  imageUrl: item?.imageUrl || '',
+  publicId: item?.publicId || '',
+  showOverlay: type === 'hero' ? item?.showOverlay !== false : undefined,
+  showContent: type === 'hero' ? item?.showContent !== false : undefined,
+  isActive: item?.isActive !== false
+});
+
+const normalizeHomepageContent = (content = {}) => {
+  const heroSource = Array.isArray(content.heroBanners) ? content.heroBanners : DEFAULT_HOMEPAGE_CONTENT.heroBanners;
+  const promoSource = Array.isArray(content.promoAds) ? content.promoAds : DEFAULT_HOMEPAGE_CONTENT.promoAds;
+  const highlightedCategoryIds = Array.isArray(content.highlightedCategoryIds)
+    ? content.highlightedCategoryIds.filter(Boolean)
+    : [];
+
+  return {
+    heroBanners: heroSource.map((item, index) => normalizeContentItem(item, 'hero', index, 'hero')),
+    promoAds: promoSource.map((item, index) => normalizeContentItem(item, 'promo', index, 'promo')),
+    highlightedCategoryIds
+  };
+};
+
+const enrichContentImages = async (items = [], files = {}, folder) => {
+  const normalizedFiles = files || {};
+  return Promise.all(items.map(async (item, index) => {
+    const explicitField = item?.imageUploadField;
+    const fallbackField = `${folder}_${index}`;
+    const uploadField = explicitField || fallbackField;
+    const uploadFile = normalizedFiles[uploadField];
+
+    if (!uploadFile) {
+      return {
+        ...item,
+        imageUploadField: undefined
+      };
+    }
+
+    const uploadResult = await uploadToCloudinary(uploadFile.tempFilePath || uploadFile.data, {
+      folder: `gule/${folder}`
+    });
+
+    return {
+      ...item,
+      imageUrl: uploadResult.secure_url,
+      publicId: uploadResult.public_id,
+      imageUploadField: undefined
+    };
+  }));
+};
 
 // GET /api/settings - Get all admin settings (Admin only)
 router.get('/',
@@ -134,6 +265,144 @@ router.get('/public',
       return res.status(500).json({
         success: false,
         error: 'Failed to retrieve public settings'
+      });
+    }
+  }
+);
+
+router.get('/homepage-content/public', async (req, res) => {
+  try {
+    const content = await AdminSettings.getValue('homepage_content', DEFAULT_HOMEPAGE_CONTENT);
+
+    return res.json({
+      success: true,
+      data: normalizeHomepageContent(content)
+    });
+  } catch (error) {
+    logger.error('Error retrieving public homepage content', {
+      error: error.message,
+      stack: error.stack,
+      ip: req.ip
+    });
+
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve homepage content'
+    });
+  }
+});
+
+router.get('/homepage-content',
+  authenticate,
+  authorize(['admin']),
+  async (req, res) => {
+    try {
+      const content = await AdminSettings.getValue('homepage_content', DEFAULT_HOMEPAGE_CONTENT);
+
+      return res.json({
+        success: true,
+        data: normalizeHomepageContent(content)
+      });
+    } catch (error) {
+      logger.error('Error retrieving admin homepage content', {
+        error: error.message,
+        stack: error.stack,
+        adminId: req.user?.id,
+        ip: req.ip
+      });
+
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to retrieve homepage content'
+      });
+    }
+  }
+);
+
+router.put('/homepage-content',
+  updateRateLimit,
+  authenticate,
+  authorize(['admin']),
+  async (req, res) => {
+    try {
+      const parsedContent = typeof req.body.content === 'string'
+        ? JSON.parse(req.body.content)
+        : (req.body.content || req.body);
+
+      const normalizedContent = normalizeHomepageContent(parsedContent);
+      const heroBanners = await enrichContentImages(normalizedContent.heroBanners, req.files, 'hero_banner');
+      const promoAds = await enrichContentImages(normalizedContent.promoAds, req.files, 'promo_ad');
+
+      const value = {
+        heroBanners,
+        promoAds,
+        highlightedCategoryIds: normalizedContent.highlightedCategoryIds
+      };
+
+      const setting = await AdminSettings.findOneAndUpdate(
+        { settingKey: 'homepage_content' },
+        {
+          $set: {
+            settingKey: 'homepage_content',
+            category: 'general',
+            name: 'Homepage Content',
+            description: 'Homepage banners, promo ads, and highlighted categories used by the storefront landing page.',
+            value,
+            defaultValue: DEFAULT_HOMEPAGE_CONTENT,
+            dataType: 'object',
+            isActive: true,
+            isEditable: true,
+            isSystem: false,
+            isDynamic: true,
+            lastModifiedBy: req.user._id,
+            'ui.inputType': 'textarea',
+            'ui.group': 'Content',
+            permissions: {
+              read: ['super_admin', 'admin'],
+              write: ['super_admin', 'admin']
+            },
+            tags: ['homepage', 'content', 'banners', 'ads']
+          }
+        },
+        {
+          upsert: true,
+          new: true,
+          runValidators: false,
+          setDefaultsOnInsert: true
+        }
+      );
+
+      await AuditLog.create({
+        userId: req.user.id,
+        userType: 'admin',
+        action: 'HOMEPAGE_CONTENT_UPDATE',
+        resource: 'AdminSettings',
+        resourceId: setting._id,
+        details: {
+          heroBannerCount: heroBanners.length,
+          promoAdCount: promoAds.length,
+          highlightedCategoryIds: value.highlightedCategoryIds
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent')
+      });
+
+      return res.json({
+        success: true,
+        message: 'Homepage content updated successfully',
+        data: normalizeHomepageContent(value)
+      });
+    } catch (error) {
+      logger.error('Error updating homepage content', {
+        error: error.message,
+        stack: error.stack,
+        adminId: req.user?.id,
+        ip: req.ip
+      });
+
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to update homepage content'
       });
     }
   }

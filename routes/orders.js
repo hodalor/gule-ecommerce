@@ -111,12 +111,21 @@ router.post('/',
   validateOrder, 
   handleValidationErrors, 
   async (req, res) => {
+    const reservedStock = [];
+
     try {
-      const { items, shippingAddress, paymentMethod, notes } = req.body;
+      const { items, shippingAddress, paymentMethod, paymentStatus, paymentDetails = {}, notes } = req.body;
 
       logger.info('Starting order creation process');
       logger.info('Items received:', items);
-      
+
+      if (paymentStatus !== 'paid' || !paymentDetails.transactionId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Payment must be completed before the order can be placed'
+        });
+      }
+
       // Validate and calculate order totals
       let subtotal = 0;
       const orderItems = [];
@@ -173,12 +182,13 @@ router.post('/',
           productImage: product?.images && product.images[0] ? product.images[0].url : null
         });
 
-        // Reserve the product quantity
         if (product && product._id) {
-          await Product.findByIdAndUpdate(product._id, {
-            $inc: { quantity: -item.quantity }
-          });
+          reservedStock.push({ product, quantity: item.quantity });
         }
+      }
+
+      for (const reserved of reservedStock) {
+        await reserved.product.updateStock(reserved.quantity, 'subtract');
       }
 
       // Create OrderItem documents first
@@ -233,9 +243,10 @@ router.post('/',
         totalAmount,
         shippingAddress,
         paymentMethod,
+        paymentDetails,
         notes,
-        status: 'pending',
-        paymentStatus: 'pending'
+        status: 'confirmed',
+        paymentStatus: 'paid'
       });
 
       await order.save();
@@ -290,14 +301,14 @@ router.post('/',
       // Log audit trail
       await AuditLog.create({
         user: req.user.id,
-        userType: 'buyer',
+        userType: 'user',
         action: 'CREATE_ORDER',
         resource: 'Order',
         resourceId: order._id,
         details: {
           orderNumber: order.orderNumber,
           itemCount: orderItems.length,
-          total: order.totalAmountAmount,
+          total: order.totalAmount,
           paymentMethod: order.paymentMethod
         },
         ipAddress: req.ip,
@@ -339,12 +350,11 @@ router.post('/',
       const populatedOrder = await Order.findById(order._id)
         .populate('buyer', 'firstName lastName email')
         .populate({
-          path: 'items.product',
-          select: 'name images'
-        })
-        .populate({
-          path: 'items.seller',
-          select: 'businessName'
+          path: 'items',
+          populate: [
+            { path: 'product', select: 'name images stock status' },
+            { path: 'seller', select: 'businessName' }
+          ]
         });
 
       res.status(201).json({
@@ -354,6 +364,14 @@ router.post('/',
       });
 
     } catch (error) {
+      for (const reserved of reservedStock) {
+        try {
+          await reserved.product.updateStock(reserved.quantity, 'add');
+        } catch (restoreError) {
+          logger.error('Failed to restore reserved stock', restoreError);
+        }
+      }
+
       logger.error('Error creating order', error);
       res.status(500).json({
         success: false,
@@ -582,7 +600,7 @@ router.patch('/:id/status',
   async (req, res) => {
     try {
       const { status, trackingNumber, notes } = req.body;
-      const order = await Order.findById(req.params.id);
+      const order = await Order.findById(req.params.id).populate('items');
 
       if (!order) {
         return res.status(404).json({
@@ -668,7 +686,7 @@ router.patch('/:id/status',
       // Log audit trail
       await AuditLog.create({
         user: req.user.id,
-        userType: req.user.userType,
+        userType: (req.user.userType === 'buyer' ? 'user' : req.user.userType),
         action: 'UPDATE_ORDER_STATUS',
         resource: 'Order',
         resourceId: order._id,
@@ -736,7 +754,7 @@ router.patch('/:id/status',
 router.patch('/:id/cancel', orderRateLimit, authenticate, async (req, res) => {
   try {
     const { reason } = req.body;
-    const order = await Order.findById(req.params.id);
+    const order = await Order.findById(req.params.id).populate('items');
 
     if (!order) {
       return res.status(404).json({
@@ -780,11 +798,15 @@ router.patch('/:id/cancel', orderRateLimit, authenticate, async (req, res) => {
      .populate('items.product', 'name')
      .populate('items.seller', 'businessName');
 
-    // Restore product quantities
-    for (const item of order.items) {
-      await Product.findByIdAndUpdate(item.product._id, {
-        $inc: { quantity: item.quantity }
-      });
+    if (order.paymentStatus === 'paid') {
+      for (const item of order.items) {
+        const productId = item.product?._id || item.product;
+        if (!productId) continue;
+        const product = await Product.findById(productId);
+        if (product) {
+          await product.updateStock(item.quantity, 'add');
+        }
+      }
     }
 
     // Cancel escrow transactions
@@ -797,21 +819,21 @@ router.patch('/:id/cancel', orderRateLimit, authenticate, async (req, res) => {
       }
     );
 
-    // Log audit trail
-    await AuditLog.create({
-      user: req.user.id,
-      userType: req.user.userType,
-      action: 'CANCEL_ORDER',
-      resource: 'Order',
-      resourceId: order._id,
-      details: {
-        orderNumber: order.orderNumber,
-        reason,
-        cancelledBy: req.user.userType
-      },
-      ipAddress: req.ip,
-      userAgent: req.get('User-Agent')
-    });
+      // Log audit trail
+      await AuditLog.create({
+        user: req.user.id,
+        userType: (req.user.userType === 'buyer' ? 'user' : req.user.userType),
+        action: 'CANCEL_ORDER',
+        resource: 'Order',
+        resourceId: order._id,
+        details: {
+          orderNumber: order.orderNumber,
+          reason,
+          cancelledBy: (req.user.userType === 'buyer' ? 'user' : req.user.userType)
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent')
+      });
 
     logger.info('Order cancelled', {
       orderId: order._id,

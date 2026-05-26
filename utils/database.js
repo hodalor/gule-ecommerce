@@ -220,35 +220,65 @@ class Database {
     try {
       logger.info('Creating database indexes...');
 
-      // User indexes
-      await mongoose.model('User').createIndexes();
-      
-      // Seller indexes
-      await mongoose.model('Seller').createIndexes();
-      
-      // Product indexes
-      await mongoose.model('Product').createIndexes();
-      
-      // Order indexes
-      await mongoose.model('Order').createIndexes();
-      
-      // OrderItem indexes
-      await mongoose.model('OrderItem').createIndexes();
-      
-      // Escrow indexes
-      await mongoose.model('Escrow').createIndexes();
-      
-      // Admin indexes
-      await mongoose.model('Admin').createIndexes();
-      
-      // ReviewAssignment indexes
-      await mongoose.model('ReviewAssignment').createIndexes();
-      
-      // AdminSettings indexes
-      await mongoose.model('AdminSettings').createIndexes();
-      
-      // AuditLog indexes
-      await mongoose.model('AuditLog').createIndexes();
+      const modelNames = [
+        'User',
+        'Seller',
+        'Product',
+        'Order',
+        'OrderItem',
+        'Escrow',
+        'Admin',
+        'ReviewAssignment',
+        'AdminSettings',
+        'AuditLog'
+      ];
+
+      for (const modelName of modelNames) {
+        const model = mongoose.model(modelName);
+
+        // #region debug-point index-create-model
+        logger.info('Debug index creation attempt', {
+          model: modelName,
+          indexes: Object.keys(model.schema.indexes?.() || {}).length ? model.schema.indexes() : model.schema.indexes()
+        });
+        // #endregion
+
+        try {
+          await model.createIndexes();
+        } catch (error) {
+          // #region debug-point index-create-model-error
+          logger.error('Debug index creation failure', {
+            model: modelName,
+            error: error.message,
+            code: error.code,
+            keyPattern: error.keyPattern,
+            keyValue: error.keyValue,
+            indexes: model.schema.indexes()
+          });
+          // #endregion
+
+          if (
+            modelName === 'User' &&
+            error?.code === 86 &&
+            String(error?.message || '').includes('email_1')
+          ) {
+            // The DB still has an older non-sparse unique email index; replace it with the sparse version from the schema.
+            logger.warn('Repairing conflicting User email index', {
+              model: modelName,
+              indexName: 'email_1'
+            });
+            await model.collection.dropIndex('email_1');
+            await model.createIndexes();
+            logger.info('Recreated User email index successfully', {
+              model: modelName,
+              indexName: 'email_1'
+            });
+            continue;
+          }
+
+          throw error;
+        }
+      }
 
       logger.info('Database indexes created successfully');
     } catch (error) {
