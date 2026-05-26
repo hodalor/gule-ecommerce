@@ -1,8 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../utils/api';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
-
 // Async thunks with actual API calls
 export const fetchNotifications = createAsyncThunk(
   'notifications/fetchNotifications',

@@ -10,6 +10,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { DevicePhoneMobileIcon } from '@heroicons/react/24/outline';
 import { clearCart } from '../store/slices/cartSlice';
+import { createOrder } from '../store/slices/orderSlice';
 import toast from 'react-hot-toast';
 
 const Checkout = () => {
@@ -93,39 +94,45 @@ const Checkout = () => {
     setIsProcessing(true);
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Create order object
-      const order = {
-        id: `ORD-${Date.now()}`,
-        items,
-        shippingInfo,
-        paymentInfo: {
-          ...paymentInfo,
-          ...(paymentInfo.paymentMethod === 'card' && {
-            cardNumber: `****-****-****-${paymentInfo.cardNumber.slice(-4)}`
-          })
-        },
-        subtotal: totalAmount,
-        tax,
-        shipping,
-        total: finalTotal,
-        status: 'confirmed',
-        createdAt: new Date().toISOString()
+      // Map cart items to backend expected shape
+      const orderItems = items.map((item) => ({
+        product: item.productId,
+        quantity: item.quantity,
+        unitPrice: item.price,
+      }));
+
+      // Map payment method to backend enumeration
+      const paymentMethod = paymentInfo.paymentMethod === 'card' ? 'card' : 'mobile_money';
+
+      // Build shipping address payload to match backend Order schema
+      const shippingAddress = {
+        firstName: shippingInfo.firstName,
+        lastName: shippingInfo.lastName,
+        street: shippingInfo.address,
+        city: shippingInfo.city,
+        state: shippingInfo.state,
+        zipCode: shippingInfo.zipCode,
+        country: shippingInfo.country,
+        phone: shippingInfo.phone,
+        email: shippingInfo.email,
       };
 
-      // Clear cart
+      const payload = {
+        items: orderItems,
+        shippingAddress,
+        paymentMethod,
+        notes: '',
+      };
+
+      const result = await dispatch(createOrder(payload)).unwrap();
+
+      // Clear cart on success
       dispatch(clearCart());
-      
-      // Show success message
+
       toast.success('Order placed successfully!');
-      
-      // Navigate to order confirmation
-      navigate('/order-confirmation', { state: { order } });
-      
+      navigate('/order-confirmation', { state: { order: result.order } });
     } catch (error) {
-      toast.error('Failed to place order. Please try again.');
+      toast.error(error || 'Failed to place order. Please try again.');
     } finally {
       setIsProcessing(false);
     }

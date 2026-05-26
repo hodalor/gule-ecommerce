@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchProductById } from '../store/slices/productSlice';
@@ -11,9 +11,14 @@ const ProductDetails = () => {
   const navigate = useNavigate();
   const { currentProduct: product, loading, error } = useSelector((state) => state.products);
   const { user } = useSelector((state) => state.auth);
+  const { items: cartItems } = useSelector((state) => state.cart);
   
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
+  // Whole-image zoom state
+  const imgContainerRef = useRef(null);
+  const imgRef = useRef(null);
+  const zoomScale = 2.5; // magnification factor
 
   useEffect(() => {
     if (id) {
@@ -21,11 +26,64 @@ const ProductDetails = () => {
     }
   }, [dispatch, id]);
 
+  // Derive available stock considering items already in cart
+  const existingCartQty = cartItems?.find((it) => it.productId === product?._id)?.quantity || 0;
+  const rawStock = Number(product?.stock || 0);
+  const availableStock = Math.max(0, rawStock - existingCartQty);
+
+  // Clamp selected quantity when stock or cart changes
+  useEffect(() => {
+    if (availableStock === 0) {
+      setQuantity(0);
+    } else if (quantity > availableStock) {
+      setQuantity(availableStock);
+    } else if (quantity <= 0) {
+      setQuantity(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableStock]);
+
+  const currentImageSrc = product?.images?.[selectedImage]?.url || '/api/placeholder/600/600';
+
+  const handleMouseEnter = () => {
+    if (imgRef.current) {
+      imgRef.current.style.transform = `scale(${zoomScale})`;
+    }
+  };
+
+  const handleMouseLeave = () => {
+    if (imgRef.current) {
+      imgRef.current.style.transform = 'scale(1)';
+      imgRef.current.style.transformOrigin = 'center center';
+    }
+  };
+
+  const handleMouseMove = (e) => {
+    if (!imgRef.current) return;
+    const imgRect = imgRef.current.getBoundingClientRect();
+    const x = e.clientX - imgRect.left;
+    const y = e.clientY - imgRect.top;
+    const percentX = Math.max(0, Math.min(100, (x / imgRect.width) * 100));
+    const percentY = Math.max(0, Math.min(100, (y / imgRect.height) * 100));
+    imgRef.current.style.transformOrigin = `${percentX}% ${percentY}%`;
+  };
+
   const handleAddToCart = () => {
     if (!user) {
       toast.error('Please login to add items to cart');
       // Redirect to login page with return URL
       navigate('/login', { state: { from: `/product/${id}` } });
+      return;
+    }
+
+    if (availableStock <= 0) {
+      toast.error('Out of stock');
+      return;
+    }
+
+    if (quantity > availableStock) {
+      toast.error(`Only ${availableStock} left in stock`);
+      setQuantity(availableStock);
       return;
     }
 
@@ -131,19 +189,27 @@ const ProductDetails = () => {
                   >
                     <span className="sr-only">Image {index + 1}</span>
                     <span className="absolute inset-0 rounded-md overflow-hidden">
-                      <img src={image?.url || image} alt={image?.alt || ''} className="w-full h-full object-center object-cover" />
+                      <img src={image?.url || image} alt={image?.alt || ''} className="w-full h-full object-center object-contain" />
                     </span>
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Main image */}
-            <div className="w-full aspect-w-1 aspect-h-1">
+            {/* Main image with whole-image zoom (shows full image without cropping) */}
+            <div
+              ref={imgContainerRef}
+              className="relative inline-block sm:rounded-lg bg-white overflow-hidden"
+              onMouseEnter={handleMouseEnter}
+              onMouseLeave={handleMouseLeave}
+              onMouseMove={handleMouseMove}
+            >
               <img
-                src={product.images?.[selectedImage]?.url || '/api/placeholder/600/600'}
+                ref={imgRef}
+                src={currentImageSrc}
                 alt={product.images?.[selectedImage]?.alt || product.name}
-                className="w-full h-full object-center object-cover sm:rounded-lg"
+                className="block max-h-[520px] w-auto max-w-full object-contain"
+                style={{ willChange: 'transform' }}
               />
             </div>
           </div>
@@ -227,6 +293,9 @@ const ProductDetails = () => {
               <div className="mt-6">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-medium text-gray-900">Quantity</h3>
+                  <span className="text-xs text-gray-600">
+                    In stock: {rawStock} {existingCartQty > 0 ? `(in cart: ${existingCartQty})` : ''}
+                  </span>
                 </div>
                 <div className="mt-2">
                   <select
@@ -234,11 +303,15 @@ const ProductDetails = () => {
                     onChange={(e) => setQuantity(parseInt(e.target.value))}
                     className="max-w-full rounded-md border border-gray-300 py-1.5 text-base leading-5 font-medium text-gray-700 text-left shadow-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                   >
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
-                      <option key={num} value={num}>
-                        {num}
-                      </option>
-                    ))}
+                    {availableStock === 0 ? (
+                      <option value={0}>0</option>
+                    ) : (
+                      Array.from({ length: availableStock }, (_, i) => i + 1).map((num) => (
+                        <option key={num} value={num}>
+                          {num}
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
               </div>
@@ -263,12 +336,9 @@ const ProductDetails = () => {
                   type="button"
                   onClick={handleAddToCart}
                   className="max-w-xs flex-1 bg-indigo-600 border border-transparent rounded-md py-3 px-8 flex items-center justify-center text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:w-full"
-                  disabled={!product.inStock && product.stock <= 0}
+                  disabled={availableStock <= 0}
                 >
-                  {(product.inStock !== false && product.stock > 0) ? 
-                    (user ? 'Add to Cart' : 'Login to Add to Cart') : 
-                    'Out of Stock'
-                  }
+                  {availableStock > 0 ? (user ? 'Add to Cart' : 'Login to Add to Cart') : 'Out of Stock'}
                 </button>
 
                 <button

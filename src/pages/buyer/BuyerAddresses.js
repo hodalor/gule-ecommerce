@@ -14,7 +14,6 @@ import {
   MapPinIcon,
   PencilIcon,
   TrashIcon,
-  CheckCircleIcon,
   ExclamationTriangleIcon,
   ShieldCheckIcon,
   HomeIcon,
@@ -63,7 +62,7 @@ const BuyerAddresses = () => {
     
     if (!formData.name.trim()) errors.name = 'Name is required';
     if (!formData.phone.trim()) errors.phone = 'Phone number is required';
-    if (!/^\+?[\d\s\-\(\)]+$/.test(formData.phone)) errors.phone = 'Invalid phone number format';
+    if (!/^\+?[\d\s\-()]+$/.test(formData.phone)) errors.phone = 'Invalid phone number format';
     if (!formData.street.trim()) errors.street = 'Street address is required';
     if (!formData.city.trim()) errors.city = 'City is required';
     if (!formData.state.trim()) errors.state = 'State is required';

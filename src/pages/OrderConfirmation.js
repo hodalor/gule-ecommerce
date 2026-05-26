@@ -42,7 +42,7 @@ const OrderConfirmation = () => {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-semibold text-gray-900">Order Details</h2>
-                <p className="text-sm text-gray-500 mt-1">Order #{order.id}</p>
+                <p className="text-sm text-gray-500 mt-1">Order #{order.orderNumber || order._id || order.id}</p>
               </div>
               <button className="flex items-center gap-2 text-primary-600 hover:text-primary-700 transition-colors">
                 <PrinterIcon className="h-5 w-5" />
@@ -88,24 +88,25 @@ const OrderConfirmation = () => {
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Items Ordered</h3>
               <div className="space-y-4">
                 {order.items.map((item) => (
-                  <div key={item.productId || item.product?._id || item.product?.id || Math.random()} className="flex items-center space-x-4">
+                  <div key={item.productId || item.product?._id || item.product?.id || item._id || Math.random()} className="flex items-center space-x-4">
                     <img
                       src={
-                        (typeof item.image === 'string' ? item.image : item.image?.url) ||
                         item.product?.images?.[0]?.url ||
+                        item.productSnapshot?.image ||
+                        (typeof item.image === 'string' ? item.image : item.image?.url) ||
                         'https://picsum.photos/60/60?random=7'
                       }
-                      alt={item.name || item.product?.name || 'Product'}
+                      alt={item.name || item.product?.name || item.productSnapshot?.name || 'Product'}
                       className="w-15 h-15 object-cover rounded-lg"
                     />
                     <div className="flex-1">
-                      <h4 className="font-medium text-gray-900">{item.name || item.product?.name}</h4>
+                      <h4 className="font-medium text-gray-900">{item.name || item.product?.name || item.productSnapshot?.name}</h4>
                       <p className="text-sm text-gray-500">
-                        Quantity: {item.quantity} × ${(item.price || item.product?.price || 0).toFixed(2)}
+                        Quantity: {item.quantity} × ${((item.unitPrice ?? item.price ?? item.pricing?.basePrice ?? 0)).toFixed(2)}
                       </p>
                     </div>
                     <p className="font-semibold text-gray-900">
-                      ${((item.price || item.product?.price || 0) * item.quantity).toFixed(2)}
+                      ${(((item.total ?? item.totalPrice) ?? ((item.unitPrice ?? item.price ?? 0) * item.quantity))).toFixed(2)}
                     </p>
                   </div>
                 ))}
@@ -118,21 +119,21 @@ const OrderConfirmation = () => {
                 <div className="w-64 space-y-2">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Subtotal:</span>
-                    <span className="font-medium">${order.subtotal.toFixed(2)}</span>
+                    <span className="font-medium">${(order.subtotal ?? order.subtotalAmount ?? 0).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Shipping:</span>
-                    <span className="font-medium">${order.shipping.toFixed(2)}</span>
+                    <span className="font-medium">${(order.shippingCost ?? order.shipping ?? 0).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Tax:</span>
-                    <span className="font-medium">${order.tax.toFixed(2)}</span>
+                    <span className="font-medium">${(order.taxAmount ?? order.tax ?? 0).toFixed(2)}</span>
                   </div>
                   <div className="border-t border-gray-200 pt-2">
                     <div className="flex justify-between">
                       <span className="text-lg font-semibold text-gray-900">Total:</span>
                       <span className="text-lg font-semibold text-gray-900">
-                        ${order.total.toFixed(2)}
+                        ${(order.totalAmount ?? order.total ?? 0).toFixed(2)}
                       </span>
                     </div>
                   </div>
@@ -149,14 +150,14 @@ const OrderConfirmation = () => {
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Shipping Address</h3>
             <div className="text-sm text-gray-600 space-y-1">
               <p className="font-medium text-gray-900">
-                {order.shippingInfo.firstName} {order.shippingInfo.lastName}
+                {(order.shippingAddress?.name) || `${order.shippingInfo?.firstName || ''} ${order.shippingInfo?.lastName || ''}`.trim()}
               </p>
-              <p>{order.shippingInfo.address}</p>
+              <p>{order.shippingAddress?.street || order.shippingInfo?.address}</p>
               <p>
-                {order.shippingInfo.city}, {order.shippingInfo.state} {order.shippingInfo.zipCode}
+                {(order.shippingAddress?.city) || order.shippingInfo?.city}, {(order.shippingAddress?.state) || order.shippingInfo?.state} {(order.shippingAddress?.zipCode) || order.shippingInfo?.zipCode}
               </p>
-              <p>{order.shippingInfo.phone}</p>
-              <p>{order.shippingInfo.email}</p>
+              <p>{order.shippingAddress?.phone || order.shippingInfo?.phone}</p>
+              <p>{order.shippingInfo?.email}</p>
             </div>
           </div>
 
@@ -164,12 +165,12 @@ const OrderConfirmation = () => {
           <div className="bg-white rounded-lg shadow-sm p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Payment Method</h3>
             <div className="text-sm text-gray-600 space-y-1">
-              {order.paymentInfo.paymentMethod === 'mobile' ? (
+              { (order.paymentMethod === 'mobile_money' || order.paymentInfo?.paymentMethod === 'mobile') ? (
                 <>
                   <p className="font-medium text-gray-900">Mobile Money</p>
-                  <p>Operator: {order.paymentInfo.mobileOperator?.toUpperCase()}</p>
+                  <p>Operator: {(order.paymentInfo?.mobileOperator || '').toUpperCase()}</p>
                   <p>
-                    Number: {order.paymentInfo.mobileNumber
+                    Number: {order.paymentInfo?.mobileNumber
                       ? `${order.paymentInfo.mobileNumber.slice(0,3)}*****${order.paymentInfo.mobileNumber.slice(-2)}`
                       : ''}
                   </p>
@@ -177,8 +178,8 @@ const OrderConfirmation = () => {
               ) : (
                 <>
                   <p className="font-medium text-gray-900">Credit Card</p>
-                  <p>{order.paymentInfo.cardNumber}</p>
-                  <p>{order.paymentInfo.cardholderName}</p>
+                  <p>Card ending in {order.paymentInfo?.cardNumber ? order.paymentInfo.cardNumber.slice(-4) : '****'}</p>
+                  <p>Cardholder: {order.paymentInfo?.cardholderName || 'N/A'}</p>
                 </>
               )}
             </div>

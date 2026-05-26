@@ -11,7 +11,6 @@ import {
   ClockIcon,
   ExclamationTriangleIcon,
   CurrencyDollarIcon,
-  CalendarIcon,
   ChevronLeftIcon,
   ChevronRightIcon
 } from '@heroicons/react/24/outline';

@@ -17,7 +17,7 @@ import { formatCurrency as formatCurrencyUtil } from '../../utils/currency';
 const OrderTracking = () => {
   const { orderId } = useParams();
   const dispatch = useDispatch();
-  const { trackingData, loading } = useSelector(state => state.orders);
+  const { trackingInfo, loading } = useSelector(state => state.orders);
   const [selectedOrder, setSelectedOrder] = useState(null);
 
   useEffect(() => {
@@ -28,47 +28,13 @@ const OrderTracking = () => {
   }, [orderId, dispatch]);
 
   useEffect(() => {
-    // Use real tracking data from Redux, fallback to mock for demo
-    const currentTrackingData = trackingData || {
-      id: orderId || 'ORD-2024-001',
-      status: 'processing',
-      estimatedDelivery: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      trackingNumber: 'Pending',
-      carrier: 'To be assigned',
-      items: [
-        {
-          id: 1,
-          name: 'Sample Product',
-          quantity: 1,
-          price: 99.99,
-          image: '/api/placeholder/100/100'
-        }
-      ],
-      timeline: [
-        {
-          status: 'order_placed',
-          timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-          description: 'Order has been placed successfully'
-        },
-        {
-          status: 'processing',
-          timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-          description: 'Order is being processed'
-        }
-      ],
-      shippingAddress: {
-        name: 'Loading...',
-        address: 'Loading...',
-        city: 'Loading...',
-        state: 'Loading...',
-        zipCode: 'Loading...',
-        phone: 'Loading...'
-      },
-      total: 0
-    };
-    
-    setSelectedOrder(currentTrackingData);
-  }, [trackingData, orderId]);
+    // Use tracking info from Redux; no mock fallback
+    if (trackingInfo) {
+      setSelectedOrder(trackingInfo);
+    } else {
+      setSelectedOrder(null);
+    }
+  }, [trackingInfo, orderId]);
 
   const formatDate = (dateString) => {
     if (!dateString) return null;
@@ -179,12 +145,14 @@ const OrderTracking = () => {
               <div className="text-right">
                 <p className="text-sm text-gray-600">Estimated Delivery</p>
                 <p className="text-lg font-semibold text-gray-900">
-                  {new Date(selectedOrder?.estimatedDelivery).toLocaleDateString('en-US', {
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                  })}
+                  {selectedOrder?.estimatedDelivery
+                    ? new Date(selectedOrder?.estimatedDelivery).toLocaleDateString('en-US', {
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })
+                    : '—'}
                 </p>
               </div>
             </div>
@@ -231,10 +199,12 @@ const OrderTracking = () => {
                       {step.description}
                     </p>
                     
-                    <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
-                      <MapPinIcon className="h-3 w-3" />
-                      <span>{step.location}</span>
-                    </div>
+                    {step.location && (
+                      <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                        <MapPinIcon className="h-3 w-3" />
+                        <span>{step.location}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -290,8 +260,8 @@ const OrderTracking = () => {
             </h3>
             
             <div className="space-y-4">
-              {selectedOrder?.items.map((item) => (
-                <div key={item.id} className="flex items-center gap-3">
+              {selectedOrder?.items.map((item, idx) => (
+                <div key={item.id || item._id || idx} className="flex items-center gap-3">
                   <img
                     src={
                       item.product?.images?.[0]?.url ||
@@ -301,15 +271,16 @@ const OrderTracking = () => {
                     }
                     alt={
                       item.product?.images?.[0]?.alt ||
-                      item.name ||
+                      item.productSnapshot?.name ||
                       item.product?.name ||
+                      item.name ||
                       'Product'
                     }
                     className="w-12 h-12 object-cover rounded-lg"
                   />
                   <div className="flex-1 min-w-0">
                     <h4 className="text-sm font-medium text-gray-900 truncate">
-                      {item.name}
+                      {(item?.product?.name) || (item?.productSnapshot?.name) || item?.name || 'Item'}
                     </h4>
                     <p className="text-xs text-gray-600">
                       Qty: {item.quantity} × {formatPrice(item.price)}
@@ -340,21 +311,21 @@ const OrderTracking = () => {
             
             <div className="space-y-2 text-sm">
               <p className="font-medium text-gray-900">
-                {selectedOrder?.shippingAddress.name}
+                {selectedOrder?.shippingAddress?.name}
               </p>
               <p className="text-gray-600">
-                {selectedOrder?.shippingAddress.address}
+                {selectedOrder?.shippingAddress?.address}
               </p>
               <p className="text-gray-600">
-                {selectedOrder?.shippingAddress.city}, {selectedOrder?.shippingAddress.state}
+                {selectedOrder?.shippingAddress?.city}, {selectedOrder?.shippingAddress?.state}
               </p>
               <p className="text-gray-600">
-                {selectedOrder?.shippingAddress.zipCode}
+                {selectedOrder?.shippingAddress?.zipCode}
               </p>
               <div className="flex items-center gap-2 pt-2">
                 <PhoneIcon className="h-4 w-4 text-gray-400" />
                 <span className="text-gray-600">
-                  {selectedOrder?.shippingAddress.phone}
+                  {selectedOrder?.shippingAddress?.phone}
                 </span>
               </div>
             </div>
@@ -453,38 +424,38 @@ const OrderTrackingSearch = () => {
             Your Recent Orders
           </h2>
           
-          {orders && orders.length > 0 ? (
-            <div className="space-y-3">
-              {orders.slice(0, 5).map((order) => (
-                <Link
-                  key={order.id}
-                  to={`/buyer/dashboard/tracking/${order.id}`}
-                  className="block p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-gray-900">
-                        Order #{order.id}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        {order.items.length} item{order.items.length > 1 ? 's' : ''}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                        order.status === 'completed' ? 'bg-green-100 text-green-800' :
-                        order.status === 'shipped' ? 'bg-blue-100 text-blue-800' :
-                        order.status === 'processing' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                      </span>
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          ) : (
+              {orders && orders.length > 0 ? (
+                <div className="space-y-3">
+                  {orders.slice(0, 5).map((order) => (
+                    <Link
+                      key={order._id}
+                      to={`/buyer/dashboard/tracking/${order._id}`}
+                      className="block p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-gray-900">
+                            Order #{order.orderNumber || order._id}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            {order.items.length} item{order.items.length > 1 ? 's' : ''}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                            order.status === 'completed' ? 'bg-green-100 text-green-800' :
+                            order.status === 'shipped' ? 'bg-blue-100 text-blue-800' :
+                            order.status === 'processing' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                          </span>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
             <div className="text-center py-8">
               <TruckIcon className="mx-auto h-12 w-12 text-gray-400" />
               <h3 className="mt-2 text-sm font-medium text-gray-900">

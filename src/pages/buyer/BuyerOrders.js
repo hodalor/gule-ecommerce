@@ -11,7 +11,8 @@ import {
   ExclamationTriangleIcon,
   MagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
-import { fetchUserOrders, confirmDelivery, rateOrder } from '../../store/slices/orderSlice';
+import { fetchUserOrders, confirmDelivery } from '../../store/slices/orderSlice';
+import { createReview } from '../../store/slices/reviewsSlice';
 import toast from 'react-hot-toast';
 import { formatCurrency as formatCurrencyUtil } from '../../utils/currency';
 
@@ -24,6 +25,7 @@ const BuyerOrders = () => {
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [rating, setRating] = useState(5);
   const [review, setReview] = useState('');
+  const [selectedProductId, setSelectedProductId] = useState('');
 
   useEffect(() => {
     dispatch(fetchUserOrders({ page: 1, limit: 20 }));
@@ -41,9 +43,13 @@ const BuyerOrders = () => {
 
   const filteredOrders = orders?.filter(order => {
     const matchesTab = activeTab === 'all' || order.status === activeTab;
+    const orderIdStr = ((order.orderNumber || order._id || '') + '').toLowerCase();
     const matchesSearch = searchTerm === '' || 
-      order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.items.some(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
+      orderIdStr.includes(searchTerm.toLowerCase()) ||
+      (order.items || []).some(item => {
+        const itemName = (item?.product?.name) || (item?.productSnapshot?.name) || item?.name || '';
+        return itemName.toLowerCase().includes(searchTerm.toLowerCase());
+      });
     return matchesTab && matchesSearch;
   }) || [];
 
@@ -96,18 +102,24 @@ const BuyerOrders = () => {
 
   const handleRateOrder = async () => {
     try {
-      await dispatch(rateOrder({
-        orderId: selectedOrder.id,
+      if (!selectedProductId) {
+        toast.error('Please select a product to review');
+        return;
+      }
+      await dispatch(createReview({
+        productId: selectedProductId,
         rating,
-        review
+        comment: review,
+        orderId: selectedOrder._id
       })).unwrap();
-      toast.success('Rating submitted successfully!');
+      toast.success('Review submitted successfully!');
       setShowRatingModal(false);
       setSelectedOrder(null);
       setRating(5);
       setReview('');
+      setSelectedProductId('');
     } catch (error) {
-      toast.error('Failed to submit rating');
+      toast.error('Failed to submit review');
     }
   };
 
@@ -194,7 +206,7 @@ const BuyerOrders = () => {
             <div className="space-y-4">
               {filteredOrders.map((order) => (
                 <div
-                  key={order.id}
+                  key={order._id}
                   className="border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
                 >
                   {/* Order Header */}
@@ -202,7 +214,7 @@ const BuyerOrders = () => {
                     <div className="flex items-center gap-4">
                       <div>
                         <p className="font-semibold text-gray-900">
-                          Order #{order.id}
+                          Order #{order.orderNumber || order._id}
                         </p>
                         <p className="text-sm text-gray-600">
                           Placed on {formatDate(order.createdAt)}
@@ -216,7 +228,7 @@ const BuyerOrders = () => {
                         {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
                       </span>
                       <Link
-                        to={`/buyer/dashboard/orders/${order.id}`}
+                        to={`/buyer/dashboard/orders/${order._id}`}
                         className="text-primary-600 hover:text-primary-700"
                       >
                         <EyeIcon className="h-5 w-5" />
@@ -238,26 +250,27 @@ const BuyerOrders = () => {
                             }
                             alt={
                               item.product?.images?.[0]?.alt ||
-                              item.name ||
+                              item.productSnapshot?.name ||
                               item.product?.name ||
+                              item.name ||
                               'Product'
                             }
                             className="w-16 h-16 object-cover rounded-lg"
                           />
                           <div className="flex-1">
                             <h4 className="font-medium text-gray-900">
-                              {item.name}
+                              {(item?.product?.name) || (item?.productSnapshot?.name) || item?.name || 'Item'}
                             </h4>
                             <p className="text-sm text-gray-600">
-                              Qty: {item.quantity} × {formatPrice(item.price)}
+                              Qty: {item.quantity} × {formatPrice(item.unitPrice || item.price || item.pricing?.basePrice || 0)}
                             </p>
                             <p className="text-sm text-gray-600">
-                              Seller: {item.sellerName}
+                              Seller: {item?.seller?.businessName || item.sellerName}
                             </p>
                           </div>
                           <div className="text-right">
                             <p className="font-semibold text-gray-900">
-                              {formatPrice(item.price * item.quantity)}
+                              {formatPrice((item.totalPrice || item.total || (item.unitPrice || item.price || 0) * item.quantity))}
                             </p>
                           </div>
                         </div>
@@ -271,7 +284,7 @@ const BuyerOrders = () => {
                       </div>
                       <div className="text-right">
                         <p className="text-lg font-bold text-gray-900">
-                          Total: {formatPrice(order.total)}
+                          Total: {formatPrice(order.totalAmount || order.total || 0)}
                         </p>
                       </div>
                     </div>
@@ -279,7 +292,7 @@ const BuyerOrders = () => {
                     {/* Action Buttons */}
                     <div className="flex flex-wrap gap-3 mt-4 pt-4 border-t border-gray-200">
                       <Link
-                        to={`/buyer/dashboard/tracking/${order.id}`}
+                        to={`/buyer/dashboard/tracking/${order._id}`}
                         className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
                       >
                         <TruckIcon className="h-4 w-4" />
@@ -288,7 +301,7 @@ const BuyerOrders = () => {
 
                       {order.status === 'delivered' && !order.deliveryConfirmed && (
                         <button
-                          onClick={() => handleConfirmDelivery(order.id)}
+                          onClick={() => handleConfirmDelivery(order._id)}
                           className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                         >
                           <CheckCircleIcon className="h-4 w-4" />
@@ -300,6 +313,7 @@ const BuyerOrders = () => {
                         <button
                           onClick={() => {
                             setSelectedOrder(order);
+                            setSelectedProductId('');
                             setShowRatingModal(true);
                           }}
                           className="flex items-center gap-2 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
@@ -311,7 +325,7 @@ const BuyerOrders = () => {
 
                       {(order.status === 'delivered' || order.status === 'completed') && (
                         <Link
-                          to={`/buyer/dashboard/disputes/new?order=${order.id}`}
+                          to={`/buyer/dashboard/disputes/new?order=${order._id}`}
                           className="flex items-center gap-2 px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors"
                         >
                           <ExclamationTriangleIcon className="h-4 w-4" />
@@ -320,7 +334,7 @@ const BuyerOrders = () => {
                       )}
 
                       <Link
-                        to={`/buyer/dashboard/orders/${order.id}`}
+                        to={`/buyer/dashboard/orders/${order._id}`}
                         className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                       >
                         <EyeIcon className="h-4 w-4" />
@@ -366,10 +380,31 @@ const BuyerOrders = () => {
             </h3>
             
             <div className="mb-4">
-              <p className="text-sm text-gray-600 mb-2">Order #{selectedOrder.id}</p>
+              <p className="text-sm text-gray-600 mb-2">Order #{selectedOrder.orderNumber || selectedOrder._id}</p>
               <p className="text-sm font-medium text-gray-900">
                 How was your experience with this order?
               </p>
+            </div>
+
+            {/* Product selection */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Select Product</label>
+              <select
+                value={selectedProductId}
+                onChange={(e) => setSelectedProductId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              >
+                <option value="">Choose a product</option>
+                {(selectedOrder.items || []).map((item, idx) => {
+                  const pid = (item?.product?._id) || (typeof item?.product === 'string' ? item.product : null);
+                  const name = (item?.product?.name) || (item?.productSnapshot?.name) || item?.name || `Item ${idx+1}`;
+                  return (
+                    <option key={idx} value={pid || ''} disabled={!pid}>
+                      {name}
+                    </option>
+                  );
+                })}
+              </select>
             </div>
 
             {/* Star Rating */}
@@ -414,7 +449,7 @@ const BuyerOrders = () => {
                 onClick={handleRateOrder}
                 className="flex-1 bg-primary-600 text-white py-2 px-4 rounded-lg hover:bg-primary-700 transition-colors"
               >
-                Submit Rating
+                Submit Review
               </button>
               <button
                 onClick={() => {
@@ -422,6 +457,7 @@ const BuyerOrders = () => {
                   setSelectedOrder(null);
                   setRating(5);
                   setReview('');
+                  setSelectedProductId('');
                 }}
                 className="flex-1 border border-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-50 transition-colors"
               >

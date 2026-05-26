@@ -6,7 +6,6 @@ import {
   FunnelIcon,
   PlusIcon,
   PencilIcon,
-  TrashIcon,
   ExclamationTriangleIcon,
   CheckCircleIcon,
   XCircleIcon,
@@ -17,8 +16,6 @@ import {
   DocumentArrowDownIcon,
   Cog6ToothIcon,
   EyeIcon,
-  ClockIcon,
-  TruckIcon,
   CubeIcon,
   CurrencyDollarIcon
 } from '@heroicons/react/24/outline';

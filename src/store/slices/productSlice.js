@@ -82,6 +82,18 @@ export const fetchCategories = createAsyncThunk(
   }
 );
 
+export const fetchHomepageContent = createAsyncThunk(
+  'products/fetchHomepageContent',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await api.get('/settings/homepage-content/public');
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch homepage content');
+    }
+  }
+);
+
 // Seller actions
 export const createProduct = createAsyncThunk(
   'products/createProduct',
@@ -177,6 +189,11 @@ const productSlice = createSlice({
     featuredProducts: [],
     currentProduct: null,
     categories: [],
+    homepageContent: {
+      heroBanners: [],
+      promoAds: [],
+      highlightedCategoryIds: []
+    },
     filters: {
       category: '',
       search: '',
@@ -246,6 +263,10 @@ const productSlice = createSlice({
       // Fetch categories
       .addCase(fetchCategories.fulfilled, (state, action) => {
         state.categories = action.payload.data.categories;
+      })
+      // Fetch homepage content
+      .addCase(fetchHomepageContent.fulfilled, (state, action) => {
+        state.homepageContent = action.payload?.data || state.homepageContent;
       })
       // Create product
       .addCase(createProduct.fulfilled, (state, action) => {

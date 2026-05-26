@@ -8,6 +8,7 @@ import NotificationCenter from '../notifications/NotificationCenter';
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { user, isAuthenticated } = useSelector((state) => state.auth);
+  const { totalItems } = useSelector((state) => state.cart);
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
@@ -15,6 +16,9 @@ const Header = () => {
     dispatch(logout());
     navigate('/');
   };
+
+  const dashboardLink = user?.userType === 'seller' ? '/seller/dashboard' : '/buyer/dashboard';
+  const profileLink = user?.userType === 'seller' ? '/seller/dashboard/profile' : '/buyer/dashboard/profile';
 
   return (
     <header className="bg-white shadow-lg sticky top-0 z-50">
@@ -39,6 +43,11 @@ const Header = () => {
             <Link to="/sellers" className="text-gray-700 hover:text-primary-600 transition-colors">
               Sellers
             </Link>
+            {user?.userType === 'buyer' && (
+              <Link to="/become-seller" className="text-gray-700 hover:text-primary-600 transition-colors">
+                Sell Now
+              </Link>
+            )}
             <Link to="/about" className="text-gray-700 hover:text-primary-600 transition-colors">
               About
             </Link>
@@ -52,27 +61,37 @@ const Header = () => {
             {/* Notifications - only show for authenticated users */}
             {isAuthenticated && <NotificationCenter />}
 
-            {/* Cart Icon */}
-            <Link to="/cart" className="p-2 text-gray-700 hover:text-primary-600 transition-colors">
-              <ShoppingCartIcon className="h-6 w-6" />
-            </Link>
+            {/* Cart Icon with badge */}
+            <div className="relative">
+              <Link to="/cart" className="p-2 text-gray-700 hover:text-primary-600 transition-colors">
+                <ShoppingCartIcon className="h-6 w-6" />
+              </Link>
+              {totalItems > 0 && (
+                <span
+                  aria-label={`Cart items: ${totalItems}`}
+                  className="absolute -top-1 -right-1 inline-flex items-center justify-center rounded-full bg-red-600 text-white text-xs font-semibold px-1.5 py-0.5 min-w-[18px] h-[18px] leading-none"
+                >
+                  {totalItems}
+                </span>
+              )}
+            </div>
 
             {/* User Menu */}
             {isAuthenticated ? (
               <div className="relative group">
                 <button className="flex items-center space-x-2 text-gray-700 hover:text-primary-600 transition-colors">
                   <UserIcon className="h-6 w-6" />
-                  <span className="hidden sm:block">{user?.name}</span>
+                  <span className="hidden sm:block">{user?.name || `${user?.firstName || ''} ${user?.lastName || ''}`.trim()}</span>
                 </button>
                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
                   <Link
-                    to={user?.role === 'seller' ? '/seller/dashboard' : '/buyer/dashboard'}
+                    to={dashboardLink}
                     className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                   >
                     Dashboard
                   </Link>
                   <Link
-                    to="/profile"
+                    to={profileLink}
                     className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                   >
                     Profile
@@ -88,7 +107,7 @@ const Header = () => {
             ) : (
               <div className="flex items-center space-x-2">
                 <Link
-                  to="/login?role=buyer"
+                  to="/login"
                   className="text-gray-700 hover:text-primary-600 transition-colors"
                 >
                   Login
@@ -149,6 +168,15 @@ const Header = () => {
               >
                 Sellers
               </Link>
+              {user?.userType === 'buyer' && (
+                <Link
+                  to="/become-seller"
+                  className="text-gray-700 hover:text-primary-600 transition-colors"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  Sell Now
+                </Link>
+              )}
               <Link
                 to="/about"
                 className="text-gray-700 hover:text-primary-600 transition-colors"

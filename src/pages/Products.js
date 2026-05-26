@@ -5,10 +5,23 @@ import { fetchProducts, fetchCategories } from '../store/slices/productSlice';
 import { addToCart } from '../store/slices/cartSlice';
 import toast from 'react-hot-toast';
 
+const ProductCardSkeleton = () => (
+  <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div className="h-52 animate-pulse bg-slate-100" />
+    <div className="space-y-3 p-4">
+      <div className="h-5 w-2/3 animate-pulse rounded bg-slate-100" />
+      <div className="h-4 w-1/2 animate-pulse rounded bg-slate-100" />
+      <div className="h-4 w-1/3 animate-pulse rounded bg-slate-100" />
+      <div className="h-10 w-full animate-pulse rounded-xl bg-slate-100" />
+    </div>
+  </div>
+);
+
 const Products = () => {
   const dispatch = useDispatch();
   const { products, categories, loading, error } = useSelector(state => state.products);
-  const { user, isAuthenticated } = useSelector(state => state.auth);
+  const { isAuthenticated } = useSelector(state => state.auth);
+  const { items: cartItems } = useSelector(state => state.cart);
   
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -19,14 +32,20 @@ const Products = () => {
   const sellerIdParam = searchParams.get('sellerId');
 
   useEffect(() => {
-    const initialFilters = sellerIdParam ? { sellerId: sellerIdParam } : {};
-    // Remove duplicate initial product fetch; the next effect handles fetching with filters
     dispatch(fetchCategories());
   }, [dispatch, sellerIdParam]);
 
   const handleAddToCart = (product) => {
     if (!isAuthenticated) {
       toast.error('Please log in to add items to cart');
+      return;
+    }
+
+    const existingCartQty = cartItems?.find((it) => it.productId === product._id)?.quantity || 0;
+    const stock = Number(product?.stock || 0);
+    const available = Math.max(0, stock - existingCartQty);
+    if (available <= 0) {
+      toast.error('Out of stock');
       return;
     }
 
@@ -40,6 +59,11 @@ const Products = () => {
         ? (product.seller._id || product.seller.id || product.seller.businessName || product.seller.name)
         : product.seller
     };
+
+    if (available < 1) {
+      toast.error('No more available');
+      return;
+    }
 
     dispatch(addToCart(cartItem));
     toast.success(`${product.name} added to cart!`);
@@ -58,20 +82,35 @@ const Products = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading products...</p>
+      <div className="min-h-screen bg-slate-50">
+        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="h-8 w-48 animate-pulse rounded bg-slate-200" />
+            <div className="mt-3 h-4 w-72 animate-pulse rounded bg-slate-100" />
+          </div>
+          <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {[...Array(8)].map((_, index) => (
+              <ProductCardSkeleton key={index} />
+            ))}
+          </div>
         </div>
       </div>
     );
   }
 
   if (error) {
+    const hasConnectionIssue = error.toLowerCase().includes('network');
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-600 text-lg">{error}</p>
+      <div className="min-h-screen bg-slate-50">
+        <div className="mx-auto flex max-w-3xl items-center justify-center px-4 py-16">
+          <div className="w-full rounded-3xl border border-red-200 bg-white p-8 text-center shadow-sm">
+            <div className="text-2xl font-black text-slate-900">Products are temporarily unavailable</div>
+            <p className="mt-3 text-sm text-slate-600">{error}</p>
+            {hasConnectionIssue && (
+              <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                The storefront could not reach the backend. If the API was still starting, retry now and the page should recover automatically.
+              </div>
+            )}
           <button 
             onClick={() => {
               const retryFilters = {
@@ -81,10 +120,11 @@ const Products = () => {
               };
               dispatch(fetchProducts(retryFilters));
             }}
-            className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+            className="mt-6 inline-flex items-center rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-700"
           >
-            Try Again
+            Retry Products
           </button>
+        </div>
         </div>
       </div>
     );
@@ -137,18 +177,37 @@ const Products = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <div className="bg-white shadow-sm">
+      <div className="border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <h1 className="text-3xl font-bold text-gray-900">All Products</h1>
-          <p className="mt-2 text-gray-600">Discover amazing products from trusted sellers</p>
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide text-primary-600">Marketplace catalog</p>
+              <h1 className="mt-2 text-4xl font-black text-slate-900">All Products</h1>
+              <p className="mt-2 text-slate-600">Discover featured listings, fresh arrivals, and trusted seller inventory.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Visible</p>
+                <p className="mt-1 text-2xl font-black text-slate-900">{products?.length || 0}</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Showing</p>
+                <p className="mt-1 text-2xl font-black text-slate-900">{displayProducts.length}</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Category</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">{selectedCategory === 'all' ? 'All' : selectedCategory}</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {sellerIdParam && (
-          <div className="mb-6 flex items-center justify-between bg-indigo-50 border border-indigo-200 rounded-md p-3">
+          <div className="mb-6 flex items-center justify-between rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
             <div className="flex items-center gap-2">
               <span className="px-2 py-1 text-xs font-semibold text-indigo-700 bg-indigo-100 rounded">
                 Seller Filter Active
@@ -168,8 +227,8 @@ const Products = () => {
           </div>
         )}
         {/* Filters */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="mb-8 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             {/* Search */}
             <div>
               <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-2">
@@ -181,7 +240,7 @@ const Products = () => {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search for products..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full rounded-xl border border-slate-300 px-3 py-3 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
               />
             </div>
 
@@ -194,7 +253,7 @@ const Products = () => {
                 id="category"
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full rounded-xl border border-slate-300 px-3 py-3 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
               >
                 {categoryOptions.map(category => (
                   <option key={category.value} value={category.value}>
@@ -213,7 +272,7 @@ const Products = () => {
                 id="sort"
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full rounded-xl border border-slate-300 px-3 py-3 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
               >
                 <option value="name">Name (A-Z)</option>
                 <option value="price-low">Price (Low to High)</option>
@@ -226,7 +285,7 @@ const Products = () => {
 
         {/* Results Count */}
         <div className="mb-6">
-          <p className="text-gray-600">
+          <p className="text-slate-600">
             Showing {displayProducts.length} of {products?.length || 0} products
           </p>
         </div>
@@ -237,13 +296,13 @@ const Products = () => {
             {displayProducts.map((product) => (
               <div
                 key={product._id}
-                className={`${(product.isFeatured || product.featured) ? 'bg-green-50 ring-1 ring-green-200' : 'bg-white'} rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300`}
+                className={`${(product.isFeatured || product.featured) ? 'bg-emerald-50 ring-1 ring-emerald-200' : 'bg-white'} overflow-hidden rounded-2xl border border-slate-200 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg`}
               >
-                <div className="relative">
+                <div className="relative bg-white h-48 flex items-center justify-center">
                   <img
                     src={product.images?.[0]?.url || '/api/placeholder/300/300'}
                     alt={product.images?.[0]?.alt || product.name}
-                    className="w-full h-48 object-cover"
+                    className="max-h-full max-w-full object-contain"
                   />
                   {(product.isFeatured || product.featured) && (
                     <div className="absolute top-2 left-2 bg-green-600 text-white px-2 py-1 rounded-md text-xs font-medium">
@@ -289,15 +348,16 @@ const Products = () => {
                   <div className="flex space-x-2">
                     <Link
                       to={`/product/${product._id}`}
-                      className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-md text-center hover:bg-indigo-700 transition-colors duration-200"
+                      className="flex-1 rounded-xl bg-slate-900 px-4 py-2 text-center text-white transition-colors duration-200 hover:bg-slate-700"
                     >
                       View Details
                     </Link>
                     <button
                       onClick={() => handleAddToCart(product)}
-                      className="flex-1 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors duration-200"
+                      className="flex-1 rounded-xl bg-primary-600 px-4 py-2 text-white transition-colors duration-200 hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                      disabled={(Number(product?.stock || 0) - (cartItems?.find((it) => it.productId === product._id)?.quantity || 0)) <= 0}
                     >
-                      Add to Cart
+                      {(Number(product?.stock || 0) - (cartItems?.find((it) => it.productId === product._id)?.quantity || 0)) > 0 ? 'Add to Cart' : 'Out of Stock'}
                     </button>
                   </div>
                 </div>

@@ -163,15 +163,17 @@ const SellerStorefront = () => {
                 {products?.map((product) => (
                   <div key={product._id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
                     <Link to={`/product/${product._id}`}>
-                      <img
-                        src={
-                          product?.images?.[0]?.url ||
-                          (typeof product?.images?.[0] === 'string' ? product.images[0] : null) ||
-                          'https://picsum.photos/300/300?random=11'
-                        }
-                        alt={product?.images?.[0]?.alt || product?.name || 'Product'}
-                        className="w-full h-48 object-cover"
-                      />
+                      <div className="relative bg-white h-48 flex items-center justify-center">
+                        <img
+                          src={
+                            product?.images?.[0]?.url ||
+                            (typeof product?.images?.[0] === 'string' ? product.images[0] : null) ||
+                            'https://picsum.photos/300/300?random=11'
+                          }
+                          alt={product?.images?.[0]?.alt || product?.name || 'Product'}
+                          className="max-h-full max-w-full object-contain"
+                        />
+                      </div>
                       <div className="p-4">
                         <h3 className="text-lg font-medium text-gray-900 mb-2">{product.name}</h3>
                         <div className="flex items-center justify-between">

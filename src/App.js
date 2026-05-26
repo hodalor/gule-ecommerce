@@ -29,6 +29,7 @@ import OrderConfirmation from './pages/OrderConfirmation';
 import Wishlist from './pages/Wishlist';
 import ForgotPassword from './pages/auth/ForgotPassword';
 import ResetPassword from './pages/auth/ResetPassword';
+import BecomeSeller from './pages/BecomeSeller';
 
 // Buyer Pages
 import BuyerDashboard from './pages/buyer/BuyerDashboard';
@@ -134,6 +135,15 @@ function App() {
                 />
 
                 {/* Seller Protected Routes */}
+                <Route 
+                  path="become-seller"
+                  element={
+                    <ProtectedRoute requiredRole="buyer">
+                      <BecomeSeller />
+                    </ProtectedRoute>
+                  }
+                />
+
                 <Route 
                   path="seller/dashboard/*" 
                   element={

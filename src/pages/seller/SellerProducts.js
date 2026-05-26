@@ -49,9 +49,6 @@ const SellerProducts = () => {
   });
 
   const handleRequestFeature = (product) => {
-    // Allow opening even if only _id exists
-    const pid = product?.id ?? product?._id;
-    // No hard guard – we still open the modal so seller can proceed
     setSelectedFeatureProduct(product);
     setShowFeatureModal(true);
   };
@@ -210,7 +207,7 @@ const SellerProducts = () => {
       setShowFeatureModal(false);
       setSelectedFeatureProduct(null);
       toast.success('Feature request submitted for admin review');
-    } catch (err) {
+    } catch {
       toast.error('Failed to submit feature request');
     }
   };

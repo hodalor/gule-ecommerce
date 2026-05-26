@@ -278,7 +278,7 @@ const DashboardOverview = ({ stats }) => {
                   
                   <div className="text-right">
                     <p className="font-medium text-gray-900">
-                      ₦{order.total.toLocaleString()}
+                      ₦{Number(order?.totalAmount ?? order?.total ?? 0).toLocaleString()}
                     </p>
                     <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
                       order.status === 'completed' ? 'bg-green-100 text-green-800' :

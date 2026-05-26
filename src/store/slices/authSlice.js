@@ -7,12 +7,12 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
 // Async thunks
 export const loginUser = createAsyncThunk(
   'auth/loginUser',
-  async ({ email, password, role }, { rejectWithValue }) => {
+  async ({ identifier, password, role }, { rejectWithValue }) => {
     try {
       const response = await axios.post(`${API_URL}/auth/login`, {
-        email,
+        identifier,
         password,
-        userType: role === 'buyer' ? 'buyer' : 'seller'
+        userType: role === 'seller' ? 'seller' : 'buyer'
       });
 
       const { accessToken, user } = response.data;
@@ -34,12 +34,7 @@ export const registerUser = createAsyncThunk(
   'auth/registerUser',
   async (userData, { rejectWithValue }) => {
     try {
-      // Determine the correct endpoint based on user type
-      const endpoint = userData.userType === 'seller' 
-        ? `${API_URL}/auth/register/seller` 
-        : `${API_URL}/auth/register/buyer`;
-      
-      const response = await axios.post(endpoint, userData);
+      const response = await axios.post(`${API_URL}/auth/register/buyer`, userData);
       
       const { accessToken, user } = response.data;
       
@@ -54,6 +49,36 @@ export const registerUser = createAsyncThunk(
       };
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Registration failed');
+    }
+  }
+);
+
+export const upgradeToSeller = createAsyncThunk(
+  'auth/upgradeToSeller',
+  async (sellerData, { rejectWithValue }) => {
+    try {
+      const token = Cookies.get('token');
+      if (!token) {
+        throw new Error('No token found');
+      }
+
+      const response = await axios.post(`${API_URL}/auth/upgrade-to-seller`, sellerData, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      const { accessToken, user } = response.data;
+      if (accessToken) {
+        Cookies.set('token', accessToken, { expires: 7 });
+      }
+
+      return {
+        token: accessToken,
+        user
+      };
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Seller upgrade failed');
     }
   }
 );
@@ -199,6 +224,21 @@ const authSlice = createSlice({
         state.error = null;
       })
       .addCase(registerUser.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      // Upgrade to seller
+      .addCase(upgradeToSeller.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(upgradeToSeller.fulfilled, (state, action) => {
+        state.loading = false;
+        state.user = action.payload.user;
+        state.isAuthenticated = true;
+        state.error = null;
+      })
+      .addCase(upgradeToSeller.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })

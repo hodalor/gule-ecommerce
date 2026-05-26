@@ -1,208 +1,345 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchFeaturedProducts } from '../store/slices/productSlice';
+import { fetchCategories, fetchFeaturedProducts, fetchHomepageContent, fetchProducts } from '../store/slices/productSlice';
 import { formatCurrency } from '../utils/currency';
+
+const heroSlides = [
+  {
+    title: 'Shop trusted products from local sellers',
+    subtitle: 'Fast discovery, smooth ordering, and a clean multi-vendor experience built for modern commerce.',
+    ctaText: 'Shop products',
+    ctaLink: '/products'
+  },
+  {
+    title: 'Turn your business into a marketplace store',
+    subtitle: 'Create a general account first, then upgrade with business details when you are ready to sell.',
+    ctaText: 'Become a seller',
+    ctaLink: '/become-seller'
+  },
+  {
+    title: 'Featured deals get top placement',
+    subtitle: 'Highlight priority products first, then keep latest products visible for fresh discovery every day.',
+    ctaText: 'See all products',
+    ctaLink: '/products'
+  }
+];
+
+const promoCards = [
+  { title: 'Sell on Gule', text: 'Open your seller profile and start listing products.', ctaText: 'Sell now', ctaLink: '/become-seller' },
+  { title: 'Track Orders', text: 'Manage orders and follow deliveries with confidence.', ctaText: 'Shop now', ctaLink: '/products' },
+  { title: 'Browse All', text: 'Jump straight into the full marketplace catalog.', ctaText: 'See all products', ctaLink: '/products' }
+];
+
+const renderStars = (rating = 0) => (
+  <div className="flex items-center">
+    {[...Array(5)].map((_, index) => (
+      <svg
+        key={index}
+        className={`h-4 w-4 ${index < Math.round(rating) ? 'text-yellow-400' : 'text-gray-300'}`}
+        fill="currentColor"
+        viewBox="0 0 20 20"
+      >
+        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+      </svg>
+    ))}
+  </div>
+);
+
+const ProductCard = ({ product, badge }) => (
+  <div className="group rounded-2xl bg-white shadow-sm hover:shadow-lg transition-shadow duration-300 overflow-hidden border border-gray-100">
+    <div className="relative h-56 bg-gray-50 flex items-center justify-center">
+      <img
+        src={product.images?.[0]?.url || 'https://via.placeholder.com/300'}
+        alt={product.images?.[0]?.alt || product.name}
+        className="max-h-full max-w-full object-contain p-4"
+      />
+      {badge && (
+        <span className="absolute left-3 top-3 rounded-full bg-primary-600 px-3 py-1 text-xs font-semibold text-white">
+          {badge}
+        </span>
+      )}
+    </div>
+    <div className="p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">
+        {product.seller?.businessName || 'Marketplace Seller'}
+      </p>
+      <Link to={`/product/${product._id || product.id}`} className="mt-2 block text-lg font-semibold text-gray-900 group-hover:text-primary-600">
+        {product.name}
+      </Link>
+      <div className="mt-3 flex items-center gap-2">
+        {renderStars(product.averageRating || product.rating || 0)}
+        <span className="text-sm text-gray-500">
+          {(product.averageRating || product.rating || 0).toFixed ? (product.averageRating || product.rating || 0).toFixed(1) : (product.averageRating || product.rating || 0)} ({product.reviewCount || 0})
+        </span>
+      </div>
+      <div className="mt-4 flex items-center justify-between">
+        <div>
+          <p className="text-lg font-bold text-gray-900">{formatCurrency(product.price, product.currency)}</p>
+          {product.comparePrice && product.comparePrice > product.price && (
+            <p className="text-sm text-gray-400 line-through">{formatCurrency(product.comparePrice, product.currency)}</p>
+          )}
+        </div>
+        <Link
+          to={`/product/${product._id || product.id}`}
+          className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+        >
+          View
+        </Link>
+      </div>
+    </div>
+  </div>
+);
 
 const Home = () => {
   const dispatch = useDispatch();
-  const featuredProducts = useSelector((state) => state.products.featuredProducts);
+  const { featuredProducts, products, categories, homepageContent, loading } = useSelector((state) => state.products);
+  const { user } = useSelector((state) => state.auth);
+  const [activeSlide, setActiveSlide] = useState(0);
 
   useEffect(() => {
     dispatch(fetchFeaturedProducts());
+    dispatch(fetchProducts({ limit: 16 }));
+    dispatch(fetchCategories());
+    dispatch(fetchHomepageContent());
   }, [dispatch]);
 
-  const renderStars = (rating = 0) => {
-    const full = Math.round(rating);
-    return (
-      <div className="flex items-center">
-        {[...Array(5)].map((_, i) => (
-          <svg
-            key={i}
-            className={`h-4 w-4 ${i < full ? 'text-yellow-400' : 'text-gray-300'}`}
-            fill="currentColor"
-            viewBox="0 0 20 20"
-          >
-            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-          </svg>
-        ))}
-      </div>
-    );
-  };
+  useEffect(() => {
+    const slideCount = Math.max((homepageContent?.heroBanners || []).filter((item) => item.isActive !== false).length, heroSlides.length);
+    const timer = setInterval(() => {
+      setActiveSlide((current) => (current + 1) % slideCount);
+    }, 5000);
+
+    return () => clearInterval(timer);
+  }, [homepageContent]);
+
+  const activeHeroSlides = useMemo(() => {
+    const managedSlides = (homepageContent?.heroBanners || [])
+      .filter((item) => item.isActive !== false)
+      .map((item) => ({ ...item }));
+
+    return managedSlides.length > 0 ? managedSlides : heroSlides;
+  }, [homepageContent]);
+
+  useEffect(() => {
+    if (activeSlide >= activeHeroSlides.length) {
+      setActiveSlide(0);
+    }
+  }, [activeHeroSlides, activeSlide]);
+
+  const activePromoCards = useMemo(() => {
+    const managedAds = (homepageContent?.promoAds || []).filter((item) => item.isActive !== false);
+    return managedAds.length > 0 ? managedAds : promoCards;
+  }, [homepageContent]);
+
+  const topCategories = useMemo(() => {
+    const highlightedCategoryIds = homepageContent?.highlightedCategoryIds || [];
+    if (!highlightedCategoryIds.length) {
+      return (categories || []).slice(0, 10);
+    }
+
+    const highlighted = highlightedCategoryIds
+      .map((id) => (categories || []).find((category) => String(category.id || category._id) === String(id)))
+      .filter(Boolean);
+
+    return highlighted.length > 0 ? highlighted.slice(0, 10) : (categories || []).slice(0, 10);
+  }, [categories, homepageContent]);
+  const latestProducts = useMemo(() => (products || []).slice(0, 16), [products]);
+  const prioritizedFeatured = Array.isArray(featuredProducts) ? featuredProducts.slice(0, 8) : [];
+  const activeHero = activeHeroSlides[activeSlide] || activeHeroSlides[0] || heroSlides[0];
+  const sellerCtaLink = user?.userType === 'buyer' ? '/become-seller' : user?.userType === 'seller' ? '/seller/dashboard' : '/signup';
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Hero Section */}
-      <div className="relative bg-gray-50 overflow-hidden">
-        <div className="relative pt-6 pb-16 sm:pb-24">
-          <main className="mt-16 mx-auto max-w-7xl px-4 sm:mt-24 sm:px-6 lg:mt-32">
-            <div className="lg:grid lg:grid-cols-12 lg:gap-8">
-              <div className="sm:text-center md:max-w-2xl md:mx-auto lg:col-span-6 lg:text-left">
-                <h1>
-                  <span className="block text-sm font-semibold uppercase tracking-wide text-gray-500 sm:text-base lg:text-sm xl:text-base">
-                    Welcome to
-                  </span>
-                  <span className="mt-1 block text-4xl tracking-tight font-extrabold sm:text-5xl xl:text-6xl">
-                    <span className="block text-gray-900">Gule</span>
-                    <span className="block text-indigo-600">Marketplace</span>
-                  </span>
-                </h1>
-                <p className="mt-3 text-base text-gray-500 sm:mt-5 sm:text-xl lg:text-lg xl:text-xl">
-                  Discover amazing products from trusted sellers. Shop with confidence and enjoy a seamless e-commerce experience.
-                </p>
-                <div className="mt-8 sm:max-w-lg sm:mx-auto sm:text-center lg:text-left lg:mx-0">
-                  <div className="space-y-4 sm:space-y-0 sm:space-x-4 sm:inline-flex">
-                    <Link
-                      to="/products"
-                      className="block w-full rounded-md border border-transparent px-5 py-3 bg-indigo-600 text-base font-medium text-white shadow hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:px-10"
-                    >
-                      Shop Now
-                    </Link>
-                    <Link
-                      to="/seller/register"
-                      className="block w-full rounded-md border border-indigo-600 px-5 py-3 bg-white text-base font-medium text-indigo-600 shadow hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:px-10"
-                    >
-                      Become a Seller
-                    </Link>
-                  </div>
-                </div>
-              </div>
-              <div className="mt-12 relative sm:max-w-lg sm:mx-auto lg:mt-0 lg:max-w-none lg:mx-0 lg:col-span-6 lg:flex lg:items-center">
-                <div className="relative mx-auto w-full rounded-lg shadow-lg lg:max-w-md">
-                  <div className="relative block w-full bg-white rounded-lg overflow-hidden">
-                    <div className="aspect-w-16 aspect-h-9 bg-gradient-to-r from-purple-400 via-pink-500 to-red-500 flex items-center justify-center">
-                      <div className="text-white text-center">
-                        <svg className="mx-auto h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                        </svg>
-                        <p className="mt-2 text-lg font-semibold">Your Shopping Destination</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+    <div className="min-h-screen bg-slate-50">
+      <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+        <section className="grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)_260px]">
+          <div className="rounded-2xl bg-white shadow-sm border border-gray-100 p-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900">Categories</h2>
+              <Link to="/categories" className="text-sm font-medium text-primary-600 hover:text-primary-500">
+                See all
+              </Link>
             </div>
-          </main>
-        </div>
-      </div>
-
-      {/* Features Section */}
-      <div className="py-12 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="lg:text-center">
-            <h2 className="text-base text-indigo-600 font-semibold tracking-wide uppercase">Features</h2>
-            <p className="mt-2 text-3xl leading-8 font-extrabold tracking-tight text-gray-900 sm:text-4xl">
-              Why Choose Gule?
-            </p>
-          </div>
-
-          <div className="mt-10">
-            <div className="space-y-10 md:space-y-0 md:grid md:grid-cols-2 md:gap-x-8 md:gap-y-10">
-              <div className="relative">
-                <div className="absolute flex items-center justify-center h-12 w-12 rounded-md bg-indigo-500 text-white">
-                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
+            <div className="mt-4 space-y-2">
+              {topCategories.length > 0 ? topCategories.map((category) => (
+                <Link
+                  key={category.id || category._id}
+                  to={`/products?category=${encodeURIComponent(category.name)}`}
+                  className="flex items-center justify-between rounded-xl px-3 py-3 text-sm text-gray-700 hover:bg-slate-50 hover:text-primary-600"
+                >
+                  <span>{category.name}</span>
+                  <span className="text-xs text-gray-400">{category.subcategories?.length || 0}</span>
+                </Link>
+              )) : (
+                <div className="space-y-2">
+                  {[1, 2, 3, 4, 5].map((item) => (
+                    <div key={item} className="h-11 animate-pulse rounded-xl bg-gray-100" />
+                  ))}
                 </div>
-                <p className="ml-16 text-lg leading-6 font-medium text-gray-900">Fast & Secure</p>
-                <p className="mt-2 ml-16 text-base text-gray-500">
-                  Lightning-fast checkout process with secure payment options.
-                </p>
-              </div>
-
-              <div className="relative">
-                <div className="absolute flex items-center justify-center h-12 w-12 rounded-md bg-indigo-500 text-white">
-                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <p className="ml-16 text-lg leading-6 font-medium text-gray-900">Trusted Sellers</p>
-                <p className="mt-2 ml-16 text-base text-gray-500">
-                  All sellers are verified to ensure quality and reliability.
-                </p>
-              </div>
+              )}
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Featured Products Section */}
-      <div className="py-16 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <h2 className="text-base text-indigo-600 font-semibold tracking-wide uppercase">Featured Products</h2>
-            <p className="mt-2 text-3xl leading-8 font-extrabold tracking-tight text-gray-900 sm:text-4xl">
-              Popular Items
-            </p>
-            <p className="mt-4 max-w-2xl text-xl text-gray-500 lg:mx-auto">
-              Discover our most popular products from trusted sellers
-            </p>
-          </div>
+          <div className="relative overflow-hidden rounded-3xl shadow-lg">
+            {activeHero?.imageUrl ? (
+              <img
+                src={activeHero.imageUrl}
+                alt={activeHero.title}
+                className="h-[360px] w-full object-cover sm:h-[420px]"
+              />
+            ) : (
+              <div className="h-[360px] w-full bg-slate-900 sm:h-[420px]" />
+            )}
 
-          {Array.isArray(featuredProducts) && featuredProducts.length > 0 ? (
-            <div className="mt-12 grid grid-cols-1 gap-y-10 sm:grid-cols-2 gap-x-6 lg:grid-cols-4 xl:gap-x-8">
-              {featuredProducts.map((product) => (
-                <div key={product._id || product.id} className="group relative bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
-                  <div className="w-full min-h-80 bg-gray-200 aspect-w-1 aspect-h-1 rounded-md overflow-hidden group-hover:opacity-75 lg:h-80 lg:aspect-none">
-                    <img
-                      src={product.images?.[0]?.url || 'https://via.placeholder.com/300'}
-                      alt={product.images?.[0]?.alt || product.name}
-                      className="w-full h-full object-center object-cover lg:w-full lg:h-full"
-                    />
-                    {product.isFeatured && (
-                      <span className="absolute top-2 left-2 bg-indigo-600 text-white px-2 py-1 rounded-md text-xs font-medium">Featured</span>
-                    )}
+            {activeHero?.showOverlay !== false && (
+              <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/45 to-black/20" />
+            )}
+            <div className="absolute inset-0 flex flex-col justify-between p-6 sm:p-8">
+              {activeHero?.showContent !== false ? (
+                <>
+                  <div className="max-w-2xl">
+                    <h1 className={`text-3xl font-black leading-tight text-white ${activeHero?.showOverlay !== false ? 'drop-shadow-sm' : ''} sm:text-5xl`}>
+                      {activeHero.title}
+                    </h1>
+                    <p className={`mt-4 max-w-xl text-sm ${activeHero?.showOverlay !== false ? 'text-white/90 drop-shadow-sm' : 'text-white'} sm:text-lg`}>
+                      {activeHero.subtitle}
+                    </p>
                   </div>
-                  <div className="p-4">
-                    <div className="flex justify-between">
-                      <div>
-                        <h3 className="text-sm text-gray-700">
-                          <Link to={`/product/${product._id || product.id}`}>
-                            <span aria-hidden="true" className="absolute inset-0" />
-                            {product.name}
-                          </Link>
-                        </h3>
-                        <p className="mt-1 text-sm text-gray-500">{product.seller?.businessName || 'Unknown Seller'}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium text-gray-900">{formatCurrency(product.price, product.currency)}</p>
-                        {product.comparePrice && product.comparePrice > product.price && (
-                          <p className="text-xs text-gray-500 line-through">{formatCurrency(product.comparePrice, product.currency)}</p>
-                        )}
-                      </div>
+
+                  <div className="space-y-5">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Link
+                        to={activeHero.ctaLink || '/products'}
+                        className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-100"
+                      >
+                        {activeHero.ctaText || 'Shop products'}
+                      </Link>
+                      <Link
+                        to={sellerCtaLink}
+                        className="rounded-full border border-white/70 bg-black/25 px-6 py-3 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-black/40"
+                      >
+                        {user?.userType === 'seller' ? 'Open seller dashboard' : 'Sell now'}
+                      </Link>
                     </div>
-                    <div className="mt-2 flex items-center">
-                      {renderStars(product.averageRating)}
-                      <span className="ml-2 text-sm text-gray-600">{typeof product.averageRating === 'number' ? product.averageRating.toFixed(1) : (product.averageRating || 0)} ({product.reviewCount || 0})</span>
+
+                    <div className="flex items-center gap-2">
+                      {activeHeroSlides.map((_, index) => (
+                        <button
+                          key={index}
+                          type="button"
+                          onClick={() => setActiveSlide(index)}
+                          className={`h-2.5 rounded-full transition-all ${index === activeSlide ? 'w-8 bg-white' : 'w-2.5 bg-white/60'}`}
+                          aria-label={`Go to slide ${index + 1}`}
+                        />
+                      ))}
                     </div>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-end">
+                  <div className="flex items-center gap-2 rounded-full bg-black/20 px-4 py-3 backdrop-blur-sm">
+                    {activeHeroSlides.map((_, index) => (
+                      <button
+                        key={index}
+                        type="button"
+                        onClick={() => setActiveSlide(index)}
+                        className={`h-2.5 rounded-full transition-all ${index === activeSlide ? 'w-8 bg-white' : 'w-2.5 bg-white/60'}`}
+                        aria-label={`Go to slide ${index + 1}`}
+                      />
+                    ))}
                   </div>
                 </div>
+              )}
+              <div />
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {activePromoCards.map((card) => (
+              <Link
+                key={card.title}
+                to={card.ctaLink || '/products'}
+                className="block rounded-2xl bg-white shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow"
+              >
+                {card.imageUrl && (
+                  <div className="mb-4 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                    <div className="flex aspect-[5/3] items-center justify-center p-3">
+                      <img
+                        src={card.imageUrl}
+                        alt={card.title}
+                        className="h-full w-full object-contain"
+                      />
+                    </div>
+                  </div>
+                )}
+                <p className="text-sm font-semibold uppercase tracking-wide text-primary-600">{card.title}</p>
+                <p className="mt-2 text-sm text-gray-600">{card.text}</p>
+                <p className="mt-3 text-sm font-semibold text-slate-900">{card.ctaText || 'Learn more'}</p>
+              </Link>
+            ))}
+          </div>
+        </section>
+
+        {prioritizedFeatured.length > 0 && (
+          <section className="mt-10">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-wide text-primary-600">Top priority</p>
+                <h2 className="text-3xl font-black text-gray-900">Featured products</h2>
+                <p className="mt-2 text-gray-600">Featured listings appear first before regular newly posted products.</p>
+              </div>
+              <Link to="/products" className="text-sm font-semibold text-primary-600 hover:text-primary-500">
+                See all products
+              </Link>
+            </div>
+
+            <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
+              {prioritizedFeatured.map((product) => (
+                <ProductCard key={product._id || product.id} product={product} badge="Featured" />
+              ))}
+            </div>
+          </section>
+        )}
+
+        <section className="mt-10">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide text-primary-600">
+                {prioritizedFeatured.length > 0 ? 'Fresh arrivals' : 'Newly posted'}
+              </p>
+              <h2 className="text-3xl font-black text-gray-900">
+                {prioritizedFeatured.length > 0 ? 'Latest products' : 'New products in four rows'}
+              </h2>
+              <p className="mt-2 text-gray-600">
+                {prioritizedFeatured.length > 0
+                  ? 'Recent listings stay visible after featured items so buyers can keep discovering new stock.'
+                  : 'No featured products are available yet, so the newest product listings take over the spotlight.'}
+              </p>
+            </div>
+            <Link to="/products" className="inline-flex items-center rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-700">
+              See all products
+            </Link>
+          </div>
+
+          {loading && latestProducts.length === 0 ? (
+            <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
+              {[...Array(8)].map((_, index) => (
+                <div key={index} className="h-80 animate-pulse rounded-2xl bg-white shadow-sm" />
+              ))}
+            </div>
+          ) : latestProducts.length > 0 ? (
+            <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
+              {latestProducts.map((product) => (
+                <ProductCard key={product._id || product.id} product={product} badge={product.isFeatured ? 'Featured' : 'New'} />
               ))}
             </div>
           ) : (
-            <div className="mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {[1,2,3,4].map((i) => (
-                <div key={i} className="animate-pulse bg-white rounded-lg shadow-md p-4">
-                  <div className="h-48 bg-gray-200 rounded mb-4" />
-                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2" />
-                  <div className="h-4 bg-gray-200 rounded w-1/2" />
-                </div>
-              ))}
+            <div className="mt-6 rounded-2xl bg-white p-10 text-center shadow-sm">
+              <h3 className="text-xl font-semibold text-gray-900">No products yet</h3>
+              <p className="mt-2 text-gray-600">Start onboarding sellers and the latest products will appear here automatically.</p>
             </div>
           )}
-
-          <div className="mt-12 text-center">
-            <Link
-              to="/products"
-              className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-            >
-              View All Products
-              <svg className="ml-2 -mr-1 w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
-            </Link>
-          </div>
-        </div>
+        </section>
       </div>
     </div>
   );

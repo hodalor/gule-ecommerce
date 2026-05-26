@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 
 const Login = () => {
   const [formData, setFormData] = useState({
-    email: '',
+    identifier: '',
     password: '',
     role: 'buyer',
   });
@@ -21,10 +21,8 @@ const Login = () => {
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.email) {
-      newErrors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Email is invalid';
+    if (!formData.identifier.trim()) {
+      newErrors.identifier = 'Email or phone number is required';
     }
 
     if (!formData.password) {
@@ -109,7 +107,7 @@ const Login = () => {
                     onChange={handleChange}
                     className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300"
                   />
-                  <span className="ml-2 text-sm text-gray-700">Buyer</span>
+                  <span className="ml-2 text-sm text-gray-700">General account</span>
                 </label>
                 <label className="flex items-center">
                   <input
@@ -125,25 +123,25 @@ const Login = () => {
               </div>
             </div>
 
-            {/* Email */}
+            {/* Email or phone */}
             <div>
-              <label htmlFor="email" className="sr-only">
-                Email address
+              <label htmlFor="identifier" className="sr-only">
+                Email or phone number
               </label>
               <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                value={formData.email}
+                id="identifier"
+                name="identifier"
+                type="text"
+                autoComplete="username"
+                value={formData.identifier}
                 onChange={handleChange}
                 className={`appearance-none rounded-none relative block w-full px-3 py-2 border ${
-                  errors.email ? 'border-red-300' : 'border-gray-300'
+                  errors.identifier ? 'border-red-300' : 'border-gray-300'
                 } placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm`}
-                placeholder="Email address"
+                placeholder="Email or phone number"
               />
-              {errors.email && (
-                <p className="mt-1 text-sm text-red-600">{errors.email}</p>
+              {errors.identifier && (
+                <p className="mt-1 text-sm text-red-600">{errors.identifier}</p>
               )}
             </div>
 

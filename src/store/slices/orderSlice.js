@@ -1,15 +1,14 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../utils/api';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
-
 // Async thunks
 export const createOrder = createAsyncThunk(
   'orders/createOrder',
   async (orderData, { rejectWithValue }) => {
     try {
       const response = await api.post(`/orders`, orderData);
-      return response.data;
+      // Backend wraps payload under data: { order }
+      return response.data?.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to create order');
     }
@@ -23,8 +22,9 @@ export const fetchUserOrders = createAsyncThunk(
       const params = new URLSearchParams({ page: page.toString() });
       if (status) params.append('status', status);
       
-      const response = await api.get(`/orders/user?${params}`);
-      return response.data;
+      // Backend route is /orders/my-orders and wraps payload under data
+      const response = await api.get(`/orders/my-orders?${params}`);
+      return response.data?.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch orders');
     }
@@ -39,7 +39,7 @@ export const fetchSellerOrders = createAsyncThunk(
       if (status) params.append('status', status);
       
       const response = await api.get(`/orders/seller-orders?${params}`);
-      return response.data;
+      return response.data?.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch seller orders');
     }
@@ -51,7 +51,7 @@ export const fetchOrderById = createAsyncThunk(
   async (orderId, { rejectWithValue }) => {
     try {
       const response = await api.get(`/orders/${orderId}`);
-      return response.data;
+      return response.data?.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch order');
     }
@@ -62,11 +62,12 @@ export const updateOrderStatus = createAsyncThunk(
   'orders/updateOrderStatus',
   async ({ orderId, status, trackingNumber }, { rejectWithValue }) => {
     try {
-      const response = await api.put(`/orders/${orderId}/status`, {
+      // Backend expects PATCH /:id/status
+      const response = await api.patch(`/orders/${orderId}/status`, {
         status,
         trackingNumber,
       });
-      return response.data;
+      return response.data?.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to update order status');
     }
@@ -77,8 +78,9 @@ export const confirmDelivery = createAsyncThunk(
   'orders/confirmDelivery',
   async (orderId, { rejectWithValue }) => {
     try {
-      const response = await api.put(`/orders/${orderId}/confirm-delivery`);
-      return response.data;
+      // Align with backend: change status to delivered via PATCH
+      const response = await api.patch(`/orders/${orderId}/status`, { status: 'delivered' });
+      return response.data?.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to confirm delivery');
     }
@@ -118,8 +120,71 @@ export const trackOrder = createAsyncThunk(
   'orders/trackOrder',
   async (orderId, { rejectWithValue }) => {
     try {
-      const response = await api.get(`/orders/${orderId}/track`);
-      return response.data;
+      // No dedicated track endpoint; derive tracking from order details
+      const response = await api.get(`/orders/${orderId}`);
+      const data = response.data?.data;
+      const order = data?.order;
+      if (!order) return { tracking: null };
+
+      const steps = [];
+      // Order placed
+      steps.push({
+        status: 'order_placed',
+        title: 'Order Placed',
+        description: 'Order has been placed successfully',
+        timestamp: order.createdAt,
+        completed: true
+      });
+      // Processing/Confirmed
+      if (order.status === 'confirmed' || order.status === 'processing') {
+        steps.push({
+          status: 'processing',
+          title: 'Processing',
+          description: 'Order is being prepared',
+          completed: order.status !== 'confirmed',
+          timestamp: order.updatedAt
+        });
+      }
+      // Shipped
+      if (order.shippedAt || order.status === 'shipped') {
+        steps.push({
+          status: 'out_for_delivery',
+          title: 'Shipped',
+          description: 'Order has left the warehouse',
+          timestamp: order.shippedAt,
+          completed: true
+        });
+      }
+      // Delivered
+      if (order.deliveredAt || order.status === 'delivered' || order.status === 'completed') {
+        steps.push({
+          status: 'delivered',
+          title: 'Delivered',
+          description: 'Order delivered to the destination',
+          timestamp: order.deliveredAt || order.completedAt,
+          completed: order.status === 'delivered' || order.status === 'completed'
+        });
+      }
+
+      const tracking = {
+        id: order.orderNumber || order._id,
+        status: order.status,
+        trackingNumber: order.trackingNumber || 'Pending',
+        carrier: order.carrier || 'To be assigned',
+        estimatedDelivery: order.deliveredAt || null,
+        shippingAddress: order.shippingAddress || {},
+        items: (order.items || []).map(item => ({
+          id: item._id,
+          name: (item?.productSnapshot?.name) || (item?.product?.name) || 'Item',
+          quantity: item?.quantity || 0,
+          price: item?.unitPrice || item?.pricing?.basePrice || 0,
+          image: (item?.productSnapshot?.image) || (item?.product?.images?.[0]?.url) || null
+        })),
+        total: order.totalAmount || order.total || 0,
+        timeline: steps
+      };
+
+      return { tracking };
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to track order');
     }
@@ -170,8 +235,10 @@ const orderSlice = createSlice({
       })
       .addCase(createOrder.fulfilled, (state, action) => {
         state.loading = false;
-        state.orders.unshift(action.payload.order);
-        state.currentOrder = action.payload.order;
+        if (action.payload?.order) {
+          state.orders.unshift(action.payload.order);
+          state.currentOrder = action.payload.order;
+        }
       })
       .addCase(createOrder.rejected, (state, action) => {
         state.loading = false;
@@ -184,8 +251,8 @@ const orderSlice = createSlice({
       })
       .addCase(fetchUserOrders.fulfilled, (state, action) => {
         state.loading = false;
-        state.orders = action.payload.orders;
-        state.pagination = action.payload.pagination;
+        state.orders = action.payload?.orders || [];
+        state.pagination = action.payload?.pagination || state.pagination;
       })
       .addCase(fetchUserOrders.rejected, (state, action) => {
         state.loading = false;
@@ -198,8 +265,8 @@ const orderSlice = createSlice({
       })
       .addCase(fetchSellerOrders.fulfilled, (state, action) => {
         state.loading = false;
-        state.orders = action.payload.orders;
-        state.pagination = action.payload.pagination;
+        state.orders = action.payload?.orders || [];
+        state.pagination = action.payload?.pagination || state.pagination;
       })
       .addCase(fetchSellerOrders.rejected, (state, action) => {
         state.loading = false;
@@ -212,7 +279,7 @@ const orderSlice = createSlice({
       })
       .addCase(fetchOrderById.fulfilled, (state, action) => {
         state.loading = false;
-        state.currentOrder = action.payload.order;
+        state.currentOrder = action.payload?.order || null;
       })
       .addCase(fetchOrderById.rejected, (state, action) => {
         state.loading = false;
@@ -220,32 +287,35 @@ const orderSlice = createSlice({
       })
       // Update order status
       .addCase(updateOrderStatus.fulfilled, (state, action) => {
-        const index = state.orders.findIndex(order => order._id === action.payload.order._id);
+        const updated = action.payload?.order;
+        const index = state.orders.findIndex(order => order._id === updated?._id);
         if (index !== -1) {
-          state.orders[index] = action.payload.order;
+          state.orders[index] = updated;
         }
-        if (state.currentOrder?._id === action.payload.order._id) {
-          state.currentOrder = action.payload.order;
+        if (state.currentOrder?._id === updated?._id) {
+          state.currentOrder = updated;
         }
       })
       // Confirm delivery
       .addCase(confirmDelivery.fulfilled, (state, action) => {
-        const index = state.orders.findIndex(order => order._id === action.payload.order._id);
+        const updated = action.payload?.order;
+        const index = state.orders.findIndex(order => order._id === updated?._id);
         if (index !== -1) {
-          state.orders[index] = action.payload.order;
+          state.orders[index] = updated;
         }
-        if (state.currentOrder?._id === action.payload.order._id) {
-          state.currentOrder = action.payload.order;
+        if (state.currentOrder?._id === updated?._id) {
+          state.currentOrder = updated;
         }
       })
       // Rate order
       .addCase(rateOrder.fulfilled, (state, action) => {
-        const index = state.orders.findIndex(order => order._id === action.payload.order._id);
+        const updated = action.payload?.order;
+        const index = state.orders.findIndex(order => order._id === updated?._id);
         if (index !== -1) {
-          state.orders[index] = action.payload.order;
+          state.orders[index] = updated;
         }
-        if (state.currentOrder?._id === action.payload.order._id) {
-          state.currentOrder = action.payload.order;
+        if (state.currentOrder?._id === updated?._id) {
+          state.currentOrder = updated;
         }
       })
       // Request refund
@@ -265,7 +335,7 @@ const orderSlice = createSlice({
       })
       .addCase(trackOrder.fulfilled, (state, action) => {
         state.loading = false;
-        state.trackingInfo = action.payload.tracking;
+        state.trackingInfo = action.payload?.tracking || null;
       })
       .addCase(trackOrder.rejected, (state, action) => {
         state.loading = false;

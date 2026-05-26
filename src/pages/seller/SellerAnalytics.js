@@ -9,30 +9,23 @@ import {
   ShoppingCartIcon,
   UserGroupIcon,
   EyeIcon,
-  CalendarIcon,
-  FunnelIcon,
   DocumentArrowDownIcon,
   ArrowPathIcon,
-  InformationCircleIcon,
   TrophyIcon,
   ExclamationTriangleIcon,
-  CheckCircleIcon,
-  ClockIcon,
   StarIcon,
-  ChartPieIcon,
-  PresentationChartLineIcon
+  ChartPieIcon
 } from '@heroicons/react/24/outline';
 import { formatCurrency as formatCurrencyUtil } from '../../utils/currency';
 
 const SellerAnalytics = () => {
   const dispatch = useDispatch();
-  const { reports, salesData, productPerformance, loading, error } = useSelector((state) => state.reports);
+  const { loading, error } = useSelector((state) => state.reports);
   const { user } = useSelector((state) => state.auth);
 
   const [dateRange, setDateRange] = useState('30d');
   const [selectedMetric, setSelectedMetric] = useState('revenue');
   const [comparisonPeriod, setComparisonPeriod] = useState('previous');
-  const [showAdvancedMetrics, setShowAdvancedMetrics] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
 
   // Derive booleans from loading/error objects

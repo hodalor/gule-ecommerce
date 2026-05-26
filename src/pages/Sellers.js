@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchSellers, fetchSellerCategories, clearError } from '../store/slices/sellerSlice';
+import { fetchSellers, fetchSellerCategories } from '../store/slices/sellerSlice';
 
 const Sellers = () => {
   const dispatch = useDispatch();
-  const { sellers, categories, loading, error, stats } = useSelector((state) => state.sellers);
+  const { sellers, categories, loading, error } = useSelector((state) => state.sellers);
   
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
