@@ -42,7 +42,7 @@ const ProductDetails = () => {
   const activeVariant = isVariableProduct ? selectedVariant : null;
   const cartKey = buildCartKey(product?._id, activeVariant);
   const existingCartQty = getCartQuantityForKey(cartItems, cartKey);
-  const rawStock = Number(activeVariant?.stock ?? product?.availableStock ?? product?.stock || 0);
+  const rawStock = Number((activeVariant?.stock ?? product?.availableStock ?? product?.stock) || 0);
   const availableStock = Math.max(0, rawStock - existingCartQty);
 
   useEffect(() => {
@@ -70,7 +70,7 @@ const ProductDetails = () => {
     }
   }, [activeVariant, product?.images]);
 
-  const displayPrice = Number(activeVariant?.price ?? product?.displayPrice ?? product?.price || 0);
+  const displayPrice = Number((activeVariant?.price ?? product?.displayPrice ?? product?.price) || 0);
   const currentImageSrc = activeVariant?.image?.url || product?.images?.[selectedImage]?.url || '/api/placeholder/600/600';
   const priceSummary = isVariableProduct && !activeVariant
     ? getProductDisplayPrice(product)
