@@ -12,6 +12,7 @@ import { DevicePhoneMobileIcon } from '@heroicons/react/24/outline';
 import { clearCart } from '../store/slices/cartSlice';
 import { createOrder } from '../store/slices/orderSlice';
 import toast from 'react-hot-toast';
+import { buildVariantLabel, formatPrice } from '../utils/cart';
 
 const Checkout = () => {
   const dispatch = useDispatch();
@@ -99,6 +100,11 @@ const Checkout = () => {
         product: item.productId,
         quantity: item.quantity,
         unitPrice: item.price,
+        selectedVariant: item.variant ? {
+          optionId: item.variant.optionId,
+          name: item.variant.name || item.variant.variantName,
+          value: item.variant.value || item.variant.variantValue
+        } : undefined
       }));
 
       // Map payment method to backend enumeration
@@ -121,6 +127,14 @@ const Checkout = () => {
         items: orderItems,
         shippingAddress,
         paymentMethod,
+        paymentStatus: 'paid',
+        paymentDetails: {
+          transactionId: `TXN-${Date.now()}`,
+          gateway: paymentInfo.paymentMethod === 'card' ? 'card' : 'mobile_money',
+          operator: paymentInfo.paymentMethod === 'mobile' ? paymentInfo.mobileOperator : undefined,
+          phone: paymentInfo.paymentMethod === 'mobile' ? paymentInfo.mobileNumber : undefined,
+          cardLast4: paymentInfo.paymentMethod === 'card' ? paymentInfo.cardNumber.slice(-4) : undefined
+        },
         notes: '',
       };
 
@@ -489,7 +503,7 @@ const Checkout = () => {
                   <h2 className="text-xl font-semibold text-gray-900 mb-4">Order Items</h2>
                   <div className="space-y-4">
                     {items.map((item) => (
-                      <div key={item.productId || item.product?._id || item.product?.id || Math.random()} className="flex items-center space-x-4">
+                      <div key={item.cartKey || item.productId || item.product?._id || item.product?.id || Math.random()} className="flex items-center space-x-4">
                         <img
                           src={
                             (typeof item.image === 'string' ? item.image : item.image?.url) ||
@@ -501,10 +515,13 @@ const Checkout = () => {
                         />
                         <div className="flex-1">
                           <h3 className="font-medium text-gray-900">{item.name || item.product?.name}</h3>
+                          {item.variant && (
+                            <p className="text-sm text-gray-500">{buildVariantLabel(item.variant)}</p>
+                          )}
                           <p className="text-sm text-gray-500">Quantity: {item.quantity}</p>
                         </div>
                         <p className="font-semibold text-gray-900">
-                          ${((item.price || item.product?.price || 0) * item.quantity).toFixed(2)}
+                          {formatPrice((item.price || item.product?.price || 0) * item.quantity)}
                         </p>
                       </div>
                     ))}
@@ -572,7 +589,7 @@ const Checkout = () => {
               <div className="space-y-3">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Subtotal</span>
-                  <span className="font-medium">${totalAmount.toFixed(2)}</span>
+                  <span className="font-medium">{formatPrice(totalAmount)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Shipping</span>
@@ -580,13 +597,13 @@ const Checkout = () => {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Tax</span>
-                  <span className="font-medium">${tax.toFixed(2)}</span>
+                  <span className="font-medium">{formatPrice(tax)}</span>
                 </div>
                 <div className="border-t border-gray-200 pt-3">
                   <div className="flex justify-between">
                     <span className="text-lg font-semibold text-gray-900">Total</span>
                     <span className="text-lg font-semibold text-gray-900">
-                      ${finalTotal.toFixed(2)}
+                      {formatPrice(finalTotal)}
                     </span>
                   </div>
                 </div>

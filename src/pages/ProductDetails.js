@@ -4,6 +4,13 @@ import { useDispatch, useSelector } from 'react-redux';
 import { fetchProductById } from '../store/slices/productSlice';
 import { addToCart } from '../store/slices/cartSlice';
 import toast from 'react-hot-toast';
+import {
+  buildCartKey,
+  buildVariantLabel,
+  formatPrice,
+  getCartQuantityForKey,
+  getProductDisplayPrice
+} from '../utils/cart';
 
 const ProductDetails = () => {
   const { id } = useParams();
@@ -15,6 +22,7 @@ const ProductDetails = () => {
   
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
+  const [selectedVariantId, setSelectedVariantId] = useState('');
   // Whole-image zoom state
   const imgContainerRef = useRef(null);
   const imgRef = useRef(null);
@@ -26,10 +34,47 @@ const ProductDetails = () => {
     }
   }, [dispatch, id]);
 
-  // Derive available stock considering items already in cart
-  const existingCartQty = cartItems?.find((it) => it.productId === product?._id)?.quantity || 0;
-  const rawStock = Number(product?.stock || 0);
+  const variants = Array.isArray(product?.variants) ? product.variants : [];
+  const isVariableProduct = product?.productType === 'variable' && variants.length > 0;
+  const selectedVariant = isVariableProduct
+    ? variants.find((variant) => String(variant?.optionId) === String(selectedVariantId)) || null
+    : null;
+  const activeVariant = isVariableProduct ? selectedVariant : null;
+  const cartKey = buildCartKey(product?._id, activeVariant);
+  const existingCartQty = getCartQuantityForKey(cartItems, cartKey);
+  const rawStock = Number(activeVariant?.stock ?? product?.availableStock ?? product?.stock || 0);
   const availableStock = Math.max(0, rawStock - existingCartQty);
+
+  useEffect(() => {
+    if (!isVariableProduct) {
+      setSelectedVariantId('');
+      return;
+    }
+
+    if (selectedVariantId && variants.some((variant) => String(variant?.optionId) === String(selectedVariantId))) {
+      return;
+    }
+
+    const firstAvailableVariant = variants.find((variant) => Number(variant?.stock || 0) > 0) || variants[0];
+    setSelectedVariantId(firstAvailableVariant?.optionId || '');
+  }, [isVariableProduct, selectedVariantId, variants]);
+
+  useEffect(() => {
+    if (!activeVariant?.image?.url || !Array.isArray(product?.images)) {
+      return;
+    }
+
+    const matchingIndex = product.images.findIndex((image) => image?.url === activeVariant.image.url);
+    if (matchingIndex >= 0) {
+      setSelectedImage(matchingIndex);
+    }
+  }, [activeVariant, product?.images]);
+
+  const displayPrice = Number(activeVariant?.price ?? product?.displayPrice ?? product?.price || 0);
+  const currentImageSrc = activeVariant?.image?.url || product?.images?.[selectedImage]?.url || '/api/placeholder/600/600';
+  const priceSummary = isVariableProduct && !activeVariant
+    ? getProductDisplayPrice(product)
+    : formatPrice(displayPrice);
 
   // Clamp selected quantity when stock or cart changes
   useEffect(() => {
@@ -42,8 +87,6 @@ const ProductDetails = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [availableStock]);
-
-  const currentImageSrc = product?.images?.[selectedImage]?.url || '/api/placeholder/600/600';
 
   const handleMouseEnter = () => {
     if (imgRef.current) {
@@ -87,19 +130,33 @@ const ProductDetails = () => {
       return;
     }
 
+    if (isVariableProduct && !activeVariant) {
+      toast.error('Please choose a variant first');
+      return;
+    }
+
     const cartItem = {
+      cartKey,
       productId: product._id,
       name: product.name,
-      price: product.price,
-      image: product.images?.[0]?.url || '',
+      price: displayPrice,
+      image: activeVariant?.image?.url || product.images?.[0]?.url || '',
       quantity,
+      variant: activeVariant ? {
+        optionId: activeVariant.optionId,
+        name: activeVariant.name,
+        value: activeVariant.value,
+        price: activeVariant.price,
+        sku: activeVariant.sku,
+        image: activeVariant.image?.url || activeVariant.image || null
+      } : null,
       sellerId: (product.seller && typeof product.seller === 'object')
         ? (product.seller._id || product.seller.id || product.seller.businessName || product.seller.name)
         : product.seller
     };
 
     dispatch(addToCart(cartItem));
-    toast.success(`${product.name} added to cart!`);
+    toast.success(`${product.name}${activeVariant ? ` (${buildVariantLabel(activeVariant)})` : ''} added to cart!`);
   };
 
   if (loading) {
@@ -221,11 +278,16 @@ const ProductDetails = () => {
             <div className="mt-3">
               <h2 className="sr-only">Product information</h2>
               <div className="flex items-center">
-                <p className="text-3xl text-gray-900">${product.price}</p>
-                {product.originalPrice && product.originalPrice > product.price && (
-                  <p className="ml-4 text-lg text-gray-500 line-through">${product.originalPrice}</p>
+                <p className="text-3xl text-gray-900">{priceSummary}</p>
+                {product.comparePrice && Number(product.comparePrice) > displayPrice && (
+                  <p className="ml-4 text-lg text-gray-500 line-through">{formatPrice(product.comparePrice)}</p>
                 )}
               </div>
+              {isVariableProduct && (
+                <p className="mt-2 text-sm text-gray-500">
+                  Variant pricing range: {getProductDisplayPrice(product)}
+                </p>
+              )}
             </div>
 
             {/* Reviews */}
@@ -289,6 +351,44 @@ const ProductDetails = () => {
             </div>
 
             <form className="mt-6">
+              {isVariableProduct && (
+                <div className="mt-6">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-medium text-gray-900">Choose Variant</h3>
+                    <span className="text-xs text-gray-500">
+                      {activeVariant ? buildVariantLabel(activeVariant) : 'Select an option'}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-3">
+                    {variants.map((variant) => {
+                      const variantCartKey = buildCartKey(product?._id, variant);
+                      const variantCartQty = getCartQuantityForKey(cartItems, variantCartKey);
+                      const variantStock = Math.max(0, Number(variant?.stock || 0) - variantCartQty);
+                      const isSelected = String(selectedVariantId) === String(variant?.optionId);
+
+                      return (
+                        <button
+                          key={variant.optionId || `${variant.name}-${variant.value}`}
+                          type="button"
+                          onClick={() => setSelectedVariantId(variant.optionId)}
+                          className={`rounded-lg border px-4 py-3 text-left transition ${
+                            isSelected
+                              ? 'border-indigo-600 bg-indigo-50 text-indigo-900'
+                              : 'border-gray-300 bg-white text-gray-900 hover:border-indigo-300'
+                          }`}
+                        >
+                          <div className="text-sm font-semibold">{buildVariantLabel(variant)}</div>
+                          <div className="text-xs text-gray-600">{formatPrice(variant.price)}</div>
+                          <div className={`text-xs ${variantStock > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {variantStock > 0 ? `${variantStock} in stock` : 'Out of stock'}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Quantity */}
               <div className="mt-6">
                 <div className="flex items-center justify-between">
@@ -321,12 +421,12 @@ const ProductDetails = () => {
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-900">Total Price:</span>
                   <span className="text-lg font-bold text-indigo-600">
-                    ${(product.price * quantity).toFixed(2)}
+                    {formatPrice(displayPrice * quantity)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between mt-1">
                   <span className="text-xs text-gray-500">
-                    ${product.price.toFixed(2)} × {quantity}
+                    {formatPrice(displayPrice)} x {quantity}
                   </span>
                 </div>
               </div>

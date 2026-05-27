@@ -10,6 +10,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { removeFromCart, updateQuantity, clearCart } from '../store/slices/cartSlice';
 import toast from 'react-hot-toast';
+import { buildVariantLabel, formatPrice } from '../utils/cart';
 
 const Cart = () => {
   const dispatch = useDispatch();
@@ -17,16 +18,16 @@ const Cart = () => {
   const { items, totalItems, totalAmount } = useSelector((state) => state.cart);
   const { isAuthenticated } = useSelector((state) => state.auth);
 
-  const handleUpdateQuantity = (productId, newQuantity) => {
+  const handleUpdateQuantity = (cartKey, newQuantity) => {
     if (newQuantity < 1) {
-      handleRemoveItem(productId);
+      handleRemoveItem(cartKey);
       return;
     }
-    dispatch(updateQuantity({ productId, quantity: newQuantity }));
+    dispatch(updateQuantity({ cartKey, quantity: newQuantity }));
   };
 
-  const handleRemoveItem = (productId) => {
-    dispatch(removeFromCart(productId));
+  const handleRemoveItem = (cartKey) => {
+    dispatch(removeFromCart(cartKey));
     toast.success('Item removed from cart');
   };
 
@@ -109,7 +110,7 @@ const Cart = () => {
 
               <div className="divide-y divide-gray-200">
                 {items.map((item) => (
-                  <div key={item.productId} className="p-6">
+                  <div key={item.cartKey || item.productId} className="p-6">
                     <div className="flex items-start space-x-4">
                       {/* Product Image */}
                       <div className="flex-shrink-0">
@@ -141,11 +142,11 @@ const Cart = () => {
                         </p>
                         {item.variant && (
                           <p className="text-sm text-gray-500">
-                            Variant: {item.variant.name}
+                            Variant: {buildVariantLabel(item.variant)}
                           </p>
                         )}
                         <p className="text-lg font-semibold text-gray-900 mt-2">
-                          ${item.price.toFixed(2)}
+                          {formatPrice(item.price)}
                         </p>
                       </div>
 
@@ -153,7 +154,7 @@ const Cart = () => {
                       <div className="flex items-center space-x-3">
                         <div className="flex items-center border border-gray-300 rounded-lg">
                           <button
-                            onClick={() => handleUpdateQuantity(item.productId, item.quantity - 1)}
+                            onClick={() => handleUpdateQuantity(item.cartKey, item.quantity - 1)}
                             className="p-2 hover:bg-gray-100 transition-colors"
                           >
                             <MinusIcon className="h-4 w-4" />
@@ -162,7 +163,7 @@ const Cart = () => {
                             {item.quantity}
                           </span>
                           <button
-                            onClick={() => handleUpdateQuantity(item.productId, item.quantity + 1)}
+                            onClick={() => handleUpdateQuantity(item.cartKey, item.quantity + 1)}
                             className="p-2 hover:bg-gray-100 transition-colors"
                           >
                             <PlusIcon className="h-4 w-4" />
@@ -170,7 +171,7 @@ const Cart = () => {
                         </div>
 
                         <button
-                          onClick={() => handleRemoveItem(item.productId)}
+                          onClick={() => handleRemoveItem(item.cartKey)}
                           className="p-2 text-red-600 hover:text-red-700 transition-colors"
                         >
                           <TrashIcon className="h-5 w-5" />
@@ -181,7 +182,7 @@ const Cart = () => {
                     {/* Item Total */}
                     <div className="mt-4 flex justify-end">
                       <p className="text-lg font-semibold text-gray-900">
-                        Subtotal: ${(item.price * item.quantity).toFixed(2)}
+                        Subtotal: {formatPrice(item.price * item.quantity)}
                       </p>
                     </div>
                   </div>
@@ -199,7 +200,7 @@ const Cart = () => {
                 <div className="space-y-3">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Subtotal ({totalItems} items)</span>
-                    <span className="font-medium">${totalAmount.toFixed(2)}</span>
+                    <span className="font-medium">{formatPrice(totalAmount)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Shipping</span>
@@ -207,13 +208,13 @@ const Cart = () => {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Tax</span>
-                    <span className="font-medium">${(totalAmount * 0.08).toFixed(2)}</span>
+                    <span className="font-medium">{formatPrice(totalAmount * 0.08)}</span>
                   </div>
                   <div className="border-t border-gray-200 pt-3">
                     <div className="flex justify-between">
                       <span className="text-lg font-semibold text-gray-900">Total</span>
                       <span className="text-lg font-semibold text-gray-900">
-                        ${(totalAmount + totalAmount * 0.08).toFixed(2)}
+                        {formatPrice(totalAmount + totalAmount * 0.08)}
                       </span>
                     </div>
                   </div>

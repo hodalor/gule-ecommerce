@@ -26,6 +26,56 @@ import {
   fetchCategories
 } from '../../store/slices/productSlice';
 
+const ATTRIBUTE_PRESET_OPTIONS = [
+  'Color',
+  'Size',
+  'Material',
+  'Storage',
+  'Memory',
+  'Capacity',
+  'Model',
+  'Style',
+  'Network',
+  'Condition'
+];
+
+const CUSTOM_ATTRIBUTE_VALUE = '__custom__';
+
+const createRowId = () => `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+const createVariantRow = () => {
+  const rowId = createRowId();
+
+  return {
+    id: rowId,
+    optionId: rowId,
+    name: '',
+    value: '',
+    price: '',
+    stock: '',
+    sku: '',
+    image: null,
+    imageFile: null,
+    imagePreview: '',
+    imageUploadField: `variant_image_${rowId}`
+  };
+};
+
+const createAttributeRow = () => ({
+  id: createRowId(),
+  preset: '',
+  customName: '',
+  values: [''],
+  variation: false,
+  visible: true
+});
+
+const resolveAttributeName = (attribute) => (
+  attribute?.preset === CUSTOM_ATTRIBUTE_VALUE
+    ? String(attribute?.customName || '').trim()
+    : String(attribute?.preset || '').trim()
+);
+
 const SellerProducts = () => {
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
@@ -283,84 +333,10 @@ const SellerProducts = () => {
    };
 
    const [showProductModal, setShowProductModal] = useState(false);
-  const addVariant = () => {
-    const newVariant = {
-      id: Date.now(),
-      name: '',
-      options: [{ value: '', price: '', stock: '', sku: '' }]
-    };
-    setProductForm(prev => ({
-      ...prev,
-      variants: [...prev.variants, newVariant]
-    }));
-  };
-
-  const removeVariant = (variantId) => {
-    setProductForm(prev => ({
-      ...prev,
-      variants: prev.variants.filter(v => v.id !== variantId)
-    }));
-  };
-
-  const updateVariant = (variantId, field, value) => {
-    setProductForm(prev => ({
-      ...prev,
-      variants: prev.variants.map(v => 
-        v.id === variantId ? { ...v, [field]: value } : v
-      )
-    }));
-  };
-
-  const addVariantOption = (variantId) => {
-    setProductForm(prev => ({
-      ...prev,
-      variants: prev.variants.map(v => 
-        v.id === variantId 
-          ? { ...v, options: [...v.options, { value: '', price: '', stock: '', sku: '' }] }
-          : v
-      )
-    }));
-  };
-
-  const removeVariantOption = (variantId, optionIndex) => {
-    setProductForm(prev => ({
-      ...prev,
-      variants: prev.variants.map(v => 
-        v.id === variantId 
-          ? { ...v, options: v.options.filter((_, i) => i !== optionIndex) }
-          : v
-      )
-    }));
-  };
-
-  const updateVariantOption = (variantId, optionIndex, field, value) => {
-    setProductForm(prev => ({
-      ...prev,
-      variants: prev.variants.map(v => 
-        v.id === variantId 
-          ? { 
-              ...v, 
-              options: v.options.map((opt, i) => 
-                i === optionIndex ? { ...opt, [field]: value } : opt
-              )
-            }
-          : v
-      )
-    }));
-  };
-
-  // Handle attributes management
   const addAttribute = () => {
-    const newAttribute = {
-      id: Date.now(),
-      name: '',
-      values: [''],
-      variation: false,
-      visible: true
-    };
     setProductForm(prev => ({
       ...prev,
-      attributes: [...prev.attributes, newAttribute]
+      attributes: [...prev.attributes, createAttributeRow()]
     }));
   };
 
@@ -375,7 +351,13 @@ const SellerProducts = () => {
     setProductForm(prev => ({
       ...prev,
       attributes: prev.attributes.map(a => 
-        a.id === attributeId ? { ...a, [field]: value } : a
+        a.id === attributeId
+          ? {
+              ...a,
+              [field]: value,
+              ...(field === 'preset' && value !== CUSTOM_ATTRIBUTE_VALUE ? { customName: '' } : {})
+            }
+          : a
       )
     }));
   };
@@ -415,6 +397,75 @@ const SellerProducts = () => {
             }
           : a
       )
+    }));
+  };
+  const addVariant = () => {
+    setProductForm(prev => ({
+      ...prev,
+      variants: [...prev.variants, createVariantRow()]
+    }));
+  };
+
+  const removeVariant = (variantId) => {
+    setProductForm(prev => ({
+      ...prev,
+      variants: prev.variants.filter(v => v.id !== variantId)
+    }));
+  };
+
+  const updateVariant = (variantId, field, value) => {
+    setProductForm(prev => ({
+      ...prev,
+      variants: prev.variants.map(v =>
+        v.id === variantId ? { ...v, [field]: value } : v
+      )
+    }));
+  };
+
+  const updateVariantImage = (variantId, file) => {
+    if (!file) {
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Variant image must be an image file');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Variant image must be under 10MB');
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+
+    setProductForm(prev => ({
+      ...prev,
+      variants: prev.variants.map((variant) => (
+        variant.id === variantId
+          ? {
+              ...variant,
+              imageFile: file,
+              imagePreview: previewUrl
+            }
+          : variant
+      ))
+    }));
+  };
+
+  const removeVariantImage = (variantId) => {
+    setProductForm(prev => ({
+      ...prev,
+      variants: prev.variants.map((variant) => (
+        variant.id === variantId
+          ? {
+              ...variant,
+              image: null,
+              imageFile: null,
+              imagePreview: ''
+            }
+          : variant
+      ))
     }));
   };
   const [editingProduct, setEditingProduct] = useState(null);
@@ -674,17 +725,34 @@ const SellerProducts = () => {
       seoKeywords: product.seoKeywords || '',
       tags: product.tags || [],
       images: product.images || [],
-      variants: (Array.isArray(product.variants) ? product.variants.map(v => ({
-        ...v,
-        options: Array.isArray(v.options) ? v.options : []
-      })) : []),
-      attributes: (Array.isArray(product.attributes) ? product.attributes.map((a, idx) => ({
-        id: a.id ?? a._id ?? idx,
-        name: a.name ?? '',
-        values: Array.isArray(a.values) ? a.values : (a.value ? [a.value] : []),
-        variation: !!a.variation,
-        visible: a.visible !== false
-      })) : []),
+      variants: (Array.isArray(product.variants) ? product.variants.map((variant, idx) => {
+        const rowId = variant.optionId || variant.id || variant._id || `${idx}_${Date.now()}`;
+        return {
+          id: rowId,
+          optionId: rowId,
+          name: variant.name || '',
+          value: variant.value || '',
+          price: variant.price?.toString?.() || '',
+          stock: variant.stock?.toString?.() || '',
+          sku: variant.sku || '',
+          image: variant.image || null,
+          imageFile: null,
+          imagePreview: variant.image?.url || '',
+          imageUploadField: variant.imageUploadField || `variant_image_${rowId}`
+        };
+      }) : []),
+      attributes: (Array.isArray(product.attributes) ? product.attributes.map((attribute) => {
+        const attributeName = String(attribute?.name || '').trim();
+        const presetMatch = ATTRIBUTE_PRESET_OPTIONS.find((option) => option.toLowerCase() === attributeName.toLowerCase());
+        return {
+          id: attribute.id ?? attribute._id ?? createRowId(),
+          preset: presetMatch || CUSTOM_ATTRIBUTE_VALUE,
+          customName: presetMatch ? '' : attributeName,
+          values: Array.isArray(attribute.values) ? attribute.values : (attribute.value ? [attribute.value] : ['']),
+          variation: !!attribute.variation,
+          visible: attribute.visible !== false
+        };
+      }) : []),
       specifications: product.specifications || []
     });
     setShowProductModal(true);
@@ -708,18 +776,60 @@ const SellerProducts = () => {
   const handleSubmitProduct = async (e) => {
     e.preventDefault();
     setUploadingImages(true);
+    setFormErrors({});
 
     try {
       const formData = new FormData();
+      const normalizedAttributes = (Array.isArray(productForm.attributes) ? productForm.attributes : [])
+        .map((attribute) => ({
+          name: resolveAttributeName(attribute),
+          values: (Array.isArray(attribute.values) ? attribute.values : [])
+            .map((value) => String(value || '').trim())
+            .filter(Boolean),
+          variation: !!attribute.variation,
+          visible: attribute.visible !== false
+        }))
+        .filter((attribute) => attribute.name && attribute.values.length > 0);
+
+      const normalizedVariants = (Array.isArray(productForm.variants) ? productForm.variants : [])
+        .map((variant) => ({
+          optionId: variant.optionId || variant.id,
+          name: String(variant.name || '').trim(),
+          value: String(variant.value || '').trim(),
+          price: variant.price === '' ? 0 : parseFloat(variant.price),
+          stock: variant.stock === '' ? 0 : parseInt(variant.stock, 10),
+          sku: String(variant.sku || '').trim(),
+          image: variant.image || null,
+          imageUploadField: variant.imageUploadField
+        }))
+        .filter((variant) => variant.name && variant.value && Number.isFinite(variant.price) && Number.isFinite(variant.stock));
+
+      if (productForm.productType === 'variable' && normalizedVariants.length === 0) {
+        setFormErrors({ variants: ['Add at least one variant for a variable product'] });
+        toast.error('Add at least one variant for a variable product');
+        setUploadingImages(false);
+        return;
+      }
+
+      const derivedVariantPrice = normalizedVariants.length
+        ? Math.min(...normalizedVariants.map((variant) => variant.price))
+        : null;
+      const derivedVariantStock = normalizedVariants.reduce((sum, variant) => sum + variant.stock, 0);
       
       // Add all product fields to formData
       const productData = {
         ...productForm,
-        price: parseFloat(productForm.price),
+        price: productForm.productType === 'variable'
+          ? (derivedVariantPrice ?? parseFloat(productForm.price || '0'))
+          : parseFloat(productForm.price),
         comparePrice: productForm.comparePrice ? parseFloat(productForm.comparePrice) : null,
-        stock: parseInt(productForm.stock),
+        stock: productForm.productType === 'variable'
+          ? derivedVariantStock
+          : parseInt(productForm.stock, 10),
         lowStockThreshold: parseInt(productForm.lowStockThreshold),
-        sellerId: user?.id
+        sellerId: user?.id,
+        attributes: normalizedAttributes,
+        variants: normalizedVariants
       };
 
       Object.keys(productData).forEach(key => {
@@ -733,6 +843,13 @@ const SellerProducts = () => {
       // Add new image files
       imageFiles.forEach((file, index) => {
         formData.append('images', file);
+      });
+
+      normalizedVariants.forEach((variant) => {
+        const variantFile = (productForm.variants || []).find((item) => item.id === variant.optionId || item.optionId === variant.optionId)?.imageFile;
+        if (variantFile) {
+          formData.append(variant.imageUploadField, variantFile);
+        }
       });
 
       // If editing, include existing images that should be kept
@@ -1299,10 +1416,14 @@ const SellerProducts = () => {
                     step="0.01"
                     value={productForm.price}
                     onChange={(e) => setProductForm(prev => ({ ...prev, price: e.target.value }))}
-                    required
+                    required={productForm.productType !== 'variable'}
+                    disabled={productForm.productType === 'variable'}
                     className={`w-full px-3 py-2 border rounded-lg focus:ring-2 ${hasError('price') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'}`}
-                    placeholder="0.00"
+                    placeholder={productForm.productType === 'variable' ? 'Derived from variants' : '0.00'}
                   />
+                  {productForm.productType === 'variable' && (
+                    <p className="mt-1 text-xs text-gray-500">The main product price is calculated from the lowest variant price.</p>
+                  )}
                   {renderError('price')}
                 </div>
                 <div>
@@ -1405,11 +1526,15 @@ const SellerProducts = () => {
                     type="number"
                     value={productForm.stock}
                     onChange={(e) => setProductForm(prev => ({ ...prev, stock: e.target.value }))}
-                    required
+                    required={productForm.productType !== 'variable'}
+                    disabled={productForm.productType === 'variable'}
                     min="0"
                     className={`w-full px-3 py-2 border rounded-lg focus:ring-2 ${hasError('stock') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'}`}
-                    placeholder="0"
+                    placeholder={productForm.productType === 'variable' ? 'Derived from variants' : '0'}
                   />
+                  {productForm.productType === 'variable' && (
+                    <p className="mt-1 text-xs text-gray-500">The main stock is the total of all variant stock quantities.</p>
+                  )}
                   {renderError('stock')}
                 </div>
                 <div>
@@ -1521,62 +1646,6 @@ const SellerProducts = () => {
                 </div>
               </div>
 
-              {/* Product Attributes */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-medium text-gray-900">Attributes</h3>
-                <div className="space-y-2">
-                  {(Array.isArray(productForm.attributes) ? productForm.attributes : []).map((attr, index) => (
-                    <div key={index} className="flex gap-2">
-                      <input
-                        type="text"
-                        value={attr.name ?? ''}
-                        onChange={(e) => {
-                          const newAttrs = [...(Array.isArray(productForm.attributes) ? productForm.attributes : [])];
-                          newAttrs[index] = { ...(newAttrs[index] || {}), name: e.target.value };
-                          setProductForm(prev => ({ ...prev, attributes: newAttrs }));
-                        }}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Attribute name (e.g., Color)"
-                      />
-                      <input
-                        type="text"
-                        value={attr.value ?? ''}
-                        onChange={(e) => {
-                          const newAttrs = [...(Array.isArray(productForm.attributes) ? productForm.attributes : [])];
-                          newAttrs[index] = { ...(newAttrs[index] || {}), value: e.target.value };
-                          setProductForm(prev => ({ ...prev, attributes: newAttrs }));
-                        }}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Attribute value (e.g., Red, Blue)"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const newAttrs = (Array.isArray(productForm.attributes) ? productForm.attributes : []).filter((_, i) => i !== index);
-                          setProductForm(prev => ({ ...prev, attributes: newAttrs }));
-                        }}
-                        className="px-3 py-2 text-red-600 hover:text-red-800"
-                      >
-                        <TrashIcon className="h-5 w-5" />
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setProductForm(prev => ({
-                        ...prev,
-                        attributes: [...prev.attributes, { name: '', value: '' }]
-                      }));
-                    }}
-                    className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1"
-                  >
-                    <PlusIcon className="h-4 w-4" />
-                    Add Attribute
-                  </button>
-                </div>
-              </div>
-
               {/* Product Options */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="flex items-center">
@@ -1662,79 +1731,115 @@ const SellerProducts = () => {
                   {renderError('variants')}
                   
                   {productForm.variants.map((variant, variantIndex) => (
-                    <div key={variant.id} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex justify-between items-center mb-3">
-                        <input
-                          type="text"
-                          value={variant.name}
-                          onChange={(e) => updateVariant(variant.id, 'name', e.target.value)}
-                          placeholder="Variant name (e.g., Size, Color)"
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
+                    <div key={variant.id} className="border border-gray-200 rounded-lg p-4 space-y-4">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">Variant {variantIndex + 1}</p>
+                          <p className="text-xs text-gray-500">Add the field, value, stock quantity, price, and image for this option.</p>
+                        </div>
                         <button
                           type="button"
                           onClick={() => removeVariant(variant.id)}
-                          className="ml-2 text-red-600 hover:text-red-800"
+                          className="text-red-600 hover:text-red-800"
                         >
                           <XMarkIcon className="h-5 w-5" />
                         </button>
                       </div>
-                      
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium text-gray-700">Options</span>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Field</label>
+                          <input
+                            type="text"
+                            value={variant.name}
+                            onChange={(e) => updateVariant(variant.id, 'name', e.target.value)}
+                            placeholder="e.g. Color, Memory"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Value</label>
+                          <input
+                            type="text"
+                            value={variant.value}
+                            onChange={(e) => updateVariant(variant.id, 'value', e.target.value)}
+                            placeholder="e.g. Red, 256GB"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Price</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={variant.price}
+                            onChange={(e) => updateVariant(variant.id, 'price', e.target.value)}
+                            placeholder="0.00"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Stock Quantity</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={variant.stock}
+                            onChange={(e) => updateVariant(variant.id, 'stock', e.target.value)}
+                            placeholder="0"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Variant SKU</label>
+                          <input
+                            type="text"
+                            value={variant.sku}
+                            onChange={(e) => updateVariant(variant.id, 'sku', e.target.value)}
+                            placeholder="Optional SKU"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Variant Image</label>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => updateVariantImage(variant.id, e.target.files?.[0] || null)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                      </div>
+
+                      {(variant.imagePreview || variant.image?.url) && (
+                        <div className="flex items-center gap-4 rounded-lg bg-gray-50 p-3">
+                          <img
+                            src={variant.imagePreview || variant.image?.url}
+                            alt={`${variant.name || 'Variant'} ${variant.value || 'image'}`}
+                            className="h-20 w-20 rounded-lg border border-gray-200 object-cover"
+                          />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-gray-900">
+                              {variant.name || 'Variant'} {variant.value ? `- ${variant.value}` : ''}
+                            </p>
+                            <p className="text-xs text-gray-500">This image will show when the buyer selects this variant.</p>
+                          </div>
                           <button
                             type="button"
-                            onClick={() => addVariantOption(variant.id)}
-                            className="text-blue-600 text-sm hover:text-blue-800"
+                            onClick={() => removeVariantImage(variant.id)}
+                            className="text-sm text-red-600 hover:text-red-800"
                           >
-                            Add Option
+                            Remove image
                           </button>
                         </div>
-                        
-                        {variant.options.map((option, optionIndex) => (
-                          <div key={optionIndex} className="grid grid-cols-5 gap-2 items-center">
-                            <input
-                              type="text"
-                              value={option.value}
-                              onChange={(e) => updateVariantOption(variant.id, optionIndex, 'value', e.target.value)}
-                              placeholder="Value"
-                              className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500"
-                            />
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={option.price}
-                              onChange={(e) => updateVariantOption(variant.id, optionIndex, 'price', e.target.value)}
-                              placeholder="Price"
-                              className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500"
-                            />
-                            <input
-                              type="number"
-                              value={option.stock}
-                              onChange={(e) => updateVariantOption(variant.id, optionIndex, 'stock', e.target.value)}
-                              placeholder="Stock"
-                              className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500"
-                            />
-                            <input
-                              type="text"
-                              value={option.sku}
-                              onChange={(e) => updateVariantOption(variant.id, optionIndex, 'sku', e.target.value)}
-                              placeholder="SKU"
-                              className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => removeVariantOption(variant.id, optionIndex)}
-                              className="text-red-600 hover:text-red-800"
-                            >
-                              <XMarkIcon className="h-4 w-4" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
+                      )}
                     </div>
                   ))}
+                  {productForm.variants.length === 0 && (
+                    <div className="rounded-lg border border-dashed border-gray-300 p-4 text-sm text-gray-500">
+                      Add a row for each variant option, for example `Color: Red` or `Storage: 256GB`.
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1754,15 +1859,30 @@ const SellerProducts = () => {
                 
                 {(Array.isArray(productForm.attributes) ? productForm.attributes : []).map((attribute, attributeIndex) => (
                   <div key={attribute.id ?? attributeIndex} className="border border-gray-200 rounded-lg p-4">
-                    <div className="grid grid-cols-2 gap-4 mb-3">
-                      <input
-                        type="text"
-                        value={attribute.name ?? ''}
-                        onChange={(e) => updateAttribute(attribute.id ?? attributeIndex, 'name', e.target.value)}
-                        placeholder="Attribute name (e.g., Material, Brand)"
-                        className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                      <div className="flex items-center gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                      <div className="space-y-3">
+                        <select
+                          value={attribute.preset ?? ''}
+                          onChange={(e) => updateAttribute(attribute.id ?? attributeIndex, 'preset', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        >
+                          <option value="">Select attribute field</option>
+                          {ATTRIBUTE_PRESET_OPTIONS.map((option) => (
+                            <option key={option} value={option}>{option}</option>
+                          ))}
+                          <option value={CUSTOM_ATTRIBUTE_VALUE}>Custom</option>
+                        </select>
+                        {(attribute.preset === CUSTOM_ATTRIBUTE_VALUE || !attribute.preset) && (
+                          <input
+                            type="text"
+                            value={attribute.customName ?? ''}
+                            onChange={(e) => updateAttribute(attribute.id ?? attributeIndex, 'customName', e.target.value)}
+                            placeholder="Type custom field name e.g. SSD"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        )}
+                      </div>
+                      <div className="flex items-center gap-4 flex-wrap">
                         <label className="flex items-center">
                           <input
                             type="checkbox"
@@ -1809,7 +1929,7 @@ const SellerProducts = () => {
                             type="text"
                             value={value}
                             onChange={(e) => updateAttributeValue(attribute.id ?? attributeIndex, valueIndex, e.target.value)}
-                            placeholder="Attribute value"
+                            placeholder="Attribute value e.g. 256GB"
                             className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500"
                           />
                           <button

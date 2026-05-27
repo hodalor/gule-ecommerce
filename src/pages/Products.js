@@ -1,9 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchProducts, fetchCategories } from '../store/slices/productSlice';
 import { addToCart } from '../store/slices/cartSlice';
 import toast from 'react-hot-toast';
+import {
+  buildCartKey,
+  formatPrice,
+  getCartQuantityForKey,
+  getProductDisplayPrice
+} from '../utils/cart';
 
 const ProductCardSkeleton = () => (
   <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -19,6 +25,7 @@ const ProductCardSkeleton = () => (
 
 const Products = () => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const { products, categories, loading, error } = useSelector(state => state.products);
   const { isAuthenticated } = useSelector(state => state.auth);
   const { items: cartItems } = useSelector(state => state.cart);
@@ -36,12 +43,20 @@ const Products = () => {
   }, [dispatch, sellerIdParam]);
 
   const handleAddToCart = (product) => {
+    const isVariableProduct = product?.productType === 'variable' && Array.isArray(product?.variants) && product.variants.length > 0;
+
+    if (isVariableProduct) {
+      navigate(`/product/${product._id}`);
+      return;
+    }
+
     if (!isAuthenticated) {
       toast.error('Please log in to add items to cart');
       return;
     }
 
-    const existingCartQty = cartItems?.find((it) => it.productId === product._id)?.quantity || 0;
+    const cartKey = buildCartKey(product._id);
+    const existingCartQty = getCartQuantityForKey(cartItems, cartKey);
     const stock = Number(product?.stock || 0);
     const available = Math.max(0, stock - existingCartQty);
     if (available <= 0) {
@@ -50,6 +65,7 @@ const Products = () => {
     }
 
     const cartItem = {
+      cartKey,
       productId: product._id,
       name: product.name,
       price: product.price,
@@ -335,15 +351,21 @@ const Products = () => {
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center space-x-2">
                       <span className="text-xl font-bold text-gray-900">
-                        ${product.price}
+                        {getProductDisplayPrice(product)}
                       </span>
-                      {product.originalPrice && product.originalPrice > product.price && (
+                      {product.comparePrice && Number(product.comparePrice) > Number(product.price) && (
                         <span className="text-sm text-gray-500 line-through">
-                          ${product.originalPrice}
+                          {formatPrice(product.comparePrice)}
                         </span>
                       )}
                     </div>
                   </div>
+
+                  {product?.productType === 'variable' && (
+                    <p className="mb-4 text-xs font-medium uppercase tracking-wide text-indigo-600">
+                      Choose variant for exact price and stock
+                    </p>
+                  )}
 
                   <div className="flex space-x-2">
                     <Link
@@ -355,9 +377,14 @@ const Products = () => {
                     <button
                       onClick={() => handleAddToCart(product)}
                       className="flex-1 rounded-xl bg-primary-600 px-4 py-2 text-white transition-colors duration-200 hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-                      disabled={(Number(product?.stock || 0) - (cartItems?.find((it) => it.productId === product._id)?.quantity || 0)) <= 0}
+                      disabled={
+                        product?.productType !== 'variable'
+                        && (Number(product?.stock || 0) - getCartQuantityForKey(cartItems, buildCartKey(product._id))) <= 0
+                      }
                     >
-                      {(Number(product?.stock || 0) - (cartItems?.find((it) => it.productId === product._id)?.quantity || 0)) > 0 ? 'Add to Cart' : 'Out of Stock'}
+                      {product?.productType === 'variable'
+                        ? 'Choose Options'
+                        : ((Number(product?.stock || 0) - getCartQuantityForKey(cartItems, buildCartKey(product._id))) > 0 ? 'Add to Cart' : 'Out of Stock')}
                     </button>
                   </div>
                 </div>
