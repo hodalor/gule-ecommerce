@@ -19,12 +19,161 @@ import {
 import { 
   fetchProducts, 
   fetchCategories, 
+  createProduct,
+  updateProduct,
   updateProductStatus, 
   deleteProduct, 
   bulkUpdateProducts,
   exportProducts,
   clearError 
 } from '../../store/slices/productSlice';
+import api from '../../utils/api';
+
+const ATTRIBUTE_PRESET_OPTIONS = [
+  'Color',
+  'Size',
+  'Material',
+  'Storage',
+  'Memory',
+  'Capacity',
+  'Model',
+  'Style',
+  'Network',
+  'Condition'
+];
+
+const CUSTOM_ATTRIBUTE_VALUE = '__custom__';
+
+const createRowId = () => `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+const createAttributeRow = () => ({
+  id: createRowId(),
+  preset: '',
+  customName: '',
+  values: [''],
+  variation: false,
+  visible: true
+});
+
+const createVariantRow = () => {
+  const rowId = createRowId();
+
+  return {
+    id: rowId,
+    optionId: rowId,
+    name: '',
+    value: '',
+    price: '',
+    stock: '',
+    sku: '',
+    image: null,
+    imageFile: null,
+    imagePreview: '',
+    imageUploadField: `variant_image_${rowId}`
+  };
+};
+
+const formatPrice = (value, currency = 'GHS') => `${Number(value || 0).toFixed(2)} ${currency}`;
+
+const getProductDisplayPrice = (product) => {
+  const min = Number(product?.priceRange?.min);
+  const max = Number(product?.priceRange?.max);
+
+  if (Number.isFinite(min) && Number.isFinite(max)) {
+    return min === max ? formatPrice(min) : `${formatPrice(min)} - ${formatPrice(max)}`;
+  }
+
+  return formatPrice(product?.price || 0);
+};
+
+const buildProductFormData = ({ formData, imageFiles }) => {
+  const normalizedAttributes = (Array.isArray(formData.attributes) ? formData.attributes : [])
+    .map((attribute) => ({
+      name: attribute?.preset === CUSTOM_ATTRIBUTE_VALUE
+        ? String(attribute?.customName || '').trim()
+        : String(attribute?.preset || '').trim(),
+      values: (Array.isArray(attribute?.values) ? attribute.values : [])
+        .map((value) => String(value || '').trim())
+        .filter(Boolean),
+      variation: !!attribute?.variation,
+      visible: attribute?.visible !== false
+    }))
+    .filter((attribute) => attribute.name && attribute.values.length > 0);
+
+  const normalizedVariants = (Array.isArray(formData.variants) ? formData.variants : [])
+    .map((variant) => ({
+      optionId: variant.optionId || variant.id,
+      name: String(variant.name || '').trim(),
+      value: String(variant.value || '').trim(),
+      price: variant.price === '' ? 0 : Number(variant.price),
+      stock: variant.stock === '' ? 0 : Number(variant.stock),
+      sku: String(variant.sku || '').trim(),
+      image: variant.image || null,
+      imageUploadField: variant.imageUploadField
+    }))
+    .filter((variant) => variant.name && variant.value);
+
+  const variantPrices = normalizedVariants
+    .map((variant) => Number(variant.price))
+    .filter((value) => Number.isFinite(value) && value >= 0);
+  const derivedPrice = variantPrices.length > 0 ? Math.min(...variantPrices) : 0;
+  const derivedStock = normalizedVariants.reduce((sum, variant) => {
+    const stock = Number(variant.stock);
+    return sum + (Number.isFinite(stock) && stock > 0 ? stock : 0);
+  }, 0);
+  const resolvedPrice = formData.productType === 'variable'
+    ? derivedPrice
+    : (formData.price === '' ? 0 : Number(formData.price));
+  const resolvedStock = formData.productType === 'variable'
+    ? derivedStock
+    : (formData.stock === '' ? 0 : Number(formData.stock));
+
+  const payload = new FormData();
+  payload.append('name', formData.name || '');
+  payload.append('description', formData.description || '');
+  payload.append('shortDescription', formData.shortDescription || '');
+  payload.append('price', String(resolvedPrice));
+  payload.append('comparePrice', formData.comparePrice === '' ? '0' : String(formData.comparePrice));
+  payload.append('category', formData.category || '');
+  payload.append('subcategory', formData.subcategory || '');
+  payload.append('brand', formData.brand || '');
+  payload.append('stock', String(resolvedStock));
+  payload.append('minStock', formData.minStock === '' ? '0' : String(formData.minStock));
+  payload.append('sku', formData.sku || '');
+  payload.append('barcode', formData.barcode || '');
+  payload.append('status', formData.status || 'active');
+  payload.append('productType', formData.productType || 'simple');
+  payload.append('isDigital', String(!!formData.isDigital));
+  payload.append('isFeatured', String(!!formData.isFeatured));
+  payload.append('shippingClass', formData.shippingClass || '');
+  payload.append('taxStatus', formData.taxStatus || 'taxable');
+  payload.append('taxClass', formData.taxClass || 'standard');
+  payload.append('seoTitle', formData.seoTitle || '');
+  payload.append('seoDescription', formData.seoDescription || '');
+  payload.append('seoKeywords', Array.isArray(formData.seoKeywords) ? formData.seoKeywords.join(', ') : (formData.seoKeywords || ''));
+  payload.append('dimensions', JSON.stringify(formData.dimensions || {}));
+  payload.append('weight', JSON.stringify(formData.weight || {}));
+  payload.append('tags', JSON.stringify(Array.isArray(formData.tags) ? formData.tags : []));
+  payload.append('attributes', JSON.stringify(normalizedAttributes));
+  payload.append('variants', JSON.stringify(normalizedVariants));
+  payload.append('specifications', JSON.stringify(Array.isArray(formData.specifications) ? formData.specifications : []));
+  payload.append('sellerId', formData.sellerId || '');
+
+  (Array.isArray(imageFiles) ? imageFiles : []).forEach((file) => {
+    payload.append('images', file);
+  });
+
+  normalizedVariants.forEach((variant) => {
+    const sourceVariant = (Array.isArray(formData.variants) ? formData.variants : []).find(
+      (item) => (item.optionId || item.id) === variant.optionId
+    );
+    if (sourceVariant?.imageFile) {
+      payload.append(variant.imageUploadField, sourceVariant.imageFile);
+    }
+  });
+
+  return payload;
+};
 
 const ProductManagement = () => {
   const dispatch = useDispatch();
@@ -114,14 +263,12 @@ const ProductManagement = () => {
 
   const fetchSellers = async () => {
     try {
-      // This should be replaced with actual API call to fetch sellers
-      const mockSellers = [
-        { id: 1, name: 'TechStore', businessName: 'Tech Solutions Inc.' },
-        { id: 2, name: 'SportsMart', businessName: 'Sports Equipment Ltd.' }
-      ];
-      setSellers(mockSellers);
+      const response = await api.get('/admin/sellers?page=1&limit=100');
+      const sellerList = response.data?.data?.sellers || [];
+      setSellers(Array.isArray(sellerList) ? sellerList : []);
     } catch (err) {
       console.error('Failed to fetch sellers');
+      setSellers([]);
     }
   };
 
@@ -129,12 +276,15 @@ const ProductManagement = () => {
     e.preventDefault();
     
     try {
+      const productPayload = buildProductFormData({ formData, imageFiles });
+
       if (modalMode === 'create') {
-        // Create product API call - this would need to be implemented
-        console.log('Creating product:', formData);
+        await dispatch(createProduct(productPayload)).unwrap();
       } else {
-        // Update product API call - this would need to be implemented
-        console.log('Updating product:', formData);
+        await dispatch(updateProduct({
+          productId: selectedProduct?._id || selectedProduct?.id,
+          productData: productPayload
+        })).unwrap();
       }
       
       setShowModal(false);
@@ -362,16 +512,9 @@ const ProductManagement = () => {
 
   // Handle attributes management
   const addAttribute = () => {
-    const newAttribute = {
-      id: Date.now(),
-      name: '',
-      values: [''],
-      variation: false,
-      visible: true
-    };
     setFormData(prev => ({
       ...prev,
-      attributes: [...prev.attributes, newAttribute]
+      attributes: [...prev.attributes, createAttributeRow()]
     }));
   };
 
@@ -386,7 +529,13 @@ const ProductManagement = () => {
     setFormData(prev => ({
       ...prev,
       attributes: prev.attributes.map(a => 
-        a.id === attributeId ? { ...a, [field]: value } : a
+        a.id === attributeId
+          ? {
+              ...a,
+              [field]: value,
+              ...(field === 'preset' && value !== CUSTOM_ATTRIBUTE_VALUE ? { customName: '' } : {})
+            }
+          : a
       )
     }));
   };
@@ -429,34 +578,139 @@ const ProductManagement = () => {
     }));
   };
 
+  const addVariant = () => {
+    setFormData(prev => ({
+      ...prev,
+      variants: [...prev.variants, createVariantRow()]
+    }));
+  };
+
+  const removeVariant = (variantId) => {
+    setFormData(prev => ({
+      ...prev,
+      variants: prev.variants.filter((variant) => variant.id !== variantId)
+    }));
+  };
+
+  const updateVariant = (variantId, field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      variants: prev.variants.map((variant) => (
+        variant.id === variantId ? { ...variant, [field]: value } : variant
+      ))
+    }));
+  };
+
+  const updateVariantImage = (variantId, file) => {
+    if (!file) {
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+
+    setFormData(prev => ({
+      ...prev,
+      variants: prev.variants.map((variant) => (
+        variant.id === variantId
+          ? { ...variant, imageFile: file, imagePreview: previewUrl }
+          : variant
+      ))
+    }));
+  };
+
+  const removeVariantImage = (variantId) => {
+    setFormData(prev => ({
+      ...prev,
+      variants: prev.variants.map((variant) => (
+        variant.id === variantId
+          ? { ...variant, image: null, imageFile: null, imagePreview: '' }
+          : variant
+      ))
+    }));
+  };
+
   const openModal = (mode, product = null) => {
     setModalMode(mode);
     setSelectedProduct(product);
     if (product) {
+      const sellerId = product?.sellerId
+        || product?.seller?._id
+        || product?.seller?.id
+        || (typeof product?.seller === 'string' ? product.seller : '');
+
       setFormData(prev => ({
         ...prev,
         name: product?.name || '',
         description: product?.description || '',
+        shortDescription: product?.shortDescription || '',
         price: product?.price ?? '',
-        category: product?.category || '',
+        comparePrice: product?.comparePrice ?? '',
+        category: product?.category?._id || product?.category?.id || product?.category || '',
+        subcategory: product?.subcategory || '',
+        brand: product?.brand || '',
         stock: product?.stock ?? '',
+        minStock: product?.lowStockThreshold ?? product?.minStock ?? '',
+        sku: product?.sku || '',
+        barcode: product?.barcode || '',
         images: Array.isArray(product?.images) ? product.images : [],
         status: product?.status || prev.status || 'active',
+        productType: product?.productType || 'simple',
+        isDigital: !!product?.isDigital,
         isFeatured: !!(product?.isFeatured ?? prev.isFeatured),
-        sellerId: product?.sellerId || '',
+        weight: product?.weight || { value: '', unit: 'kg' },
+        dimensions: product?.dimensions || { length: '', width: '', height: '', unit: 'cm' },
+        shippingClass: product?.shippingClass || '',
+        taxStatus: product?.taxStatus || 'taxable',
+        taxClass: product?.taxClass || 'standard',
+        seoTitle: product?.seoInfo?.metaTitle || product?.seoTitle || '',
+        seoDescription: product?.seoInfo?.metaDescription || product?.seoDescription || '',
+        seoKeywords: Array.isArray(product?.seoInfo?.keywords) ? product.seoInfo.keywords.join(', ') : (product?.seoKeywords || ''),
+        sellerId,
         attributes: Array.isArray(product?.attributes)
           ? product.attributes.map(a => ({
-              id: a.id || a._id || Date.now(),
-              name: a.name || '',
+              id: a.id || a._id || createRowId(),
+              preset: ATTRIBUTE_PRESET_OPTIONS.find((option) => option.toLowerCase() === String(a.name || '').toLowerCase()) || CUSTOM_ATTRIBUTE_VALUE,
+              customName: ATTRIBUTE_PRESET_OPTIONS.some((option) => option.toLowerCase() === String(a.name || '').toLowerCase()) ? '' : (a.name || ''),
               values: Array.isArray(a.values) ? a.values : [],
               variation: !!a.variation,
               visible: 'visible' in a ? !!a.visible : true
             }))
           : [],
-        variants: Array.isArray(product?.variants) ? product.variants : [],
+        variants: Array.isArray(product?.variants)
+          ? product.variants.map((variant, index) => {
+              const rowId = variant.optionId || variant.id || variant._id || `${index}_${Date.now()}`;
+              return {
+                id: rowId,
+                optionId: rowId,
+                name: variant.name || '',
+                value: variant.value || '',
+                price: variant.price ?? '',
+                stock: variant.stock ?? '',
+                sku: variant.sku || '',
+                image: variant.image || null,
+                imageFile: null,
+                imagePreview: variant.image?.url || '',
+                imageUploadField: variant.imageUploadField || `variant_image_${rowId}`
+              };
+            })
+          : [],
         specifications: Array.isArray(product?.specifications) ? product.specifications : [],
         tags: Array.isArray(product?.tags) ? product.tags : []
       }));
+      setImageFiles([]);
+      setImagePreview(
+        Array.isArray(product?.images)
+          ? product.images.map((image, index) => ({
+              url: image?.url || image,
+              name: image?.alt || `image-${index + 1}`,
+              isExisting: true
+            }))
+          : []
+      );
     } else {
       resetForm();
     }
@@ -681,7 +935,7 @@ const ProductManagement = () => {
                       {typeof product.category === 'object' ? product.category?.name : product.category}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      ${product.price}
+                      {getProductDisplayPrice(product)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {product.stock}
@@ -868,10 +1122,13 @@ const ProductManagement = () => {
                       value={formData.price}
                       onChange={(e) => handleFormDataChange('price', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      required
-                      disabled={modalMode === 'view'}
-                      placeholder="0.00"
+                      required={formData.productType !== 'variable'}
+                      disabled={modalMode === 'view' || formData.productType === 'variable'}
+                      placeholder={formData.productType === 'variable' ? 'Derived from variants' : '0.00'}
                     />
+                    {formData.productType === 'variable' && (
+                      <p className="mt-1 text-xs text-gray-500">The main product price is calculated from the lowest variant price.</p>
+                    )}
                   </div>
 
                   <div>
@@ -898,10 +1155,13 @@ const ProductManagement = () => {
                       value={formData.stock}
                       onChange={(e) => handleFormDataChange('stock', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      required
-                      disabled={modalMode === 'view'}
-                      placeholder="0"
+                      required={formData.productType !== 'variable'}
+                      disabled={modalMode === 'view' || formData.productType === 'variable'}
+                      placeholder={formData.productType === 'variable' ? 'Derived from variants' : '0'}
                     />
+                    {formData.productType === 'variable' && (
+                      <p className="mt-1 text-xs text-gray-500">The main stock is the total of all variant stock quantities.</p>
+                    )}
                   </div>
 
                   <div>
@@ -931,7 +1191,9 @@ const ProductManagement = () => {
                     >
                       <option value="">Select Seller</option>
                       {Array.isArray(sellers) && sellers.map(seller => (
-                        <option key={seller.id} value={seller.id}>{seller.businessName}</option>
+                        <option key={seller._id || seller.id} value={seller._id || seller.id}>
+                          {seller.businessName || seller.name || seller.email}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -1055,16 +1317,32 @@ const ProductManagement = () => {
                   
                   {formData.attributes.map((attribute, attributeIndex) => (
                     <div key={attribute.id} className="border border-gray-200 rounded-lg p-4 mb-3">
-                      <div className="grid grid-cols-2 gap-4 mb-3">
-                        <input
-                          type="text"
-                          value={attribute.name}
-                          onChange={(e) => updateAttribute(attribute.id, 'name', e.target.value)}
-                          placeholder="Attribute name (e.g., Color, Size)"
-                          className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          disabled={modalMode === 'view'}
-                        />
-                        <div className="flex items-center gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                        <div className="space-y-3">
+                          <select
+                            value={attribute.preset || ''}
+                            onChange={(e) => updateAttribute(attribute.id, 'preset', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            disabled={modalMode === 'view'}
+                          >
+                            <option value="">Select attribute field</option>
+                            {ATTRIBUTE_PRESET_OPTIONS.map((option) => (
+                              <option key={option} value={option}>{option}</option>
+                            ))}
+                            <option value={CUSTOM_ATTRIBUTE_VALUE}>Custom</option>
+                          </select>
+                          {(attribute.preset === CUSTOM_ATTRIBUTE_VALUE || !attribute.preset) && (
+                            <input
+                              type="text"
+                              value={attribute.customName || ''}
+                              onChange={(e) => updateAttribute(attribute.id, 'customName', e.target.value)}
+                              placeholder="Type custom field name e.g. SSD"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              disabled={modalMode === 'view'}
+                            />
+                          )}
+                        </div>
+                        <div className="flex items-center gap-4 flex-wrap">
                           <label className="flex items-center">
                             <input
                               type="checkbox"
@@ -1117,7 +1395,7 @@ const ProductManagement = () => {
                               type="text"
                               value={value}
                               onChange={(e) => updateAttributeValue(attribute.id, valueIndex, e.target.value)}
-                              placeholder="Attribute value"
+                              placeholder="Attribute value e.g. 256GB"
                               className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500"
                               disabled={modalMode === 'view'}
                             />
@@ -1136,6 +1414,123 @@ const ProductManagement = () => {
                     </div>
                   ))}
                 </div>
+
+                {formData.productType === 'variable' && (
+                  <div>
+                    <div className="flex justify-between items-center mb-3">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Product Variants
+                      </label>
+                      {modalMode !== 'view' && (
+                        <button
+                          type="button"
+                          onClick={addVariant}
+                          className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
+                        >
+                          Add Variant
+                        </button>
+                      )}
+                    </div>
+
+                    {formData.variants.map((variant, variantIndex) => (
+                      <div key={variant.id} className="border border-gray-200 rounded-lg p-4 mb-3 space-y-4">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="text-sm font-semibold text-gray-900">Variant {variantIndex + 1}</p>
+                            <p className="text-xs text-gray-500">Set a field, value, price, stock, and image for this option.</p>
+                          </div>
+                          {modalMode !== 'view' && (
+                            <button
+                              type="button"
+                              onClick={() => removeVariant(variant.id)}
+                              className="text-red-600 hover:text-red-800"
+                            >
+                              <XMarkIcon className="h-5 w-5" />
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <input
+                            type="text"
+                            value={variant.name}
+                            onChange={(e) => updateVariant(variant.id, 'name', e.target.value)}
+                            placeholder="Field e.g. Color"
+                            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            disabled={modalMode === 'view'}
+                          />
+                          <input
+                            type="text"
+                            value={variant.value}
+                            onChange={(e) => updateVariant(variant.id, 'value', e.target.value)}
+                            placeholder="Value e.g. Red"
+                            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            disabled={modalMode === 'view'}
+                          />
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={variant.price}
+                            onChange={(e) => updateVariant(variant.id, 'price', e.target.value)}
+                            placeholder="Price"
+                            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            disabled={modalMode === 'view'}
+                          />
+                          <input
+                            type="number"
+                            min="0"
+                            value={variant.stock}
+                            onChange={(e) => updateVariant(variant.id, 'stock', e.target.value)}
+                            placeholder="Stock quantity"
+                            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            disabled={modalMode === 'view'}
+                          />
+                          <input
+                            type="text"
+                            value={variant.sku}
+                            onChange={(e) => updateVariant(variant.id, 'sku', e.target.value)}
+                            placeholder="Variant SKU"
+                            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            disabled={modalMode === 'view'}
+                          />
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => updateVariantImage(variant.id, e.target.files?.[0] || null)}
+                            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            disabled={modalMode === 'view'}
+                          />
+                        </div>
+
+                        {(variant.imagePreview || variant.image?.url) && (
+                          <div className="flex items-center gap-4 rounded-lg bg-gray-50 p-3">
+                            <img
+                              src={variant.imagePreview || variant.image?.url}
+                              alt={`${variant.name || 'Variant'} ${variant.value || 'image'}`}
+                              className="h-20 w-20 rounded-lg border border-gray-200 object-cover"
+                            />
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-gray-900">
+                                {variant.name || 'Variant'} {variant.value ? `- ${variant.value}` : ''}
+                              </p>
+                              <p className="text-xs text-gray-500">This image is used for the selected variant.</p>
+                            </div>
+                            {modalMode !== 'view' && (
+                              <button
+                                type="button"
+                                onClick={() => removeVariantImage(variant.id)}
+                                className="text-sm text-red-600 hover:text-red-800"
+                              >
+                                Remove image
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {/* Product Options */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

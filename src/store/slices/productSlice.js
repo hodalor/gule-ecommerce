@@ -73,6 +73,46 @@ export const updateProductStatus = createAsyncThunk(
   }
 );
 
+export const createProduct = createAsyncThunk(
+  'adminProducts/createProduct',
+  async (productData, { rejectWithValue }) => {
+    try {
+      const response = await api.post(ADMIN_PRODUCTS_API, productData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      const product = response.data?.data?.product || response.data?.product || response.data;
+      if (product && product.id && !product._id) {
+        product._id = product.id;
+      }
+      return product;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to create product');
+    }
+  }
+);
+
+export const updateProduct = createAsyncThunk(
+  'adminProducts/updateProduct',
+  async ({ productId, productData }, { rejectWithValue }) => {
+    try {
+      const response = await api.put(`${ADMIN_PRODUCTS_API}/${productId}`, productData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      const product = response.data?.data?.product || response.data?.product || response.data;
+      if (product && product.id && !product._id) {
+        product._id = product.id;
+      }
+      return product;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to update product');
+    }
+  }
+);
+
 export const deleteProduct = createAsyncThunk(
   'adminProducts/deleteProduct',
   async ({ productId, reason }, { rejectWithValue }) => {
@@ -233,6 +273,43 @@ const productSlice = createSlice({
         state.selectedProduct = action.payload;
       })
       .addCase(fetchProductById.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // Create product
+      .addCase(createProduct.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(createProduct.fulfilled, (state, action) => {
+        state.loading = false;
+        if (action.payload?._id) {
+          state.products.unshift(action.payload);
+        }
+      })
+      .addCase(createProduct.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // Update product
+      .addCase(updateProduct.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(updateProduct.fulfilled, (state, action) => {
+        state.loading = false;
+        const updatedProduct = action.payload;
+        const index = state.products.findIndex((p) => p._id === updatedProduct._id);
+        if (index !== -1) {
+          state.products[index] = updatedProduct;
+        }
+        if (state.selectedProduct && state.selectedProduct._id === updatedProduct._id) {
+          state.selectedProduct = updatedProduct;
+        }
+      })
+      .addCase(updateProduct.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })
