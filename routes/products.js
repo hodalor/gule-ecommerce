@@ -41,6 +41,175 @@ const createProductRateLimit = rateLimit({
   }
 });
 
+const toNumberOr = (value, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const buildPriceRange = (product) => {
+  const variantPrices = (Array.isArray(product?.variants) ? product.variants : [])
+    .map((variant) => Number(variant?.price))
+    .filter((value) => Number.isFinite(value) && value >= 0);
+
+  if (!variantPrices.length) {
+    const basePrice = toNumberOr(product?.price, 0);
+    return {
+      min: basePrice,
+      max: basePrice
+    };
+  }
+
+  return {
+    min: Math.min(...variantPrices),
+    max: Math.max(...variantPrices)
+  };
+};
+
+const decorateProductForResponse = (product) => {
+  if (!product) {
+    return product;
+  }
+
+  const priceRange = buildPriceRange(product);
+  const totalVariantStock = (Array.isArray(product?.variants) ? product.variants : []).reduce((sum, variant) => {
+    const stock = Number(variant?.stock);
+    return sum + (Number.isFinite(stock) && stock > 0 ? stock : 0);
+  }, 0);
+
+  return {
+    ...product,
+    priceRange,
+    displayPrice: priceRange.min,
+    availableStock: product?.productType === 'variable' ? totalVariantStock : toNumberOr(product?.stock, 0),
+    variantCount: Array.isArray(product?.variants) ? product.variants.length : 0
+  };
+};
+
+const normalizeAttributes = (attributes = []) => {
+  if (!Array.isArray(attributes)) {
+    return [];
+  }
+
+  return attributes
+    .map((attribute) => {
+      const name = String(attribute?.name || attribute?.label || '').trim();
+      const values = Array.isArray(attribute?.values)
+        ? attribute.values
+        : (attribute?.value ? [attribute.value] : []);
+
+      return {
+        name,
+        values: values
+          .map((value) => String(value || '').trim())
+          .filter(Boolean),
+        variation: attribute?.variation === true,
+        visible: attribute?.visible !== false
+      };
+    })
+    .filter((attribute) => attribute.name && attribute.values.length > 0);
+};
+
+const normalizeSpecifications = (specifications = []) => {
+  if (!Array.isArray(specifications)) {
+    return [];
+  }
+
+  return specifications
+    .map((specification) => ({
+      name: String(specification?.name || specification?.key || '').trim(),
+      value: String(specification?.value || '').trim()
+    }))
+    .filter((specification) => specification.name && specification.value);
+};
+
+const normalizeVariants = (variants = []) => {
+  if (!Array.isArray(variants)) {
+    return [];
+  }
+
+  return variants
+    .flatMap((variant, variantIndex) => {
+      if (Array.isArray(variant?.options)) {
+        return variant.options.map((option, optionIndex) => ({
+          optionId: String(option?.optionId || option?.id || `${Date.now()}_${variantIndex}_${optionIndex}`).trim(),
+          name: String(variant?.name || '').trim(),
+          value: String(option?.value || '').trim(),
+          price: toNumberOr(option?.price, 0),
+          stock: Math.max(0, toNumberOr(option?.stock, 0)),
+          sku: String(option?.sku || '').trim().toUpperCase(),
+          image: option?.image && option.image.url ? option.image : null,
+          imageUploadField: option?.imageUploadField || `variant_image_${variantIndex}_${optionIndex}`
+        }));
+      }
+
+      return [{
+        optionId: String(variant?.optionId || variant?.id || `${Date.now()}_${variantIndex}`).trim(),
+        name: String(variant?.name || '').trim(),
+        value: String(variant?.value || '').trim(),
+        price: toNumberOr(variant?.price, 0),
+        stock: Math.max(0, toNumberOr(variant?.stock, 0)),
+        sku: String(variant?.sku || '').trim().toUpperCase(),
+        image: variant?.image && variant.image.url ? variant.image : null,
+        imageUploadField: variant?.imageUploadField || `variant_image_${variantIndex}`
+      }];
+    })
+    .filter((variant) => variant.name && variant.value)
+    .map((variant) => ({
+      optionId: variant.optionId,
+      name: variant.name,
+      value: variant.value,
+      price: variant.price,
+      stock: variant.stock,
+      sku: variant.sku,
+      image: variant.image || undefined,
+      imageUploadField: variant.imageUploadField
+    }));
+};
+
+const enrichVariantImages = async (variants, files, sellerId) => {
+  if (!Array.isArray(variants) || variants.length === 0) {
+    return [];
+  }
+
+  const normalizedFiles = files && typeof files === 'object' ? files : {};
+
+  return Promise.all(variants.map(async (variant, index) => {
+    const uploadField = variant.imageUploadField;
+    const uploadFile = uploadField ? normalizedFiles[uploadField] : null;
+
+    if (!uploadFile) {
+      return {
+        optionId: variant.optionId,
+        name: variant.name,
+        value: variant.value,
+        price: variant.price,
+        stock: variant.stock,
+        sku: variant.sku,
+        image: variant.image || undefined
+      };
+    }
+
+    const uploadResult = await uploadToCloudinary(uploadFile.tempFilePath || uploadFile.data, {
+      folder: `gule/products/${sellerId}/variants`,
+      public_id: `${variant.optionId || `variant_${index}`}_${Date.now()}`
+    });
+
+    return {
+      optionId: variant.optionId,
+      name: variant.name,
+      value: variant.value,
+      price: variant.price,
+      stock: variant.stock,
+      sku: variant.sku,
+      image: {
+        url: uploadResult.secure_url,
+        publicId: uploadResult.public_id,
+        alt: `${variant.name} - ${variant.value}`
+      }
+    };
+  }));
+};
+
 // Get product categories
 router.get('/categories', productRateLimit, async (req, res) => {
   try {
@@ -107,11 +276,11 @@ router.get('/featured', productRateLimit, async (req, res) => {
           ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
           : 0;
 
-        return {
+        return decorateProductForResponse({
           ...product,
           averageRating: Math.round(avgRating * 10) / 10,
           reviewCount: reviews.length
-        };
+        });
       })
     );
 
@@ -206,11 +375,11 @@ router.get('/', productRateLimit, validatePagination, validateSearch, handleVali
           ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length 
           : 0;
         
-        return {
+        return decorateProductForResponse({
           ...product,
           averageRating: Math.round(avgRating * 10) / 10,
           reviewCount: reviews.length
-        };
+        });
       })
     );
 
@@ -289,13 +458,13 @@ router.get('/:id', productRateLimit, async (req, res) => {
     res.json({
       success: true,
       data: {
-        product: {
+        product: decorateProductForResponse({
           ...product,
           averageRating: Math.round(avgRating * 10) / 10,
           reviewCount: reviews.length
-        },
+        }),
         reviews,
-        relatedProducts
+        relatedProducts: relatedProducts.map(decorateProductForResponse)
       }
     });
 
@@ -386,6 +555,13 @@ router.post('/',
       parsedBody.attributes = safeParse(parsedBody.attributes, parsedBody.attributes);
       parsedBody.specifications = safeParse(parsedBody.specifications, parsedBody.specifications);
       parsedBody.tags = safeParse(parsedBody.tags, Array.isArray(parsedBody.tags) ? parsedBody.tags : []);
+      parsedBody.attributes = normalizeAttributes(parsedBody.attributes);
+      parsedBody.specifications = normalizeSpecifications(parsedBody.specifications);
+      parsedBody.variants = await enrichVariantImages(
+        normalizeVariants(parsedBody.variants),
+        req.files,
+        req.user.id
+      );
 
       // Normalize lowStockThreshold from minStock if provided
       if (parsedBody.minStock !== undefined && parsedBody.lowStockThreshold === undefined) {
@@ -584,6 +760,13 @@ router.put('/:id',
       parsedBody.attributes = safeParse(parsedBody.attributes, parsedBody.attributes);
       parsedBody.specifications = safeParse(parsedBody.specifications, parsedBody.specifications);
       parsedBody.tags = safeParse(parsedBody.tags, Array.isArray(parsedBody.tags) ? parsedBody.tags : []);
+      parsedBody.attributes = normalizeAttributes(parsedBody.attributes);
+      parsedBody.specifications = normalizeSpecifications(parsedBody.specifications);
+      parsedBody.variants = await enrichVariantImages(
+        normalizeVariants(parsedBody.variants),
+        req.files,
+        req.user.id
+      );
 
       // Normalize lowStockThreshold from minStock if provided
       if (parsedBody.minStock !== undefined && parsedBody.lowStockThreshold === undefined) {
@@ -792,11 +975,11 @@ router.get('/seller/:sellerId', productRateLimit, validatePagination, handleVali
           ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length 
           : 0;
         
-        return {
+        return decorateProductForResponse({
           ...product,
           averageRating: Math.round(avgRating * 10) / 10,
           reviewCount: reviews.length
-        };
+        });
       })
     );
 

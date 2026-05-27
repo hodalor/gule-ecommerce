@@ -2,9 +2,13 @@ const express = require('express');
 const router = express.Router();
 const Product = require('../models/Product');
 const Category = require('../models/Category');
+const Seller = require('../models/Seller');
 const AuditLog = require('../models/AuditLog');
 const { authenticate, authorizeUserType, requirePermission } = require('../middleware/auth');
+const { validateProduct, validateProductUpdate } = require('../middleware/validation');
 const { body, query, validationResult } = require('express-validator');
+const mongoose = require('mongoose');
+const { uploadToCloudinary, deleteFromCloudinary, uploadMultipleToCloudinary } = require('../utils/cloudinary');
 const logger = require('../utils/logger');
 
 // Validation middleware
@@ -18,6 +22,207 @@ const handleValidationErrors = (req, res, next) => {
     });
   }
   next();
+};
+
+const toNumberOr = (value, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const buildPriceRange = (product) => {
+  const variantPrices = (Array.isArray(product?.variants) ? product.variants : [])
+    .map((variant) => Number(variant?.price))
+    .filter((value) => Number.isFinite(value) && value >= 0);
+
+  if (!variantPrices.length) {
+    const basePrice = toNumberOr(product?.price, 0);
+    return { min: basePrice, max: basePrice };
+  }
+
+  return {
+    min: Math.min(...variantPrices),
+    max: Math.max(...variantPrices)
+  };
+};
+
+const decorateProductForResponse = (product) => {
+  if (!product) {
+    return product;
+  }
+
+  const priceRange = buildPriceRange(product);
+  const availableStock = product?.productType === 'variable'
+    ? (Array.isArray(product?.variants) ? product.variants : []).reduce((sum, variant) => {
+        const stock = Number(variant?.stock);
+        return sum + (Number.isFinite(stock) && stock > 0 ? stock : 0);
+      }, 0)
+    : toNumberOr(product?.stock, 0);
+
+  return {
+    ...product,
+    priceRange,
+    displayPrice: priceRange.min,
+    availableStock,
+    variantCount: Array.isArray(product?.variants) ? product.variants.length : 0
+  };
+};
+
+const normalizeAttributes = (attributes = []) => {
+  if (!Array.isArray(attributes)) {
+    return [];
+  }
+
+  return attributes
+    .map((attribute) => {
+      const name = String(attribute?.name || attribute?.label || '').trim();
+      const values = Array.isArray(attribute?.values)
+        ? attribute.values
+        : (attribute?.value ? [attribute.value] : []);
+
+      return {
+        name,
+        values: values.map((value) => String(value || '').trim()).filter(Boolean),
+        variation: attribute?.variation === true,
+        visible: attribute?.visible !== false
+      };
+    })
+    .filter((attribute) => attribute.name && attribute.values.length > 0);
+};
+
+const normalizeSpecifications = (specifications = []) => {
+  if (!Array.isArray(specifications)) {
+    return [];
+  }
+
+  return specifications
+    .map((specification) => ({
+      name: String(specification?.name || specification?.key || '').trim(),
+      value: String(specification?.value || '').trim()
+    }))
+    .filter((specification) => specification.name && specification.value);
+};
+
+const normalizeVariants = (variants = []) => {
+  if (!Array.isArray(variants)) {
+    return [];
+  }
+
+  return variants
+    .flatMap((variant, variantIndex) => {
+      if (Array.isArray(variant?.options)) {
+        return variant.options.map((option, optionIndex) => ({
+          optionId: String(option?.optionId || option?.id || `${Date.now()}_${variantIndex}_${optionIndex}`).trim(),
+          name: String(variant?.name || '').trim(),
+          value: String(option?.value || '').trim(),
+          price: toNumberOr(option?.price, 0),
+          stock: Math.max(0, toNumberOr(option?.stock, 0)),
+          sku: String(option?.sku || '').trim().toUpperCase(),
+          image: option?.image && option.image.url ? option.image : null,
+          imageUploadField: option?.imageUploadField || `variant_image_${variantIndex}_${optionIndex}`
+        }));
+      }
+
+      return [{
+        optionId: String(variant?.optionId || variant?.id || `${Date.now()}_${variantIndex}`).trim(),
+        name: String(variant?.name || '').trim(),
+        value: String(variant?.value || '').trim(),
+        price: toNumberOr(variant?.price, 0),
+        stock: Math.max(0, toNumberOr(variant?.stock, 0)),
+        sku: String(variant?.sku || '').trim().toUpperCase(),
+        image: variant?.image && variant.image.url ? variant.image : null,
+        imageUploadField: variant?.imageUploadField || `variant_image_${variantIndex}`
+      }];
+    })
+    .filter((variant) => variant.name && variant.value)
+    .map((variant) => ({
+      optionId: variant.optionId,
+      name: variant.name,
+      value: variant.value,
+      price: variant.price,
+      stock: variant.stock,
+      sku: variant.sku,
+      image: variant.image || undefined,
+      imageUploadField: variant.imageUploadField
+    }));
+};
+
+const enrichVariantImages = async (variants, files, sellerId) => {
+  if (!Array.isArray(variants) || variants.length === 0) {
+    return [];
+  }
+
+  const normalizedFiles = files && typeof files === 'object' ? files : {};
+
+  return Promise.all(variants.map(async (variant, index) => {
+    const uploadField = variant.imageUploadField;
+    const uploadFile = uploadField ? normalizedFiles[uploadField] : null;
+
+    if (!uploadFile) {
+      return {
+        optionId: variant.optionId,
+        name: variant.name,
+        value: variant.value,
+        price: variant.price,
+        stock: variant.stock,
+        sku: variant.sku,
+        image: variant.image || undefined
+      };
+    }
+
+    const uploadResult = await uploadToCloudinary(uploadFile.tempFilePath || uploadFile.data, {
+      folder: `gule/products/${sellerId}/variants`,
+      public_id: `${variant.optionId || `variant_${index}`}_${Date.now()}`
+    });
+
+    return {
+      optionId: variant.optionId,
+      name: variant.name,
+      value: variant.value,
+      price: variant.price,
+      stock: variant.stock,
+      sku: variant.sku,
+      image: {
+        url: uploadResult.secure_url,
+        publicId: uploadResult.public_id,
+        alt: `${variant.name} - ${variant.value}`
+      }
+    };
+  }));
+};
+
+const safeParse = (value, fallback) => {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  try {
+    const trimmed = value.trim();
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      return JSON.parse(trimmed);
+    }
+  } catch (error) {
+    return fallback;
+  }
+
+  return fallback;
+};
+
+const normalizeCategoryInput = async (categoryInput) => {
+  if (!categoryInput) {
+    return categoryInput;
+  }
+
+  if (typeof categoryInput === 'string' && !mongoose.Types.ObjectId.isValid(categoryInput)) {
+    const existingCategory = await Category.findOne({ name: new RegExp(`^${categoryInput}$`, 'i') }).lean();
+    if (existingCategory) {
+      return existingCategory._id;
+    }
+
+    const createdCategory = await Category.create({ name: categoryInput, status: 'active' });
+    return createdCategory._id;
+  }
+
+  return categoryInput;
 };
 
 // Get all products with admin filters (Admin only)
@@ -124,7 +329,7 @@ router.get('/',
       res.json({
         success: true,
         data: {
-          products,
+          products: products.map((product) => decorateProductForResponse(product)),
           pagination: {
             currentPage: parseInt(page),
             totalPages: Math.ceil(total / limit),
@@ -179,7 +384,7 @@ router.get('/:id',
 
       res.json({
         success: true,
-        data: { product }
+        data: { product: decorateProductForResponse(product) }
       });
 
     } catch (error) {
@@ -187,6 +392,281 @@ router.get('/:id',
       res.status(500).json({
         success: false,
         message: 'Failed to fetch product',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+);
+
+// Create product (Admin only)
+router.post('/',
+  authenticate,
+  authorizeUserType(['admin']),
+  body('sellerId').isMongoId().withMessage('Seller is required'),
+  ...validateProduct,
+  async (req, res) => {
+    try {
+      const seller = await Seller.findById(req.body.sellerId);
+      if (!seller) {
+        return res.status(404).json({
+          success: false,
+          message: 'Seller not found'
+        });
+      }
+
+      let imageUrls = [];
+      if (req.files && req.files.images) {
+        const images = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
+        const sources = images.map((img) => img.tempFilePath || img.data);
+        const uploadResults = await uploadMultipleToCloudinary(
+          sources,
+          {
+            folder: `gule/products/${seller._id}`,
+            transformation: [
+              { width: 800, height: 600, crop: 'fill', quality: 'auto' },
+              { fetch_format: 'auto' }
+            ]
+          }
+        );
+
+        imageUrls = uploadResults.successful.map((result) => ({
+          url: result.secure_url,
+          publicId: result.public_id
+        }));
+      }
+
+      const parsedBody = { ...req.body };
+      parsedBody.dimensions = safeParse(parsedBody.dimensions, parsedBody.dimensions);
+      parsedBody.weight = safeParse(parsedBody.weight, parsedBody.weight);
+      parsedBody.variants = safeParse(parsedBody.variants, parsedBody.variants);
+      parsedBody.attributes = safeParse(parsedBody.attributes, parsedBody.attributes);
+      parsedBody.specifications = safeParse(parsedBody.specifications, parsedBody.specifications);
+      parsedBody.tags = safeParse(parsedBody.tags, Array.isArray(parsedBody.tags) ? parsedBody.tags : []);
+      parsedBody.attributes = normalizeAttributes(parsedBody.attributes);
+      parsedBody.specifications = normalizeSpecifications(parsedBody.specifications);
+      parsedBody.variants = await enrichVariantImages(
+        normalizeVariants(parsedBody.variants),
+        req.files,
+        seller._id
+      );
+
+      if (parsedBody.minStock !== undefined && parsedBody.lowStockThreshold === undefined) {
+        const minStockNum = Number(parsedBody.minStock);
+        if (!Number.isNaN(minStockNum)) {
+          parsedBody.lowStockThreshold = minStockNum;
+        }
+        delete parsedBody.minStock;
+      }
+
+      parsedBody.category = await normalizeCategoryInput(parsedBody.category);
+
+      const seoInfo = {};
+      if (parsedBody.seoTitle) seoInfo.metaTitle = parsedBody.seoTitle;
+      if (parsedBody.seoDescription) seoInfo.metaDescription = parsedBody.seoDescription;
+      if (parsedBody.seoKeywords) {
+        seoInfo.keywords = Array.isArray(parsedBody.seoKeywords)
+          ? parsedBody.seoKeywords
+          : String(parsedBody.seoKeywords).split(',').map((keyword) => keyword.trim()).filter(Boolean);
+      }
+
+      const productData = {
+        ...parsedBody,
+        seller: seller._id,
+        images: imageUrls,
+        seoInfo: Object.keys(seoInfo).length ? seoInfo : undefined
+      };
+
+      delete productData.sellerId;
+      delete productData.seoTitle;
+      delete productData.seoDescription;
+      delete productData.seoKeywords;
+
+      const product = new Product(productData);
+      await product.save();
+
+      await AuditLog.logAction({
+        action: 'ADMIN_CREATE_PRODUCT',
+        userId: req.user.id,
+        userType: 'admin',
+        resourceType: 'Product',
+        resourceId: product._id,
+        details: {
+          productName: product.name,
+          sellerId: seller._id,
+          sellerName: seller.businessName,
+          status: product.status
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+        severity: 'medium'
+      });
+
+      res.status(201).json({
+        success: true,
+        message: 'Product created successfully',
+        data: { product: decorateProductForResponse(product.toObject()) }
+      });
+    } catch (error) {
+      logger.error('Admin create product error', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to create product',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+);
+
+// Update product (Admin only)
+router.put('/:id',
+  authenticate,
+  authorizeUserType(['admin']),
+  body('sellerId').optional().isMongoId().withMessage('Seller must be valid'),
+  ...validateProductUpdate,
+  async (req, res) => {
+    try {
+      const product = await Product.findById(req.params.id);
+      if (!product) {
+        return res.status(404).json({
+          success: false,
+          message: 'Product not found'
+        });
+      }
+
+      if (req.body.sellerId) {
+        const seller = await Seller.findById(req.body.sellerId);
+        if (!seller) {
+          return res.status(404).json({
+            success: false,
+            message: 'Seller not found'
+          });
+        }
+        product.seller = seller._id;
+      }
+
+      let newImageUrls = [];
+      if (req.files && req.files.images) {
+        const images = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
+        const sources = images.map((img) => img.tempFilePath || img.data);
+        const uploadResults = await uploadMultipleToCloudinary(
+          sources,
+          {
+            folder: `gule/products/${product.seller}`,
+            transformation: [
+              { width: 800, height: 600, crop: 'fill', quality: 'auto' },
+              { fetch_format: 'auto' }
+            ]
+          }
+        );
+
+        newImageUrls = uploadResults.successful.map((result) => ({
+          url: result.secure_url,
+          publicId: result.public_id
+        }));
+      }
+
+      if (req.body.removeImages) {
+        const imagesToRemove = Array.isArray(req.body.removeImages) ? req.body.removeImages : [req.body.removeImages];
+        for (const publicId of imagesToRemove) {
+          try {
+            await deleteFromCloudinary(publicId);
+          } catch (error) {
+            logger.warn('Failed to delete admin-removed product image from Cloudinary', {
+              publicId,
+              error: error.message
+            });
+          }
+        }
+
+        product.images = (Array.isArray(product.images) ? product.images : []).filter(
+          (img) => !imagesToRemove.includes(img.publicId)
+        );
+      }
+
+      if (newImageUrls.length > 0) {
+        product.images = [...(Array.isArray(product.images) ? product.images : []), ...newImageUrls];
+      }
+
+      const parsedBody = { ...req.body };
+      parsedBody.dimensions = safeParse(parsedBody.dimensions, parsedBody.dimensions);
+      parsedBody.weight = safeParse(parsedBody.weight, parsedBody.weight);
+      parsedBody.variants = safeParse(parsedBody.variants, parsedBody.variants);
+      parsedBody.attributes = safeParse(parsedBody.attributes, parsedBody.attributes);
+      parsedBody.specifications = safeParse(parsedBody.specifications, parsedBody.specifications);
+      parsedBody.tags = safeParse(parsedBody.tags, Array.isArray(parsedBody.tags) ? parsedBody.tags : []);
+      parsedBody.attributes = normalizeAttributes(parsedBody.attributes);
+      parsedBody.specifications = normalizeSpecifications(parsedBody.specifications);
+      parsedBody.variants = await enrichVariantImages(
+        normalizeVariants(parsedBody.variants),
+        req.files,
+        product.seller
+      );
+
+      if (parsedBody.minStock !== undefined && parsedBody.lowStockThreshold === undefined) {
+        const minStockNum = Number(parsedBody.minStock);
+        if (!Number.isNaN(minStockNum)) {
+          parsedBody.lowStockThreshold = minStockNum;
+        }
+        delete parsedBody.minStock;
+      }
+
+      if (parsedBody.category) {
+        parsedBody.category = await normalizeCategoryInput(parsedBody.category);
+      }
+
+      if (parsedBody.seoTitle || parsedBody.seoDescription || parsedBody.seoKeywords) {
+        if (!product.seoInfo) {
+          product.seoInfo = {};
+        }
+        if (parsedBody.seoTitle) product.seoInfo.metaTitle = parsedBody.seoTitle;
+        if (parsedBody.seoDescription) product.seoInfo.metaDescription = parsedBody.seoDescription;
+        if (parsedBody.seoKeywords) {
+          product.seoInfo.keywords = Array.isArray(parsedBody.seoKeywords)
+            ? parsedBody.seoKeywords
+            : String(parsedBody.seoKeywords).split(',').map((keyword) => keyword.trim()).filter(Boolean);
+        }
+      }
+
+      const allowedUpdates = [
+        'name', 'description', 'shortDescription', 'price', 'comparePrice', 'category', 'subcategory',
+        'brand', 'sku', 'barcode', 'stock', 'lowStockThreshold', 'weight', 'dimensions', 'status',
+        'productType', 'isDigital', 'isFeatured', 'variants', 'attributes', 'specifications', 'tags',
+        'shippingClass', 'taxStatus', 'taxClass'
+      ];
+
+      allowedUpdates.forEach((field) => {
+        if (parsedBody[field] !== undefined) {
+          product[field] = parsedBody[field];
+        }
+      });
+
+      await product.save();
+
+      await AuditLog.logAction({
+        action: 'ADMIN_UPDATE_PRODUCT',
+        userId: req.user.id,
+        userType: 'admin',
+        resourceType: 'Product',
+        resourceId: product._id,
+        details: {
+          productName: product.name,
+          status: product.status
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+        severity: 'medium'
+      });
+
+      res.json({
+        success: true,
+        message: 'Product updated successfully',
+        data: { product: decorateProductForResponse(product.toObject()) }
+      });
+    } catch (error) {
+      logger.error('Admin update product error', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to update product',
         error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }

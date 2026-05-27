@@ -1,2 +1,13 @@
 /node_modules
 .env
+temp/
+logs/
+*.msi
+debug*.js
+debug-*.js
+create_test_*.js
+cleanup_test_data.js
+admin_flow_tests.js
+test*.js
+test*.ps1
+scripts/test-*.js

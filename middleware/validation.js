@@ -468,23 +468,30 @@ const validateProduct = [
     .trim()
     .isLength({ min: 1, max: 50 })
     .withMessage('Variant name must be between 1 and 50 characters'),
-  
-  body('variants.*.options')
+
+  body('variants.*.value')
     .optional()
-    .customSanitizer((value) => {
-      if (value === '' || value === null) return [];
-      if (typeof value === 'string') {
-        try {
-          const parsed = JSON.parse(value);
-          return Array.isArray(parsed) ? parsed : [];
-        } catch {
-          return [];
-        }
-      }
-      return Array.isArray(value) ? value : [];
-    })
-    .isArray()
-    .withMessage('Variant options must be an array'),
+    .trim()
+    .isLength({ min: 1, max: 80 })
+    .withMessage('Variant value must be between 1 and 80 characters'),
+
+  body('variants.*.price')
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage('Variant price must be a non-negative number')
+    .toFloat(),
+
+  body('variants.*.stock')
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage('Variant stock must be a non-negative integer')
+    .toInt(),
+
+  body('variants.*.sku')
+    .optional()
+    .trim()
+    .isLength({ max: 50 })
+    .withMessage('Variant SKU must not exceed 50 characters'),
   
   body('attributes')
     .optional()
@@ -525,6 +532,18 @@ const validateProduct = [
     })
     .isArray()
     .withMessage('Attribute values must be an array'),
+
+  body('attributes.*.variation')
+    .optional()
+    .isBoolean()
+    .withMessage('Attribute variation flag must be a boolean')
+    .toBoolean(),
+
+  body('attributes.*.visible')
+    .optional()
+    .isBoolean()
+    .withMessage('Attribute visible flag must be a boolean')
+    .toBoolean(),
   
   body('specifications')
     .optional()
@@ -767,22 +786,29 @@ const validateProductUpdate = [
     .isLength({ min: 1, max: 50 })
     .withMessage('Variant name must be between 1 and 50 characters'),
 
-  body('variants.*.options')
+  body('variants.*.value')
     .optional()
-    .customSanitizer((value) => {
-      if (value === '' || value === null) return [];
-      if (typeof value === 'string') {
-        try {
-          const parsed = JSON.parse(value);
-          return Array.isArray(parsed) ? parsed : [];
-        } catch {
-          return [];
-        }
-      }
-      return Array.isArray(value) ? value : [];
-    })
-    .isArray()
-    .withMessage('Variant options must be an array'),
+    .trim()
+    .isLength({ min: 1, max: 80 })
+    .withMessage('Variant value must be between 1 and 80 characters'),
+
+  body('variants.*.price')
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage('Variant price must be a non-negative number')
+    .toFloat(),
+
+  body('variants.*.stock')
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage('Variant stock must be a non-negative integer')
+    .toInt(),
+
+  body('variants.*.sku')
+    .optional()
+    .trim()
+    .isLength({ max: 50 })
+    .withMessage('Variant SKU must not exceed 50 characters'),
 
   body('attributes')
     .optional()
@@ -823,6 +849,18 @@ const validateProductUpdate = [
     })
     .isArray()
     .withMessage('Attribute values must be an array'),
+
+  body('attributes.*.variation')
+    .optional()
+    .isBoolean()
+    .withMessage('Attribute variation flag must be a boolean')
+    .toBoolean(),
+
+  body('attributes.*.visible')
+    .optional()
+    .isBoolean()
+    .withMessage('Attribute visible flag must be a boolean')
+    .toBoolean(),
 
   body('specifications')
     .optional()
@@ -933,6 +971,24 @@ const validateOrder = [
     .isFloat({ min: 0 })
     .withMessage('Unit price must be a positive number')
     .toFloat(),
+
+  body('items.*.selectedVariant.optionId')
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 100 })
+    .withMessage('Variant option ID must be between 1 and 100 characters'),
+
+  body('items.*.selectedVariant.name')
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 80 })
+    .withMessage('Variant field must be between 1 and 80 characters'),
+
+  body('items.*.selectedVariant.value')
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 80 })
+    .withMessage('Variant value must be between 1 and 80 characters'),
   
   body('shippingAddress.street')
     .trim()
@@ -962,6 +1018,17 @@ const validateOrder = [
   body('paymentMethod')
     .isIn(['card', 'mobile_money', 'bank_transfer', 'cash_on_delivery'])
     .withMessage('Invalid payment method'),
+
+  body('paymentStatus')
+    .optional()
+    .isIn(['pending', 'paid', 'failed'])
+    .withMessage('Invalid payment status'),
+
+  body('paymentDetails.transactionId')
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 120 })
+    .withMessage('Transaction ID must be between 1 and 120 characters'),
 
   handleValidationErrors
 ];

@@ -81,6 +81,67 @@ const filterBuyerInfo = (buyer, privacySettings) => {
   return filteredBuyer;
 };
 
+const findSelectedVariant = (product, selectedVariant = {}) => {
+  if (!Array.isArray(product?.variants) || product.variants.length === 0) {
+    return null;
+  }
+
+  if (selectedVariant?.optionId) {
+    return product.variants.find((variant) => String(variant?.optionId) === String(selectedVariant.optionId)) || null;
+  }
+
+  if (selectedVariant?.name && selectedVariant?.value) {
+    return product.variants.find((variant) => (
+      String(variant?.name || '').toLowerCase() === String(selectedVariant.name).toLowerCase()
+      && String(variant?.value || '').toLowerCase() === String(selectedVariant.value).toLowerCase()
+    )) || null;
+  }
+
+  return null;
+};
+
+const reserveProductStock = async (product, quantity, selectedVariant) => {
+  if (product?.productType === 'variable') {
+    const matchedVariant = findSelectedVariant(product, selectedVariant);
+
+    if (!matchedVariant) {
+      throw new Error(`Please select a valid variant for "${product?.name || 'this product'}"`);
+    }
+
+    matchedVariant.stock = Math.max(0, Number(matchedVariant.stock || 0) - quantity);
+    product.stock = (Array.isArray(product.variants) ? product.variants : []).reduce((sum, variant) => {
+      const stock = Number(variant?.stock);
+      return sum + (Number.isFinite(stock) && stock > 0 ? stock : 0);
+    }, 0);
+
+    await product.save();
+    return;
+  }
+
+  await product.updateStock(quantity, 'subtract');
+};
+
+const restoreProductStock = async (product, quantity, selectedVariant) => {
+  if (product?.productType === 'variable') {
+    const matchedVariant = findSelectedVariant(product, selectedVariant);
+
+    if (!matchedVariant) {
+      throw new Error(`Unable to restore variant stock for "${product?.name || 'this product'}"`);
+    }
+
+    matchedVariant.stock = Math.max(0, Number(matchedVariant.stock || 0) + quantity);
+    product.stock = (Array.isArray(product.variants) ? product.variants : []).reduce((sum, variant) => {
+      const stock = Number(variant?.stock);
+      return sum + (Number.isFinite(stock) && stock > 0 ? stock : 0);
+    }, 0);
+
+    await product.save();
+    return;
+  }
+
+  await product.updateStock(quantity, 'add');
+};
+
 // Base GET route for /api/orders - returns available endpoints
 router.get('/', (req, res) => {
   res.json({
@@ -153,14 +214,27 @@ router.post('/',
           });
         }
 
-        if ((product?.stock || 0) < item.quantity) {
+        const matchedVariant = findSelectedVariant(product, item.selectedVariant);
+        const availableStock = matchedVariant
+          ? Number(matchedVariant.stock || 0)
+          : Number(product?.stock || 0);
+
+        if (product?.productType === 'variable' && !matchedVariant) {
           return res.status(400).json({
             success: false,
-            message: `Insufficient stock for "${product?.name || 'Unknown Product'}". Available: ${product?.stock || 0}, Requested: ${item.quantity}`
+            message: `Please choose a valid variant for "${product?.name || 'Unknown Product'}"`
           });
         }
 
-        const itemTotal = (product?.price || 0) * item.quantity;
+        if (availableStock < item.quantity) {
+          return res.status(400).json({
+            success: false,
+            message: `Insufficient stock for "${product?.name || 'Unknown Product'}". Available: ${availableStock}, Requested: ${item.quantity}`
+          });
+        }
+
+        const unitPrice = matchedVariant ? Number(matchedVariant.price || 0) : Number(product?.price || 0);
+        const itemTotal = unitPrice * item.quantity;
         subtotal += itemTotal;
 
         // Debug logging for product and seller
@@ -176,19 +250,29 @@ router.post('/',
           product: product?._id || null,
           seller: product?.seller?._id || product?.seller || null,
           quantity: item.quantity,
-          price: product?.price || 0,
+          price: unitPrice,
           total: itemTotal,
           productName: product?.name || 'Unknown Product',
-          productImage: product?.images && product.images[0] ? product.images[0].url : null
+          productImage: matchedVariant?.image?.url || (product?.images && product.images[0] ? product.images[0].url : null),
+          productSku: matchedVariant?.sku || product?.sku || '',
+          selectedVariant: matchedVariant ? {
+            optionId: matchedVariant.optionId,
+            variantName: matchedVariant.name,
+            variantValue: matchedVariant.value,
+            variantPrice: matchedVariant.price,
+            variantSku: matchedVariant.sku,
+            image: matchedVariant.image?.url || null
+          } : null,
+          basePrice: Number(product?.price || 0)
         });
 
         if (product && product._id) {
-          reservedStock.push({ product, quantity: item.quantity });
+          reservedStock.push({ product, quantity: item.quantity, selectedVariant: matchedVariant });
         }
       }
 
       for (const reserved of reservedStock) {
-        await reserved.product.updateStock(reserved.quantity, 'subtract');
+        await reserveProductStock(reserved.product, reserved.quantity, reserved.selectedVariant);
       }
 
       // Create OrderItem documents first
@@ -202,13 +286,18 @@ router.post('/',
           seller: itemData.seller,
           productSnapshot: {
             name: itemData.productName,
-            image: itemData.productImage
+            image: itemData.productImage,
+            sku: itemData.productSku
           },
           quantity: itemData.quantity,
           unitPrice: itemData.price,
           totalPrice: itemData.total,
+          selectedVariant: itemData.selectedVariant || undefined,
           pricing: {
-            basePrice: itemData.price
+            basePrice: itemData.basePrice,
+            variantPrice: itemData.selectedVariant
+              ? Math.max(0, Number(itemData.price || 0) - Number(itemData.basePrice || 0))
+              : 0
           },
           commission: {
             rate: commissionRate,
@@ -366,7 +455,7 @@ router.post('/',
     } catch (error) {
       for (const reserved of reservedStock) {
         try {
-          await reserved.product.updateStock(reserved.quantity, 'add');
+          await restoreProductStock(reserved.product, reserved.quantity, reserved.selectedVariant);
         } catch (restoreError) {
           logger.error('Failed to restore reserved stock', restoreError);
         }
@@ -804,7 +893,7 @@ router.patch('/:id/cancel', orderRateLimit, authenticate, async (req, res) => {
         if (!productId) continue;
         const product = await Product.findById(productId);
         if (product) {
-          await product.updateStock(item.quantity, 'add');
+          await restoreProductStock(product, item.quantity, item.selectedVariant);
         }
       }
     }

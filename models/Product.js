@@ -89,6 +89,16 @@ const productSchema = new mongoose.Schema({
     trim: true,
     maxlength: [300, 'Short description cannot exceed 300 characters']
   },
+  brand: {
+    type: String,
+    trim: true,
+    maxlength: [80, 'Brand cannot exceed 80 characters']
+  },
+  productType: {
+    type: String,
+    enum: ['simple', 'variable', 'grouped', 'external'],
+    default: 'simple'
+  },
   price: {
     type: Number,
     required: [true, 'Product price is required'],
@@ -207,33 +217,68 @@ const productSchema = new mongoose.Schema({
       trim: true
     }
   }],
-  variants: [{
+  attributes: [{
     name: {
       type: String,
       required: true,
       trim: true
     },
-    options: [{
-      value: {
+    values: [{
+      type: String,
+      trim: true
+    }],
+    variation: {
+      type: Boolean,
+      default: false
+    },
+    visible: {
+      type: Boolean,
+      default: true
+    }
+  }],
+  variants: [{
+    optionId: {
+      type: String,
+      trim: true
+    },
+    name: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    value: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    price: {
+      type: Number,
+      min: [0, 'Variant price cannot be negative']
+    },
+    stock: {
+      type: Number,
+      min: [0, 'Variant stock cannot be negative'],
+      default: 0
+    },
+    sku: {
+      type: String,
+      trim: true,
+      uppercase: true
+    },
+    image: {
+      url: {
         type: String,
-        required: true,
         trim: true
       },
-      price: {
-        type: Number,
-        min: [0, 'Variant price cannot be negative']
-      },
-      stock: {
-        type: Number,
-        min: [0, 'Variant stock cannot be negative'],
-        default: 0
-      },
-      sku: {
+      publicId: {
         type: String,
-        trim: true,
-        uppercase: true
+        trim: true
+      },
+      alt: {
+        type: String,
+        trim: true
       }
-    }]
+    }
   }],
   status: {
     type: String,
@@ -385,6 +430,31 @@ productSchema.virtual('primaryImage').get(function() {
   return primary ? primary.url : (this.images.length > 0 ? this.images[0].url : null);
 });
 
+productSchema.virtual('priceRange').get(function() {
+  if (this.productType !== 'variable' || !Array.isArray(this.variants) || this.variants.length === 0) {
+    return {
+      min: this.price,
+      max: this.price
+    };
+  }
+
+  const variantPrices = this.variants
+    .map((variant) => Number(variant?.price))
+    .filter((value) => Number.isFinite(value) && value >= 0);
+
+  if (variantPrices.length === 0) {
+    return {
+      min: this.price,
+      max: this.price
+    };
+  }
+
+  return {
+    min: Math.min(...variantPrices),
+    max: Math.max(...variantPrices)
+  };
+});
+
 // Indexes for better query performance
 productSchema.index({ name: 'text', description: 'text', tags: 'text' });
 productSchema.index({ seller: 1 });
@@ -413,6 +483,22 @@ productSchema.pre('save', function(next) {
   // Auto-generate SKU if not provided
   if (this.isNew && !this.sku) {
     this.sku = 'PRD-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5).toUpperCase();
+  }
+
+  if (this.productType === 'variable' && Array.isArray(this.variants) && this.variants.length > 0) {
+    const variantPrices = this.variants
+      .map((variant) => Number(variant?.price))
+      .filter((value) => Number.isFinite(value) && value >= 0);
+    const totalVariantStock = this.variants.reduce((sum, variant) => {
+      const stock = Number(variant?.stock);
+      return sum + (Number.isFinite(stock) && stock > 0 ? stock : 0);
+    }, 0);
+
+    if (variantPrices.length > 0) {
+      this.price = Math.min(...variantPrices);
+    }
+
+    this.stock = totalVariantStock;
   }
   
   // Update stock status
