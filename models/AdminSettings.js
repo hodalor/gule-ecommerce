@@ -610,6 +610,17 @@ adminSettingsSchema.statics.initializeDefaults = function(adminId) {
   const defaultSettings = [
     // Privacy Settings
     {
+      settingKey: 'share_buyer_name',
+      category: 'privacy',
+      name: 'Share Buyer Name',
+      description: 'Allow sellers to see buyer names in orders',
+      value: false,
+      defaultValue: false,
+      dataType: 'boolean',
+      ui: { inputType: 'boolean', group: 'Privacy', order: 0 },
+      permissions: { read: ['super_admin', 'admin'], write: ['super_admin', 'admin'] }
+    },
+    {
       settingKey: 'share_buyer_contact',
       category: 'privacy',
       name: 'Share Buyer Contact Information',

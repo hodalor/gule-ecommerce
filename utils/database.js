@@ -236,27 +236,30 @@ class Database {
       for (const modelName of modelNames) {
         const model = mongoose.model(modelName);
 
-        // #region debug-point index-create-model
-        logger.info('Debug index creation attempt', {
-          model: modelName,
-          indexes: Object.keys(model.schema.indexes?.() || {}).length ? model.schema.indexes() : model.schema.indexes()
-        });
-        // #endregion
+        if (modelName === 'User') {
+          const existingIndexes = await model.collection.indexes();
+          const legacyUserIndexes = [
+            { name: 'userId_1', path: 'userId' },
+            { name: 'vendorId_1', path: 'vendorId' }
+          ];
+
+          for (const legacyIndex of legacyUserIndexes) {
+            const indexExists = existingIndexes.some((index) => index.name === legacyIndex.name);
+            const pathStillDefined = Boolean(model.schema.path(legacyIndex.path));
+
+            if (indexExists && !pathStillDefined) {
+              logger.warn('Dropping legacy User index that no longer exists in schema', {
+                model: modelName,
+                indexName: legacyIndex.name
+              });
+              await model.collection.dropIndex(legacyIndex.name);
+            }
+          }
+        }
 
         try {
           await model.createIndexes();
         } catch (error) {
-          // #region debug-point index-create-model-error
-          logger.error('Debug index creation failure', {
-            model: modelName,
-            error: error.message,
-            code: error.code,
-            keyPattern: error.keyPattern,
-            keyValue: error.keyValue,
-            indexes: model.schema.indexes()
-          });
-          // #endregion
-
           if (
             modelName === 'User' &&
             error?.code === 86 &&

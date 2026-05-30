@@ -88,11 +88,9 @@ async function initializeDatabase() {
     require('../models/AdminSettings');
     require('../models/AuditLog');
     
-    // Create indexes for better performance
-    // Run index creation in background to avoid blocking startup
-    database.createIndexes()
-      .then(() => logger.info('Index creation completed'))
-      .catch(e => logger.warn('Index creation skipped due to error', { error: e.message }));
+    // Repair stale indexes before the app starts serving requests.
+    await database.createIndexes();
+    logger.info('Index creation completed');
 
     // Initialize default data (only in development and production)
     if (env !== 'test') {

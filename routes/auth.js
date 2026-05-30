@@ -264,6 +264,18 @@ router.post('/register/buyer',
 
     } catch (error) {
       logger.error('Buyer registration error', { error: error.message, stack: error.stack });
+
+      if (error?.code === 11000) {
+        const duplicateField = Object.keys(error.keyPattern || {})[0] || 'field';
+        const isLegacyIndexConflict = duplicateField === 'userId' || duplicateField === 'vendorId';
+
+        return res.status(isLegacyIndexConflict ? 500 : 409).json({
+          error: isLegacyIndexConflict ? 'Registration temporarily unavailable' : 'User already exists',
+          message: isLegacyIndexConflict
+            ? 'Account creation is blocked by an outdated database index. Restart the backend to apply the automatic repair.'
+            : 'An account with this email or phone number already exists'
+        });
+      }
       
       // Log registration error (optional logging)
       // Temporarily disabled AuditLog to test registration
@@ -560,6 +572,7 @@ router.post('/login',
 
       let user;
       let Model;
+      let resolvedUserType = userType;
 
       // Determine which model to use
       switch (userType) {
@@ -671,6 +684,40 @@ router.post('/login',
         });
       }
 
+      if (
+        userType === 'buyer'
+        && user
+      ) {
+        const sellerLookup = [];
+
+        if (user.sellerProfile) {
+          sellerLookup.push({ _id: user.sellerProfile });
+        }
+
+        if (user.email) {
+          sellerLookup.push({ email: String(user.email).toLowerCase() });
+        }
+
+        if (user.phone) {
+          sellerLookup.push({ phone: user.phone });
+        }
+
+        const linkedSeller = sellerLookup.length
+          ? await Seller.findOne({ $or: sellerLookup })
+          : null;
+
+        if (linkedSeller) {
+          if (!user.sellerProfile || String(user.sellerProfile) !== String(linkedSeller._id)) {
+            user.isSeller = true;
+            user.sellerProfile = linkedSeller._id;
+            user.preferredUserType = 'seller';
+            await user.save();
+          }
+          user = linkedSeller;
+          resolvedUserType = 'seller';
+        }
+      }
+
       // Check account status
       if (user.isActive === false || user.status === 'suspended') {
         // Log suspended account login attempt
@@ -733,8 +780,8 @@ router.post('/login',
       await user.save();
 
       // Generate tokens
-      const accessToken = generateToken(user._id, user.role || 'seller', userType);
-      const refreshToken = generateRefreshToken(user._id, userType);
+      const accessToken = generateToken(user._id, user.role || resolvedUserType, resolvedUserType);
+      const refreshToken = generateRefreshToken(user._id, resolvedUserType);
 
       // Set refresh token cookie
       res.cookie('refreshToken', refreshToken, {
@@ -765,7 +812,7 @@ router.post('/login',
             identifier: loginIdentifier, 
             loginTime: new Date(),
             userId: user._id,
-            userType: userType,
+            userType: resolvedUserType,
             lastLogin: user.lastLogin,
             lastLoginDate: user.lastLogin
           }
@@ -776,7 +823,7 @@ router.post('/login',
 
       res.json({
         message: 'Login successful',
-        user: normalizeAuthUser(user, userType),
+        user: normalizeAuthUser(user, resolvedUserType),
         accessToken
       });
 
@@ -972,6 +1019,11 @@ router.post('/upgrade-to-seller',
       });
 
       await seller.save();
+
+      buyer.isSeller = true;
+      buyer.sellerProfile = seller._id;
+      buyer.preferredUserType = 'seller';
+      await buyer.save();
 
       const accessToken = generateToken(seller._id, seller.role, 'seller');
       const refreshToken = generateRefreshToken(seller._id, 'seller');
@@ -1375,7 +1427,8 @@ router.get('/me',
   authenticate,
   async (req, res) => {
     try {
-      const { userType, id } = req.user;
+      const userType = req.userType;
+      const id = req.user?.id || req.user?._id?.toString?.();
       
       const Model = userType === 'buyer' ? User : 
                    userType === 'seller' ? Seller : Admin;

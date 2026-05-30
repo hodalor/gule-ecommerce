@@ -111,6 +111,20 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  isSeller: {
+    type: Boolean,
+    default: false
+  },
+  sellerProfile: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Seller',
+    default: null
+  },
+  preferredUserType: {
+    type: String,
+    enum: ['buyer', 'seller'],
+    default: 'buyer'
+  },
   isActive: {
     type: Boolean,
     default: true

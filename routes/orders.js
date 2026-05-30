@@ -56,6 +56,7 @@ const getPrivacySettings = async () => {
     logger.error('Failed to fetch privacy settings', error);
     // Return default values if settings fetch fails
     return {
+      share_buyer_name: false,
       share_buyer_contact: false,
       share_buyer_address: true
     };
@@ -68,17 +69,73 @@ const filterBuyerInfo = (buyer, privacySettings) => {
   
   const filteredBuyer = { ...buyer };
   
+  if (!privacySettings.share_buyer_name) {
+    delete filteredBuyer.firstName;
+    delete filteredBuyer.lastName;
+    filteredBuyer.displayName = 'Customer';
+  } else if (!filteredBuyer.displayName) {
+    filteredBuyer.displayName = `${filteredBuyer.firstName || ''} ${filteredBuyer.lastName || ''}`.trim() || 'Customer';
+  }
+
   // If share_buyer_contact is false, remove contact information
   if (!privacySettings.share_buyer_contact) {
     delete filteredBuyer.email;
     delete filteredBuyer.phone;
-    delete filteredBuyer.firstName;
-    delete filteredBuyer.lastName;
-    // Keep only essential info for order processing
-    filteredBuyer.displayName = 'Customer';
   }
   
   return filteredBuyer;
+};
+
+const normalizeSellerOrder = (order, sellerId, privacySettings) => {
+  const sellerItems = (order.items || []).filter((item) => {
+    const itemSellerId = item?.seller?._id ? item.seller._id.toString() : item?.seller?.toString?.();
+    return itemSellerId === sellerId;
+  });
+
+  const sellerEntry = (order.sellers || []).find((entry) => {
+    const entrySellerId = entry?.seller?._id ? entry.seller._id.toString() : entry?.seller?.toString?.();
+    return entrySellerId === sellerId;
+  });
+
+  const filteredBuyer = filterBuyerInfo(order.buyer, privacySettings);
+  const displayName = filteredBuyer?.displayName
+    || `${filteredBuyer?.firstName || ''} ${filteredBuyer?.lastName || ''}`.trim()
+    || 'Customer';
+
+  let shippingAddress = order.shippingAddress || null;
+  if (!privacySettings.share_buyer_address && shippingAddress) {
+    shippingAddress = {
+      city: shippingAddress.city,
+      state: shippingAddress.state,
+      country: shippingAddress.country
+    };
+  }
+
+  return {
+    ...order,
+    id: order.orderNumber || order._id?.toString?.() || order._id,
+    orderDate: order.createdAt,
+    status: sellerEntry?.status || order.status,
+    paymentStatus: order.paymentStatus,
+    total: sellerEntry?.subtotal || sellerItems.reduce((sum, item) => sum + Number(item?.totalPrice || 0), 0),
+    trackingNumber: sellerEntry?.trackingNumber || order.trackingNumber || '',
+    customer: {
+      ...filteredBuyer,
+      name: displayName,
+      displayName
+    },
+    buyer: filteredBuyer,
+    shippingAddress,
+    items: sellerItems.map((item) => ({
+      ...item,
+      id: item._id?.toString?.() || item._id,
+      name: item?.productSnapshot?.name || item?.product?.name || 'Product',
+      image: item?.productSnapshot?.image || item?.product?.images?.[0]?.url || null,
+      quantity: item?.quantity || 0,
+      price: Number(item?.unitPrice || 0),
+      sku: item?.productSnapshot?.sku || item?.selectedVariant?.variantSku || ''
+    }))
+  };
 };
 
 const findSelectedVariant = (product, selectedVariant = {}) => {
@@ -535,53 +592,48 @@ router.get('/seller-orders',
 
       // Get privacy settings
       const privacySettings = await getPrivacySettings();
+      const sellerOrderItems = await OrderItem.find({ seller: req.user.id }).select('_id').lean();
+      const sellerOrderItemIds = sellerOrderItems.map((item) => item._id);
 
-      const filter = { 'items.seller': req.user.id };
-      if (status) filter.status = status;
+      if (sellerOrderItemIds.length === 0) {
+        return res.json({
+          success: true,
+          data: {
+            orders: [],
+            pagination: {
+              currentPage: parseInt(page),
+              totalPages: 0,
+              totalOrders: 0,
+              hasNext: false,
+              hasPrev: false
+            }
+          }
+        });
+      }
+
+      const filter = { items: { $in: sellerOrderItemIds } };
+      if (status) {
+        filter.status = status;
+      }
 
       const skip = (parseInt(page) - 1) * parseInt(limit);
 
       const orders = await Order.find(filter)
         .populate('buyer', 'firstName lastName email phone profilePicture')
-        .populate('items.product', 'name images')
-        .populate('items.seller', '_id businessName rating')
+        .populate({
+          path: 'items',
+          populate: [
+            { path: 'product', select: 'name images' },
+            { path: 'seller', select: '_id businessName rating' }
+          ]
+        })
+        .populate('sellers.seller', '_id businessName rating')
         .sort(sort)
         .skip(skip)
         .limit(parseInt(limit))
         .lean();
 
-      // Filter items to only show seller's items and apply privacy filtering
-      const filteredOrders = orders.map(order => {
-        const filteredOrder = {
-          ...order,
-          items: order.items.filter(item => {
-            const sellerId = item.seller?._id ? item.seller._id.toString() : item.seller.toString();
-            return sellerId === req.user.id;
-          }),
-          // Recalculate totals for seller's items only
-          sellerSubtotal: order.items
-            .filter(item => {
-              const sellerId = item.seller?._id ? item.seller._id.toString() : item.seller.toString();
-              return sellerId === req.user.id;
-            })
-            .reduce((sum, item) => sum + item.total, 0)
-        };
-
-        // Apply buyer information filtering based on privacy settings
-        filteredOrder.buyer = filterBuyerInfo(order.buyer, privacySettings);
-
-        // Also filter shipping address if share_buyer_address is false
-        if (!privacySettings.share_buyer_address && filteredOrder.shippingAddress) {
-          filteredOrder.shippingAddress = {
-            city: filteredOrder.shippingAddress.city,
-            state: filteredOrder.shippingAddress.state,
-            country: filteredOrder.shippingAddress.country
-            // Remove street, zipCode, and other detailed address info
-          };
-        }
-
-        return filteredOrder;
-      });
+      const filteredOrders = orders.map((order) => normalizeSellerOrder(order, req.user.id, privacySettings));
 
       const total = await Order.countDocuments(filter);
 

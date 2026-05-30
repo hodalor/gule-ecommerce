@@ -133,6 +133,44 @@ const DEFAULT_HOMEPAGE_CONTENT = {
   highlightedCategoryIds: []
 };
 
+const DEFAULT_PUBLIC_PRIVACY_SETTINGS = {
+  share_buyer_info: true,
+  show_seller_contact: true,
+  allow_reviews: true
+};
+
+const DEFAULT_ADMIN_PRIVACY_SETTINGS = {
+  shareBuyerName: false,
+  shareBuyerContact: false,
+  shareBuyerAddress: true
+};
+
+const PRIVACY_SETTING_DEFINITIONS = {
+  shareBuyerName: {
+    key: 'share_buyer_name',
+    name: 'Share Buyer Name',
+    description: 'Allow sellers to see buyer names in orders'
+  },
+  shareBuyerContact: {
+    key: 'share_buyer_contact',
+    name: 'Share Buyer Contact Information',
+    description: 'Allow sellers to see buyer contact information in orders'
+  },
+  shareBuyerAddress: {
+    key: 'share_buyer_address',
+    name: 'Share Buyer Address',
+    description: 'Allow sellers to see buyer shipping address'
+  }
+};
+
+const DEFAULT_PUBLIC_APP_SETTINGS = {
+  site_name: 'Gule Marketplace',
+  currency: 'ZMW',
+  tax_rate: 0.1,
+  shipping_fee: 5.99,
+  free_shipping_threshold: 50
+};
+
 const normalizeContentItem = (item, prefix, index, type) => ({
   id: item?.id || `${prefix}-${index + 1}`,
   title: item?.title || '',
@@ -158,6 +196,52 @@ const normalizeHomepageContent = (content = {}) => {
     heroBanners: heroSource.map((item, index) => normalizeContentItem(item, 'hero', index, 'hero')),
     promoAds: promoSource.map((item, index) => normalizeContentItem(item, 'promo', index, 'promo')),
     highlightedCategoryIds
+  };
+};
+
+const getPublicPrivacySettings = async () => {
+  const [shareBuyerInfo, showSellerContact, allowReviews] = await Promise.all([
+    AdminSettings.getValue('share_buyer_contact', DEFAULT_PUBLIC_PRIVACY_SETTINGS.share_buyer_info),
+    AdminSettings.getValue('show_seller_contact', DEFAULT_PUBLIC_PRIVACY_SETTINGS.show_seller_contact),
+    AdminSettings.getValue('feature_reviews_enabled', DEFAULT_PUBLIC_PRIVACY_SETTINGS.allow_reviews)
+  ]);
+
+  return {
+    share_buyer_info: shareBuyerInfo,
+    show_seller_contact: showSellerContact,
+    allow_reviews: allowReviews
+  };
+};
+
+const getAdminPrivacySettings = async () => {
+  const [shareBuyerName, shareBuyerContact, shareBuyerAddress] = await Promise.all([
+    AdminSettings.getValue('share_buyer_name', DEFAULT_ADMIN_PRIVACY_SETTINGS.shareBuyerName),
+    AdminSettings.getValue('share_buyer_contact', DEFAULT_ADMIN_PRIVACY_SETTINGS.shareBuyerContact),
+    AdminSettings.getValue('share_buyer_address', DEFAULT_ADMIN_PRIVACY_SETTINGS.shareBuyerAddress)
+  ]);
+
+  return {
+    shareBuyerName,
+    shareBuyerContact,
+    shareBuyerAddress
+  };
+};
+
+const getPublicAppSettings = async () => {
+  const [siteName, currency, taxRate, shippingFee, freeShippingThreshold] = await Promise.all([
+    AdminSettings.getValue('platform_site_name', DEFAULT_PUBLIC_APP_SETTINGS.site_name),
+    AdminSettings.getValue('platform_currency', DEFAULT_PUBLIC_APP_SETTINGS.currency),
+    AdminSettings.getValue('platform_tax_rate', DEFAULT_PUBLIC_APP_SETTINGS.tax_rate),
+    AdminSettings.getValue('platform_shipping_fee', DEFAULT_PUBLIC_APP_SETTINGS.shipping_fee),
+    AdminSettings.getValue('platform_free_shipping_threshold', DEFAULT_PUBLIC_APP_SETTINGS.free_shipping_threshold)
+  ]);
+
+  return {
+    site_name: siteName,
+    currency,
+    tax_rate: taxRate,
+    shipping_fee: shippingFee,
+    free_shipping_threshold: freeShippingThreshold
   };
 };
 
@@ -269,6 +353,77 @@ router.get('/public',
     }
   }
 );
+
+router.get('/privacy', async (req, res) => {
+  try {
+    const settings = await getPublicPrivacySettings();
+
+    return res.json({
+      success: true,
+      settings
+    });
+  } catch (error) {
+    logger.error('Error retrieving public privacy settings', {
+      error: error.message,
+      stack: error.stack,
+      ip: req.ip
+    });
+
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve privacy settings'
+    });
+  }
+});
+
+router.get('/privacy/admin',
+  authenticate,
+  authorize(['admin']),
+  async (req, res) => {
+    try {
+      const settings = await getAdminPrivacySettings();
+
+      return res.json({
+        success: true,
+        data: settings
+      });
+    } catch (error) {
+      logger.error('Error retrieving admin privacy settings', {
+        error: error.message,
+        stack: error.stack,
+        adminId: req.user?.id,
+        ip: req.ip
+      });
+
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to retrieve privacy settings'
+      });
+    }
+  }
+);
+
+router.get('/app', async (req, res) => {
+  try {
+    const settings = await getPublicAppSettings();
+
+    return res.json({
+      success: true,
+      settings
+    });
+  } catch (error) {
+    logger.error('Error retrieving public app settings', {
+      error: error.message,
+      stack: error.stack,
+      ip: req.ip
+    });
+
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve app settings'
+    });
+  }
+});
 
 router.get('/homepage-content/public', async (req, res) => {
   try {
@@ -612,32 +767,66 @@ router.put('/privacy',
   authenticate,
   authorize(['admin']),
   [
-    body('showBuyerProfiles').optional().isBoolean().withMessage('showBuyerProfiles must be a boolean'),
-    body('showSellerProfiles').optional().isBoolean().withMessage('showSellerProfiles must be a boolean'),
-    body('showBuyerStats').optional().isBoolean().withMessage('showBuyerStats must be a boolean'),
-    body('showSellerStats').optional().isBoolean().withMessage('showSellerStats must be a boolean'),
-    body('showBuyerDetailsToSellers').optional().isBoolean().withMessage('showBuyerDetailsToSellers must be a boolean'),
+    body('shareBuyerName').optional().isBoolean().withMessage('shareBuyerName must be a boolean'),
+    body('shareBuyerContact').optional().isBoolean().withMessage('shareBuyerContact must be a boolean'),
+    body('shareBuyerAddress').optional().isBoolean().withMessage('shareBuyerAddress must be a boolean'),
   ],
   handleValidationErrors,
   async (req, res) => {
     try {
-      let settings = await AdminSettings.findOne();
-      
-      if (!settings) {
-        settings = new AdminSettings();
+      const updates = Object.entries(req.body)
+        .filter(([key, value]) => PRIVACY_SETTING_DEFINITIONS[key] && typeof value === 'boolean');
+
+      if (updates.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'No valid privacy settings provided'
+        });
       }
 
-      // Update privacy settings
-      Object.keys(req.body).forEach(key => {
-        if (req.body[key] !== undefined) {
-          settings.privacy[key] = req.body[key];
-        }
-      });
+      await Promise.all(
+        updates.map(([field, value]) => {
+          const definition = PRIVACY_SETTING_DEFINITIONS[field];
 
-      settings.updatedBy = req.user.id;
-      settings.updatedAt = new Date();
+          return AdminSettings.findOneAndUpdate(
+            { settingKey: definition.key },
+            {
+              $set: {
+                category: 'privacy',
+                name: definition.name,
+                description: definition.description,
+                value,
+                defaultValue: DEFAULT_ADMIN_PRIVACY_SETTINGS[field],
+                dataType: 'boolean',
+                ui: {
+                  inputType: 'boolean',
+                  group: 'Privacy',
+                  order: field === 'shareBuyerName' ? 0 : field === 'shareBuyerContact' ? 1 : 2
+                },
+                permissions: {
+                  read: ['super_admin', 'admin'],
+                  write: ['super_admin', 'admin']
+                },
+                isActive: true,
+                isEditable: true,
+                lastModifiedBy: req.user.id
+              },
+              $setOnInsert: {
+                defaultValue: DEFAULT_ADMIN_PRIVACY_SETTINGS[field],
+                isSystem: true
+              }
+            },
+            {
+              new: true,
+              upsert: true,
+              runValidators: true,
+              setDefaultsOnInsert: true
+            }
+          );
+        })
+      );
 
-      await settings.save();
+      const settings = await getAdminPrivacySettings();
 
       // Create audit log
       await AuditLog.create({
@@ -645,10 +834,10 @@ router.put('/privacy',
         userType: 'admin',
         action: 'PRIVACY_SETTINGS_UPDATE',
         resource: 'AdminSettings',
-        resourceId: settings._id,
+        resourceId: null,
         details: {
-          updatedFields: Object.keys(req.body),
-          newPrivacySettings: settings.privacy
+          updatedFields: updates.map(([field]) => field),
+          newPrivacySettings: settings
         },
         ipAddress: req.ip,
         userAgent: req.get('User-Agent')
@@ -656,14 +845,14 @@ router.put('/privacy',
 
       logger.info('Privacy settings updated', {
         adminId: req.user.id,
-        updatedFields: Object.keys(req.body),
+        updatedFields: updates.map(([field]) => field),
         ip: req.ip
       });
 
       res.json({
         success: true,
         message: 'Privacy settings updated successfully',
-        data: settings.privacy
+        data: settings
       });
     } catch (error) {
       logger.error('Error updating privacy settings', {
