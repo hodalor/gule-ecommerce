@@ -169,53 +169,68 @@ const SellerOrders = () => {
     setShowBulkModal(true);
   };
 
-  const handleSubmitBulkAction = () => {
-    switch (bulkAction) {
-      case 'mark_processing':
-        selectedOrders.forEach(orderId => {
-          dispatch(updateOrderStatus({ orderId, status: 'processing' }));
-        });
-        toast.success(`${selectedOrders.length} orders marked as processing`);
-        break;
-      case 'mark_shipped':
-        selectedOrders.forEach(orderId => {
-          dispatch(updateOrderStatus({ orderId, status: 'shipped' }));
-        });
-        toast.success(`${selectedOrders.length} orders marked as shipped`);
-        break;
-      case 'print_labels':
-        toast.success(`Printing shipping labels for ${selectedOrders.length} orders`);
-        break;
-      case 'export':
-        toast.success(`Exporting ${selectedOrders.length} orders`);
-        break;
-      default:
-        break;
+  const handleSubmitBulkAction = async (e) => {
+    e.preventDefault();
+
+    try {
+      switch (bulkAction) {
+        case 'mark_processing':
+          await Promise.all(selectedOrders.map((orderId) => (
+            dispatch(updateOrderStatus({ orderId, status: 'processing' })).unwrap()
+          )));
+          toast.success(`${selectedOrders.length} orders marked as processing`);
+          break;
+        case 'mark_shipped':
+          await Promise.all(selectedOrders.map((orderId) => (
+            dispatch(updateOrderStatus({ orderId, status: 'shipped' })).unwrap()
+          )));
+          toast.success(`${selectedOrders.length} orders marked as shipped`);
+          break;
+        case 'print_labels':
+          toast.success(`Printing shipping labels for ${selectedOrders.length} orders`);
+          break;
+        case 'export':
+          toast.success(`Exporting ${selectedOrders.length} orders`);
+          break;
+        default:
+          return;
+      }
+
+      if (bulkAction === 'mark_processing' || bulkAction === 'mark_shipped') {
+        await dispatch(fetchSellerOrders({ page: 1, limit: 50 })).unwrap();
+      }
+
+      setSelectedOrders([]);
+      setShowBulkModal(false);
+      setBulkAction('');
+    } catch (error) {
+      toast.error(error?.message || error || 'Failed to apply bulk action');
     }
-    
-    setSelectedOrders([]);
-    setShowBulkModal(false);
-    setBulkAction('');
   };
 
-  const handleSubmitStatusUpdate = (e) => {
+  const handleSubmitStatusUpdate = async (e) => {
     e.preventDefault();
-    
-    dispatch(updateOrderStatus({
-      orderId: statusUpdate.orderId,
-      status: statusUpdate.newStatus,
-      trackingNumber: statusUpdate.trackingNumber,
-      notes: statusUpdate.notes
-    }));
 
-    toast.success('Order status updated successfully');
-    setShowStatusModal(false);
-    setStatusUpdate({
-      orderId: null,
-      newStatus: '',
-      trackingNumber: '',
-      notes: ''
-    });
+    try {
+      await dispatch(updateOrderStatus({
+        orderId: statusUpdate.orderId,
+        status: statusUpdate.newStatus,
+        trackingNumber: statusUpdate.trackingNumber,
+        notes: statusUpdate.notes
+      })).unwrap();
+
+      await dispatch(fetchSellerOrders({ page: 1, limit: 50 })).unwrap();
+      toast.success('Order status updated successfully');
+      setShowStatusModal(false);
+      setStatusUpdate({
+        orderId: null,
+        newStatus: '',
+        trackingNumber: '',
+        notes: ''
+      });
+    } catch (error) {
+      toast.error(error?.message || error || 'Failed to update order status');
+    }
   };
 
   const handlePrintOrder = (order) => {

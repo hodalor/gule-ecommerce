@@ -3,6 +3,8 @@ import axios from 'axios';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
 
+const extractSettings = (payload) => payload?.settings || payload?.data || {};
+
 // Async thunks
 export const fetchPrivacySettings = createAsyncThunk(
   'settings/fetchPrivacySettings',
@@ -70,7 +72,7 @@ const settingsSlice = createSlice({
       })
       .addCase(fetchPrivacySettings.fulfilled, (state, action) => {
         state.loading = false;
-        state.privacy = { ...state.privacy, ...action.payload.settings };
+        state.privacy = { ...state.privacy, ...extractSettings(action.payload) };
       })
       .addCase(fetchPrivacySettings.rejected, (state, action) => {
         state.loading = false;
@@ -83,7 +85,7 @@ const settingsSlice = createSlice({
       })
       .addCase(fetchAppSettings.fulfilled, (state, action) => {
         state.loading = false;
-        state.app = { ...state.app, ...action.payload.settings };
+        state.app = { ...state.app, ...extractSettings(action.payload) };
       })
       .addCase(fetchAppSettings.rejected, (state, action) => {
         state.loading = false;

@@ -57,11 +57,11 @@ const Login = () => {
     if (!validateForm()) return;
 
     try {
-      await dispatch(loginUser(formData)).unwrap();
+      const result = await dispatch(loginUser(formData)).unwrap();
       toast.success('Login successful!');
       
-      // Redirect based on role
-      const redirectTo = formData.role === 'seller' ? '/seller/dashboard' : '/buyer/dashboard';
+      // Redirect based on the resolved account type returned by the backend.
+      const redirectTo = result?.user?.userType === 'seller' ? '/seller/dashboard' : '/buyer/dashboard';
       navigate(redirectTo, { replace: true });
     } catch (error) {
       toast.error(error || 'Login failed');

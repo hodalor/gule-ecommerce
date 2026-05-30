@@ -33,9 +33,9 @@ export const fetchUserOrders = createAsyncThunk(
 
 export const fetchSellerOrders = createAsyncThunk(
   'orders/fetchSellerOrders',
-  async ({ page = 1, status }, { rejectWithValue }) => {
+  async ({ page = 1, limit = 10, status }, { rejectWithValue }) => {
     try {
-      const params = new URLSearchParams({ page: page.toString() });
+      const params = new URLSearchParams({ page: page.toString(), limit: limit.toString() });
       if (status) params.append('status', status);
       
       const response = await api.get(`/orders/seller-orders?${params}`);
@@ -60,12 +60,13 @@ export const fetchOrderById = createAsyncThunk(
 
 export const updateOrderStatus = createAsyncThunk(
   'orders/updateOrderStatus',
-  async ({ orderId, status, trackingNumber }, { rejectWithValue }) => {
+  async ({ orderId, status, trackingNumber, notes }, { rejectWithValue }) => {
     try {
       // Backend expects PATCH /:id/status
       const response = await api.patch(`/orders/${orderId}/status`, {
         status,
         trackingNumber,
+        notes,
       });
       return response.data?.data;
     } catch (error) {
