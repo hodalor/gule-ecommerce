@@ -18,7 +18,8 @@ import {
   fetchReviewById,
   updateReviewStatus,
   deleteReview,
-  bulkUpdateReviews
+  bulkUpdateReviews,
+  clearSelectedReview
 } from '../../store/slices/reviewSlice';
 
 const ReviewManagement = () => {
@@ -147,6 +148,7 @@ const ReviewManagement = () => {
   const closeModal = () => {
     setShowModal(false);
     setModalType('');
+    dispatch(clearSelectedReview());
   };
 
   // Filter reviews based on search and filters
@@ -529,12 +531,15 @@ const ReviewManagement = () => {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Product</label>
-                  <p className="mt-1 text-sm text-gray-900">{selectedReview.productName}</p>
+                  <p className="mt-1 text-sm text-gray-900">{selectedReview.product?.name || selectedReview.productName || 'Unknown Product'}</p>
                 </div>
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Reviewer</label>
-                  <p className="mt-1 text-sm text-gray-900">{selectedReview.userName} ({selectedReview.userEmail})</p>
+                  <p className="mt-1 text-sm text-gray-900">
+                    {selectedReview.userName || `${selectedReview.user?.firstName || ''} ${selectedReview.user?.lastName || ''}`.trim() || 'Unknown User'}
+                    {selectedReview.userEmail || selectedReview.user?.email ? ` (${selectedReview.userEmail || selectedReview.user?.email})` : ''}
+                  </p>
                 </div>
                 
                 <div>
@@ -590,7 +595,7 @@ const ReviewManagement = () => {
                   <>
                     <button
                       onClick={() => {
-                        handleReviewAction('approve', selectedReview.id);
+                        handleReviewAction('approve', selectedReview._id || selectedReview.id);
                         closeModal();
                       }}
                       className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
@@ -600,7 +605,7 @@ const ReviewManagement = () => {
                     </button>
                     <button
                       onClick={() => {
-                        handleReviewAction('reject', selectedReview.id);
+                        handleReviewAction('reject', selectedReview._id || selectedReview.id);
                         closeModal();
                       }}
                       className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"

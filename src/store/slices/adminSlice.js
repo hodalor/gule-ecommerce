@@ -9,12 +9,12 @@ const toApiRole = (uiRole) => {
   const map = {
     'Super Admin': 'super_admin',
     'Admin': 'admin',
-    'Accountant': 'finance',
-    'Review Officer': 'moderator',
-    'Customer Support': 'support',
-    'Marketing Manager': 'marketing'
+    'Accountant': 'accountant',
+    'Review Officer': 'review_officer',
+    'Customer Support': 'customer_support',
+    'Marketing Manager': 'marketing_manager'
   };
-  return map[uiRole] || '';
+  return map[uiRole] || uiRole || '';
 };
 
 // Build payload for creating an admin from modal form data
@@ -29,7 +29,13 @@ const buildCreatePayload = (data) => {
     'Accountant': 'accountant',
     'Review Officer': 'review_officer',
     'Customer Support': 'customer_support',
-    'Marketing Manager': 'marketing_manager'
+    'Marketing Manager': 'marketing_manager',
+    'super_admin': 'super_admin',
+    'admin': 'admin',
+    'accountant': 'accountant',
+    'review_officer': 'review_officer',
+    'customer_support': 'customer_support',
+    'marketing_manager': 'marketing_manager'
   };
   const roleEnum = roleMapCreate[data.role] || 'admin';
   const department = roleEnum === 'accountant'

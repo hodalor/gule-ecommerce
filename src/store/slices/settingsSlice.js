@@ -1,5 +1,4 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import axios from 'axios';
 import api from '../../utils/api';
 
 // Async thunks for settings management
@@ -7,8 +6,8 @@ export const fetchPrivacySettings = createAsyncThunk(
   'settings/fetchPrivacySettings',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.get('/api/settings/privacy');
-      return response.data;
+      const response = await api.get('/settings/privacy/admin');
+      return response.data?.data || {};
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch privacy settings');
     }
@@ -19,10 +18,10 @@ export const updatePrivacySetting = createAsyncThunk(
   'settings/updatePrivacySetting',
   async ({ setting, value }, { rejectWithValue }) => {
     try {
-      await axios.patch('/api/settings/privacy', {
+      const response = await api.put('/settings/privacy', {
         [setting]: value,
       });
-      return { setting, value };
+      return response.data?.data || { [setting]: value };
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to update privacy setting');
     }
@@ -254,8 +253,7 @@ const settingsSlice = createSlice({
       })
       .addCase(updatePrivacySetting.fulfilled, (state, action) => {
         state.loading = false;
-        const { setting, value } = action.payload;
-        state.privacySettings[setting] = value;
+        state.privacySettings = { ...state.privacySettings, ...action.payload };
       })
       .addCase(updatePrivacySetting.rejected, (state, action) => {
         state.loading = false;

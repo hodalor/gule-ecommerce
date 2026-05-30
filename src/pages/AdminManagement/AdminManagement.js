@@ -1,18 +1,40 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchAdmins } from '../../store/slices/adminSlice';
+import { createAdmin, deleteAdmin, fetchAdmins, updateAdmin } from '../../store/slices/adminSlice';
 import { PlusIcon, MagnifyingGlassIcon, FunnelIcon, PencilIcon, EyeIcon, TrashIcon, KeyIcon } from '@heroicons/react/24/outline';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 
 const roleOptions = [
-  'Super Admin',
-  'Admin',
-  'Accountant',
-  'Review Officer',
-  'Customer Support',
-  'Marketing Manager'
+  { label: 'Super Admin', value: 'super_admin', department: 'administration' },
+  { label: 'Admin', value: 'admin', department: 'administration' },
+  { label: 'Accountant', value: 'accountant', department: 'finance' },
+  { label: 'Review Officer', value: 'review_officer', department: 'operations' },
+  { label: 'Customer Support', value: 'customer_support', department: 'customer_service' },
+  { label: 'Marketing Manager', value: 'marketing_manager', department: 'marketing' }
 ];
+
+const defaultForm = {
+  fullName: '',
+  email: '',
+  phone: '',
+  role: 'admin',
+  department: 'administration',
+  password: '',
+  confirmPassword: ''
+};
+
+const labelByRole = Object.fromEntries(roleOptions.map((option) => [option.value, option.label]));
+
+const buildFormFromAdmin = (admin) => ({
+  fullName: `${admin?.firstName || admin?.name || ''} ${admin?.lastName || ''}`.trim(),
+  email: admin?.email || '',
+  phone: admin?.phone || admin?.contact?.phone || '',
+  role: admin?.role || 'admin',
+  department: admin?.department || admin?.employment?.department || 'administration',
+  password: '',
+  confirmPassword: ''
+});
 
 const AdminRow = ({ admin, onView, onEdit, onDelete, onResetPassword, onChangePassword }) => {
   const name = useMemo(() => {
@@ -61,6 +83,7 @@ const AdminManagement = () => {
   const [selectedAdmin, setSelectedAdmin] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
+  const [formData, setFormData] = useState(defaultForm);
   
   // Password reset states
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -74,24 +97,106 @@ const AdminManagement = () => {
   const handleAddAdmin = () => {
     setSelectedAdmin(null);
     setModalMode('create');
+    setFormData(defaultForm);
     setShowModal(true);
   };
 
   const handleView = (admin) => {
     setSelectedAdmin(admin);
     setModalMode('view');
+    setFormData(buildFormFromAdmin(admin));
     setShowModal(true);
   };
 
   const handleEdit = (admin) => {
     setSelectedAdmin(admin);
     setModalMode('edit');
+    setFormData(buildFormFromAdmin(admin));
     setShowModal(true);
   };
 
-  const handleDelete = (admin) => {
-    setSelectedAdmin(admin);
-    // Wire delete thunk next
+  const handleDelete = async (admin) => {
+    const adminId = admin?.id || admin?._id;
+    if (!adminId) {
+      toast.error('Admin ID is missing.');
+      return;
+    }
+
+    if (!window.confirm(`Delete ${admin.email || admin.firstName || 'this admin'}?`)) {
+      return;
+    }
+
+    try {
+      await dispatch(deleteAdmin({ id: adminId, reason: 'Removed from admin management' })).unwrap();
+      toast.success('Admin deleted successfully');
+    } catch (error) {
+      toast.error(error?.message || error || 'Failed to delete admin');
+    }
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setSelectedAdmin(null);
+    setFormData(defaultForm);
+  };
+
+  const handleFormChange = (field, value) => {
+    setFormData((prev) => {
+      const next = { ...prev, [field]: value };
+      if (field === 'role') {
+        const roleMeta = roleOptions.find((option) => option.value === value);
+        next.department = roleMeta?.department || prev.department;
+      }
+      return next;
+    });
+  };
+
+  const handleSubmitAdmin = async (e) => {
+    e.preventDefault();
+
+    if (!formData.fullName.trim()) {
+      toast.error('Full name is required');
+      return;
+    }
+
+    if (modalMode === 'create') {
+      if (!formData.password || formData.password.length < 8) {
+        toast.error('Password must be at least 8 characters');
+        return;
+      }
+      if (formData.password !== formData.confirmPassword) {
+        toast.error('Passwords do not match');
+        return;
+      }
+    }
+
+    try {
+      if (modalMode === 'create') {
+        await dispatch(createAdmin(formData)).unwrap();
+        toast.success('Admin account created successfully');
+      } else if (modalMode === 'edit' && selectedAdmin) {
+        const [firstNameRaw, ...rest] = formData.fullName.trim().split(' ');
+        const updatePayload = {
+          firstName: firstNameRaw || selectedAdmin.firstName || 'Admin',
+          lastName: rest.join(' ') || selectedAdmin.lastName || 'User',
+          email: formData.email,
+          phone: formData.phone,
+          role: formData.role,
+          department: formData.department
+        };
+
+        await dispatch(updateAdmin({
+          id: selectedAdmin.id || selectedAdmin._id,
+          adminData: updatePayload
+        })).unwrap();
+        toast.success('Admin updated successfully');
+      }
+
+      closeModal();
+    } catch (error) {
+      const message = error?.message || error?.error || 'Failed to save admin';
+      toast.error(message);
+    }
   };
 
   // Password reset handlers
@@ -125,7 +230,7 @@ const AdminManagement = () => {
     }
     try {
       await api.post('/auth/admin/reset-user-password', {
-        userId: selectedAdmin.id,
+        userId: selectedAdmin.id || selectedAdmin._id,
         userType: 'admin',
         password: passwordForm.password,
         confirmPassword: passwordForm.confirmPassword,
@@ -179,7 +284,7 @@ const AdminManagement = () => {
             >
               <option value="">All Roles</option>
               {roleOptions.map((r) => (
-                <option key={r} value={r}>{r}</option>
+                <option key={r.value} value={r.value}>{r.label}</option>
               ))}
             </select>
           </div>
@@ -232,12 +337,132 @@ const AdminManagement = () => {
                 {modalMode === 'view' && 'Admin Details'}
               </h2>
             </div>
-            <div className="px-6 py-4">
-              <p className="text-gray-600">Modal content coming next.</p>
-            </div>
-            <div className="px-6 py-4 border-t flex justify-end space-x-3">
-              <button onClick={() => setShowModal(false)} className="px-4 py-2 border rounded-md">Close</button>
-            </div>
+            {modalMode === 'view' ? (
+              <>
+                <div className="px-6 py-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <div className="text-gray-500">Full Name</div>
+                    <div className="font-medium text-gray-900">{formData.fullName || '—'}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500">Email</div>
+                    <div className="font-medium text-gray-900">{formData.email || '—'}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500">Phone</div>
+                    <div className="font-medium text-gray-900">{formData.phone || '—'}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500">Role</div>
+                    <div className="font-medium text-gray-900">{labelByRole[formData.role] || formData.role || '—'}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500">Department</div>
+                    <div className="font-medium text-gray-900">{formData.department || '—'}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500">Employee ID</div>
+                    <div className="font-medium text-gray-900">{selectedAdmin?.employeeId || '—'}</div>
+                  </div>
+                </div>
+                <div className="px-6 py-4 border-t flex justify-end space-x-3">
+                  <button onClick={closeModal} className="px-4 py-2 border rounded-md">Close</button>
+                </div>
+              </>
+            ) : (
+              <form onSubmit={handleSubmitAdmin}>
+                <div className="px-6 py-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                    <input
+                      type="text"
+                      value={formData.fullName}
+                      onChange={(e) => handleFormChange('fullName', e.target.value)}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2"
+                      placeholder="Enter full name"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => handleFormChange('email', e.target.value)}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2"
+                      placeholder="admin@example.com"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                    <input
+                      type="text"
+                      value={formData.phone}
+                      onChange={(e) => handleFormChange('phone', e.target.value)}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2"
+                      placeholder="+260..."
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                    <select
+                      value={formData.role}
+                      onChange={(e) => handleFormChange('role', e.target.value)}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2"
+                      required
+                    >
+                      {roleOptions.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                    <input
+                      type="text"
+                      value={formData.department}
+                      onChange={(e) => handleFormChange('department', e.target.value)}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2"
+                      required
+                    />
+                  </div>
+                  {modalMode === 'create' && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                        <input
+                          type="password"
+                          value={formData.password}
+                          onChange={(e) => handleFormChange('password', e.target.value)}
+                          className="w-full border border-gray-300 rounded-md px-3 py-2"
+                          placeholder="At least 8 characters"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+                        <input
+                          type="password"
+                          value={formData.confirmPassword}
+                          onChange={(e) => handleFormChange('confirmPassword', e.target.value)}
+                          className="w-full border border-gray-300 rounded-md px-3 py-2"
+                          placeholder="Repeat password"
+                          required
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+                <div className="px-6 py-4 border-t flex justify-end space-x-3">
+                  <button type="button" onClick={closeModal} className="px-4 py-2 border rounded-md">Cancel</button>
+                  <button type="submit" className="px-4 py-2 rounded-md bg-primary-600 text-white hover:bg-primary-700">
+                    {modalMode === 'create' ? 'Create Admin' : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

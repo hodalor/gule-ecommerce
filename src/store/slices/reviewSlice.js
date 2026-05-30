@@ -1,10 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import axios from 'axios';
-
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
-
-// Configure axios defaults
-axios.defaults.withCredentials = true;
+import api from '../../utils/api';
 
 // Async thunks for review management
 export const fetchReviews = createAsyncThunk(
@@ -21,8 +16,8 @@ export const fetchReviews = createAsyncThunk(
       if (rating) params.append('rating', rating);
       if (productId) params.append('productId', productId);
 
-      const response = await axios.get(`${API_URL}/admin/reviews?${params}`);
-      return response.data;
+      const response = await api.get(`/admin/reviews?${params}`);
+      return response.data?.data || {};
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch reviews');
     }
@@ -33,8 +28,8 @@ export const fetchReviewById = createAsyncThunk(
   'adminReviews/fetchReviewById',
   async (reviewId, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`${API_URL}/reviews/${reviewId}`);
-      return response.data;
+      const response = await api.get(`/admin/reviews/${reviewId}`);
+      return response.data?.data?.review || null;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch review');
     }
@@ -45,11 +40,11 @@ export const updateReviewStatus = createAsyncThunk(
   'adminReviews/updateReviewStatus',
   async ({ reviewId, status, reason }, { rejectWithValue }) => {
     try {
-      const response = await axios.patch(`${API_URL}/admin/reviews/${reviewId}/status`, {
+      const response = await api.patch(`/admin/reviews/${reviewId}/status`, {
         status,
         reason
       });
-      return response.data;
+      return response.data?.data?.review || null;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to update review status');
     }
@@ -60,7 +55,7 @@ export const deleteReview = createAsyncThunk(
   'adminReviews/deleteReview',
   async ({ reviewId, reason }, { rejectWithValue }) => {
     try {
-      await axios.delete(`${API_URL}/reviews/${reviewId}`, {
+      await api.delete(`/admin/reviews/${reviewId}`, {
         data: { reason }
       });
       return reviewId;
@@ -74,10 +69,10 @@ export const bulkUpdateReviews = createAsyncThunk(
   'adminReviews/bulkUpdateReviews',
   async ({ reviewIds, action, data }, { rejectWithValue }) => {
     try {
-      const response = await axios.patch(`${API_URL}/admin/reviews/bulk`, {
+      const response = await api.patch(`/admin/reviews/bulk/update`, {
         reviewIds,
         action,
-        data
+        reason: data?.reason
       });
       return response.data;
     } catch (error) {
@@ -97,8 +92,8 @@ export const fetchReviewReports = createAsyncThunk(
       
       if (status) params.append('status', status);
 
-      const response = await axios.get(`${API_URL}/admin/reviews/reports?${params}`);
-      return response.data;
+      const response = await api.get(`/admin/reviews/reports/flagged?${params}`);
+      return response.data?.data || {};
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch review reports');
     }
@@ -109,7 +104,7 @@ export const handleReviewReport = createAsyncThunk(
   'adminReviews/handleReviewReport',
   async ({ reportId, action, reason }, { rejectWithValue }) => {
     try {
-      const response = await axios.patch(`${API_URL}/admin/reviews/reports/${reportId}`, {
+      const response = await api.patch(`/admin/reviews/reports/${reportId}`, {
         action,
         reason
       });
@@ -129,7 +124,7 @@ export const exportReviews = createAsyncThunk(
         if (filters[key]) params.append(key, filters[key]);
       });
 
-      const response = await axios.get(`${API_URL}/admin/reviews/export?${params}`, {
+      const response = await api.get(`/admin/reviews/export?${params}`, {
         responseType: 'blob'
       });
       
@@ -154,8 +149,8 @@ export const fetchReviewStatistics = createAsyncThunk(
   'adminReviews/fetchReviewStatistics',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`${API_URL}/reviews/stats/summary`);
-      return response.data;
+      const response = await api.get(`/admin/reviews/stats/summary`);
+      return response.data?.data || {};
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch review statistics');
     }
@@ -225,10 +220,10 @@ const reviewSlice = createSlice({
         state.loading = false;
         state.reviews = action.payload.reviews || [];
         state.pagination = {
-          currentPage: action.payload.currentPage || 1,
-          totalPages: action.payload.totalPages || 1,
-          totalItems: action.payload.totalItems || 0,
-          itemsPerPage: action.payload.itemsPerPage || 10
+          currentPage: action.payload.pagination?.currentPage || 1,
+          totalPages: action.payload.pagination?.totalPages || 1,
+          totalItems: action.payload.pagination?.totalItems || 0,
+          itemsPerPage: action.payload.pagination?.itemsPerPage || 10
         };
       })
       .addCase(fetchReviews.rejected, (state, action) => {
@@ -258,12 +253,12 @@ const reviewSlice = createSlice({
       .addCase(updateReviewStatus.fulfilled, (state, action) => {
         state.loading = false;
         const updatedReview = action.payload;
-        const index = state.reviews.findIndex(r => r._id === updatedReview._id);
+        const index = state.reviews.findIndex(r => (r._id || r.id) === (updatedReview?._id || updatedReview?.id));
         if (index !== -1) {
-          state.reviews[index] = updatedReview;
+          state.reviews[index] = { ...state.reviews[index], ...updatedReview };
         }
-        if (state.selectedReview && state.selectedReview._id === updatedReview._id) {
-          state.selectedReview = updatedReview;
+        if (state.selectedReview && (state.selectedReview._id || state.selectedReview.id) === (updatedReview?._id || updatedReview?.id)) {
+          state.selectedReview = { ...state.selectedReview, ...updatedReview };
         }
       })
       .addCase(updateReviewStatus.rejected, (state, action) => {
@@ -309,12 +304,12 @@ const reviewSlice = createSlice({
       })
       .addCase(fetchReviewReports.fulfilled, (state, action) => {
         state.loading = false;
-        state.reviewReports = action.payload.reports || [];
+        state.reviewReports = action.payload.reviews || [];
         state.reportsPagination = {
-          currentPage: action.payload.currentPage || 1,
-          totalPages: action.payload.totalPages || 1,
-          totalItems: action.payload.totalItems || 0,
-          itemsPerPage: action.payload.itemsPerPage || 10
+          currentPage: action.payload.pagination?.currentPage || 1,
+          totalPages: action.payload.pagination?.totalPages || 1,
+          totalItems: action.payload.pagination?.totalItems || 0,
+          itemsPerPage: action.payload.pagination?.itemsPerPage || 10
         };
       })
       .addCase(fetchReviewReports.rejected, (state, action) => {
@@ -360,7 +355,7 @@ const reviewSlice = createSlice({
       })
       .addCase(fetchReviewStatistics.fulfilled, (state, action) => {
         state.loading = false;
-        state.statistics = action.payload;
+        state.statistics = action.payload?.summary || action.payload;
       })
       .addCase(fetchReviewStatistics.rejected, (state, action) => {
         state.loading = false;
