@@ -28,9 +28,6 @@ import {
 } from 'recharts';
 import {
   fetchSellerReports,
-  fetchSalesData,
-  fetchProductPerformance,
-  fetchCategoryData,
   exportReport,
   clearErrors
 } from '../../store/slices/reportsSlice';
@@ -54,9 +51,6 @@ const SellerReports = () => {
   useEffect(() => {
     if (user?.id) {
       dispatch(fetchSellerReports({ sellerId: user.id, dateRange }));
-      dispatch(fetchSalesData({ sellerId: user.id, dateRange }));
-      dispatch(fetchProductPerformance({ sellerId: user.id, dateRange }));
-      dispatch(fetchCategoryData({ sellerId: user.id, dateRange }));
     }
   }, [dispatch, user?.id, dateRange]);
 
