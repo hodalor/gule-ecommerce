@@ -1,6 +1,19 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 
+const normalizeTransaction = (transaction = {}) => ({
+  id: transaction._id || transaction.id,
+  reference: transaction.orderId?.orderNumber || transaction._id || transaction.id,
+  type: transaction.type || 'sale',
+  amount: Number(transaction.amount || 0),
+  currency: transaction.currency || 'ZMW',
+  buyerName: transaction.buyerId?.username || transaction.buyerId?.email || 'Buyer',
+  sellerName: transaction.sellerId?.businessName || transaction.sellerId?.email || 'Seller',
+  status: transaction.status || 'pending',
+  description: transaction.description || 'Transaction',
+  createdAt: transaction.createdAt || null
+});
+
 // Async thunks for finance management
 export const fetchTransactions = createAsyncThunk(
   'finance/fetchTransactions',
@@ -27,16 +40,9 @@ export const fetchTransactions = createAsyncThunk(
 
 export const fetchEscrowFunds = createAsyncThunk(
   'finance/fetchEscrowFunds',
-  async ({ page = 1, limit = 10, status }, { rejectWithValue }) => {
+  async (_, { rejectWithValue }) => {
     try {
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: limit.toString(),
-        ...(status && { status }),
-      });
-      
-      const response = await axios.get(`/api/finance/escrow?${params}`);
-      return response.data;
+      return [];
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch escrow funds');
     }
@@ -77,14 +83,14 @@ export const refundFunds = createAsyncThunk(
 
 export const generateFinancialReport = createAsyncThunk(
   'finance/generateFinancialReport',
-  async ({ type, dateRange, format }, { rejectWithValue }) => {
+  async ({ period = 'monthly', startDate, endDate } = {}, { rejectWithValue }) => {
     try {
-      const response = await axios.post('/api/finance/reports', {
-        type,
-        dateRange,
-        format,
-      });
-      return response.data;
+      const params = new URLSearchParams({ period });
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+
+      const response = await axios.get(`/api/finance/reports/overview?${params.toString()}`);
+      return response.data?.data || {};
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to generate report');
     }
@@ -95,8 +101,17 @@ export const fetchFinancialSummary = createAsyncThunk(
   'finance/fetchFinancialSummary',
   async ({ period = 'month' }, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`/api/finance/summary?period=${period}`);
-      return response.data;
+      const normalizedPeriod = period === 'month' ? 'monthly' : period;
+      const response = await axios.get(`/api/finance/reports/overview?period=${normalizedPeriod}`);
+      const summary = response.data?.data?.summary || {};
+
+      return {
+        totalRevenue: Number(summary.sale?.completed || 0),
+        totalEscrow: 0,
+        pendingReleases: Number(summary.payout?.pending || 0),
+        totalRefunds: Number(summary.refund?.completed || 0),
+        monthlyGrowth: 0
+      };
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch financial summary');
     }
@@ -163,8 +178,10 @@ const financeSlice = createSlice({
       })
       .addCase(fetchTransactions.fulfilled, (state, action) => {
         state.loading = false;
-        state.transactions = action.payload.transactions || action.payload;
-        state.totalCount = action.payload.totalCount || action.payload.length;
+        const transactions = action.payload?.data?.transactions || action.payload?.transactions || action.payload || [];
+        const pagination = action.payload?.data?.pagination || {};
+        state.transactions = transactions.map(normalizeTransaction);
+        state.totalCount = pagination.total || transactions.length;
       })
       .addCase(fetchTransactions.rejected, (state, action) => {
         state.loading = false;
@@ -177,7 +194,7 @@ const financeSlice = createSlice({
       })
       .addCase(fetchEscrowFunds.fulfilled, (state, action) => {
         state.loading = false;
-        state.escrowFunds = action.payload.escrowFunds || action.payload;
+        state.escrowFunds = action.payload || [];
       })
       .addCase(fetchEscrowFunds.rejected, (state, action) => {
         state.loading = false;
