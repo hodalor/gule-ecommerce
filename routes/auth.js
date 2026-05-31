@@ -61,10 +61,14 @@ const normalizeAuthUser = (user, userType) => {
       ...baseUser,
       businessName: user.businessName,
       businessType: user.businessType,
+      businessDescription: user.businessDescription || '',
       verificationStatus: user.verificationStatus,
       taxNumber: user.taxNumber || '',
       businessAddress: user.businessAddress || {},
-      businessRegistrationNumber: user.businessRegistrationNumber || ''
+      businessRegistrationNumber: user.businessRegistrationNumber || '',
+      profileImage: user.profileImage || null,
+      businessLogo: user.businessLogo || null,
+      preferences: user.preferences || {}
     };
   }
 

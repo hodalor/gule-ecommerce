@@ -119,6 +119,11 @@ const filterSellerData = (seller, privacySettings, isOwnProfile = false, isAdmin
   return sellerData;
 };
 
+const isOwnSellerProfileRequest = (req, sellerId) => {
+  const requesterId = req.user?._id?.toString?.() || req.user?.id?.toString?.();
+  return req.userType === 'seller' && requesterId === String(sellerId);
+};
+
 // Get all sellers (public endpoint)
 router.get('/public',
   query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
@@ -411,6 +416,48 @@ router.get('/public/:id',
   }
 );
 
+// Get seller profile (owner or admin)
+router.get('/:id',
+  authenticate,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const isOwnProfile = isOwnSellerProfileRequest(req, id);
+      const isAdmin = req.userType === 'admin';
+
+      if (!isOwnProfile && !isAdmin) {
+        return res.status(403).json({
+          error: 'Access denied',
+          message: 'You do not have permission to view this profile'
+        });
+      }
+
+      const seller = await Seller.findById(id)
+        .select('-password -emailVerificationToken -emailVerificationExpires -passwordResetToken -passwordResetExpires');
+
+      if (!seller) {
+        return res.status(404).json({
+          error: 'Seller not found',
+          message: 'The requested seller does not exist'
+        });
+      }
+
+      const privacySettings = await getPrivacySettings();
+      const filteredSeller = filterSellerData(seller, privacySettings, isOwnProfile, isAdmin);
+
+      return res.json({
+        seller: filteredSeller
+      });
+    } catch (error) {
+      logger.error('Get seller profile error', error);
+      return res.status(500).json({
+        error: 'Failed to fetch seller profile',
+        message: 'An error occurred while fetching the seller profile'
+      });
+    }
+  }
+);
+
 // Update seller profile
 router.put('/:id',
   authenticate,
@@ -423,8 +470,8 @@ router.put('/:id',
       const requestingUser = req.user;
 
       // Check if user can update this profile
-      const isOwnProfile = requestingUser.userType === 'seller' && requestingUser.id === id;
-      const isAdmin = requestingUser.userType === 'admin';
+      const isOwnProfile = isOwnSellerProfileRequest(req, id);
+      const isAdmin = req.userType === 'admin';
 
       if (!isOwnProfile && !isAdmin) {
         return res.status(403).json({
@@ -446,6 +493,15 @@ router.put('/:id',
         firstName,
         lastName,
         phone,
+        businessName,
+        businessType,
+        businessDescription,
+        businessRegistrationNumber,
+        taxNumber,
+        businessAddress,
+        profileImage,
+        businessLogo,
+        preferences,
         address,
         businessDetails,
         bankDetails,
@@ -457,10 +513,16 @@ router.put('/:id',
         firstName: seller.firstName,
         lastName: seller.lastName,
         phone: seller.phone,
-        address: seller.address,
-        businessDetails: seller.businessDetails,
+        businessName: seller.businessName,
+        businessType: seller.businessType,
+        businessDescription: seller.businessDescription,
+        businessRegistrationNumber: seller.businessRegistrationNumber,
+        taxNumber: seller.taxNumber,
+        businessAddress: seller.businessAddress,
         bankDetails: seller.bankDetails,
-        taxInformation: seller.taxInformation
+        preferences: seller.preferences,
+        profileImage: seller.profileImage,
+        businessLogo: seller.businessLogo
       };
 
       // Update fields
@@ -483,17 +545,68 @@ router.put('/:id',
         seller.phone = phone;
         seller.isPhoneVerified = false; // Reset verification status
       }
-      if (address !== undefined) seller.address = address;
-      if (businessDetails !== undefined) {
-        seller.businessDetails = { ...seller.businessDetails, ...businessDetails };
-        // Reset business verification if critical details changed
-        if (businessDetails.businessName || businessDetails.businessType || businessDetails.businessRegistrationNumber) {
-          seller.isBusinessVerified = false;
-          seller.businessVerificationStatus = 'pending';
+
+      const normalizedBusinessAddress = businessAddress || address || (
+        businessDetails && {
+          street: businessDetails.businessAddress,
+          city: businessDetails.businessCity,
+          state: businessDetails.businessState,
+          zipCode: businessDetails.businessZip,
+          country: businessDetails.businessCountry
         }
+      );
+
+      const hasBusinessIdentityChange = (
+        businessName !== undefined ||
+        businessType !== undefined ||
+        businessRegistrationNumber !== undefined ||
+        businessDetails?.businessName !== undefined ||
+        businessDetails?.businessType !== undefined ||
+        businessDetails?.businessRegistrationNumber !== undefined
+      );
+
+      if (businessName !== undefined) seller.businessName = businessName;
+      if (businessType !== undefined) seller.businessType = businessType;
+      if (businessDescription !== undefined) seller.businessDescription = businessDescription;
+      if (businessRegistrationNumber !== undefined) seller.businessRegistrationNumber = businessRegistrationNumber;
+      if (taxNumber !== undefined) seller.taxNumber = taxNumber;
+      if (profileImage !== undefined) seller.profileImage = profileImage;
+      if (businessLogo !== undefined) seller.businessLogo = businessLogo;
+
+      if (businessDetails !== undefined) {
+        if (businessDetails.businessName !== undefined) seller.businessName = businessDetails.businessName;
+        if (businessDetails.businessType !== undefined) seller.businessType = businessDetails.businessType;
+        if (businessDetails.businessDescription !== undefined) seller.businessDescription = businessDetails.businessDescription;
+        if (businessDetails.businessRegistrationNumber !== undefined) {
+          seller.businessRegistrationNumber = businessDetails.businessRegistrationNumber;
+        }
+        if (businessDetails.taxNumber !== undefined) seller.taxNumber = businessDetails.taxNumber;
       }
+
+      if (normalizedBusinessAddress !== undefined) {
+        seller.businessAddress = {
+          ...seller.businessAddress,
+          ...normalizedBusinessAddress
+        };
+      }
+
       if (bankDetails !== undefined) seller.bankDetails = { ...seller.bankDetails, ...bankDetails };
-      if (taxInformation !== undefined) seller.taxInformation = { ...seller.taxInformation, ...taxInformation };
+      if (taxInformation !== undefined && taxInformation.taxNumber !== undefined) {
+        seller.taxNumber = taxInformation.taxNumber;
+      }
+      if (preferences !== undefined) {
+        seller.preferences = {
+          ...seller.preferences,
+          ...preferences
+        };
+      }
+
+      if (hasBusinessIdentityChange) {
+        seller.verificationStatus = 'pending';
+        seller.isVerified = false;
+        seller.verifiedAt = null;
+        seller.verifiedBy = null;
+      }
 
       seller.updatedAt = new Date();
       await seller.save();
@@ -546,8 +659,8 @@ router.post('/:id/business-documents',
       const requestingUser = req.user;
 
       // Check if user can update this profile
-      const isOwnProfile = requestingUser.userType === 'seller' && requestingUser.id === id;
-      const isAdmin = requestingUser.userType === 'admin';
+      const isOwnProfile = isOwnSellerProfileRequest(req, id);
+      const isAdmin = req.userType === 'admin';
 
       if (!isOwnProfile && !isAdmin) {
         return res.status(403).json({
@@ -724,11 +837,9 @@ router.get('/:id/statistics',
   async (req, res) => {
     try {
       const { id } = req.params;
-      const requestingUser = req.user;
-
       // Check if user can view statistics
-      const isOwnProfile = requestingUser.userType === 'seller' && requestingUser.id === id;
-      const isAdmin = requestingUser.userType === 'admin';
+      const isOwnProfile = isOwnSellerProfileRequest(req, id);
+      const isAdmin = req.userType === 'admin';
 
       if (!isOwnProfile && !isAdmin) {
         return res.status(403).json({

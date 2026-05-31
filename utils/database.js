@@ -233,22 +233,29 @@ class Database {
         'AuditLog'
       ];
 
+      const legacyIndexesByModel = {
+        User: [
+          { name: 'userId_1', path: 'userId' },
+          { name: 'vendorId_1', path: 'vendorId' }
+        ],
+        Admin: [
+          { name: 'adminId_1', path: 'adminId' }
+        ]
+      };
+
       for (const modelName of modelNames) {
         const model = mongoose.model(modelName);
+        const legacyIndexes = legacyIndexesByModel[modelName] || [];
 
-        if (modelName === 'User') {
+        if (legacyIndexes.length > 0) {
           const existingIndexes = await model.collection.indexes();
-          const legacyUserIndexes = [
-            { name: 'userId_1', path: 'userId' },
-            { name: 'vendorId_1', path: 'vendorId' }
-          ];
 
-          for (const legacyIndex of legacyUserIndexes) {
+          for (const legacyIndex of legacyIndexes) {
             const indexExists = existingIndexes.some((index) => index.name === legacyIndex.name);
             const pathStillDefined = Boolean(model.schema.path(legacyIndex.path));
 
             if (indexExists && !pathStillDefined) {
-              logger.warn('Dropping legacy User index that no longer exists in schema', {
+              logger.warn('Dropping legacy index that no longer exists in schema', {
                 model: modelName,
                 indexName: legacyIndex.name
               });

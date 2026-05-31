@@ -458,7 +458,7 @@ adminSchema.index({ createdAt: -1 });
 // Pre-save middleware to generate employee ID and hash password
 adminSchema.pre('save', async function(next) {
   // Generate employee ID for new admins
-  if (this.isNew) {
+  if (this.isNew && !this.employeeId) {
     const year = new Date().getFullYear();
     const rolePrefix = this.role.toUpperCase().substr(0, 2);
     const deptPrefix = this.department.toUpperCase().substr(0, 2);
