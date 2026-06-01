@@ -12016,3 +12016,18 @@
 {"duration":"825ms","ip":"::1","level":"info","message":"HTTP Request","method":"GET","service":"gule-marketplace","status":200,"timestamp":"2026-05-31 00:27:19","url":"/?page=1&limit=12","userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36","userId":null}
 {"duration":"2750ms","ip":"::1","level":"info","message":"HTTP Request","method":"GET","service":"gule-marketplace","status":200,"timestamp":"2026-05-31 00:27:58","url":"/6a19d121f78e5256b8f211bf","userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36","userId":null}
 {"duration":"1009ms","ip":"::1","level":"info","message":"HTTP Request","method":"GET","service":"gule-marketplace","status":200,"timestamp":"2026-05-31 00:27:59","url":"/6a19d121f78e5256b8f211bf","userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36","userId":null}
+{"level":"info","message":"Mongoose reconnected to MongoDB","service":"gule-marketplace","timestamp":"2026-05-31 12:39:04"}
+{"level":"warn","message":"Mongoose disconnected from MongoDB","service":"gule-marketplace","timestamp":"2026-05-31 12:40:47"}
+{"level":"info","message":"Mongoose connected to MongoDB","service":"gule-marketplace","timestamp":"2026-05-31 12:40:47"}
+{"level":"info","message":"Mongoose reconnected to MongoDB","service":"gule-marketplace","timestamp":"2026-05-31 12:40:47"}
+{"level":"info","message":"Mongoose reconnected to MongoDB","service":"gule-marketplace","timestamp":"2026-05-31 12:53:09"}
+{"level":"info","message":"Mongoose reconnected to MongoDB","service":"gule-marketplace","timestamp":"2026-05-31 12:53:09"}
+{"level":"warn","message":"Mongoose disconnected from MongoDB","service":"gule-marketplace","timestamp":"2026-05-31 12:54:49"}
+{"level":"info","message":"Mongoose connected to MongoDB","service":"gule-marketplace","timestamp":"2026-05-31 12:54:49"}
+{"level":"info","message":"Mongoose reconnected to MongoDB","service":"gule-marketplace","timestamp":"2026-05-31 12:54:49"}
+{"level":"info","message":"Mongoose reconnected to MongoDB","service":"gule-marketplace","timestamp":"2026-05-31 13:44:54"}
+{"level":"info","message":"Mongoose reconnected to MongoDB","service":"gule-marketplace","timestamp":"2026-05-31 13:44:54"}
+{"level":"info","message":"Mongoose reconnected to MongoDB","service":"gule-marketplace","timestamp":"2026-06-01 11:07:08"}
+{"level":"warn","message":"Mongoose disconnected from MongoDB","service":"gule-marketplace","timestamp":"2026-06-01 11:07:19"}
+{"level":"info","message":"Mongoose connected to MongoDB","service":"gule-marketplace","timestamp":"2026-06-01 11:07:19"}
+{"level":"info","message":"Mongoose reconnected to MongoDB","service":"gule-marketplace","timestamp":"2026-06-01 11:07:19"}
