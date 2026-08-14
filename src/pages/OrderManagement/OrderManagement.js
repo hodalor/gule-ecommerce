@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   fetchOrders,
+  fetchReviewOfficers,
   updateOrderStatus,
   bulkUpdateOrders,
   assignReviewOfficer
@@ -18,6 +19,7 @@ const OrderManagement = () => {
   const dispatch = useDispatch();
   const { 
     orders, 
+    reviewOfficers,
     loading, 
     pagination 
   } = useSelector((state) => state.orders);
@@ -34,34 +36,28 @@ const OrderManagement = () => {
 
   const orderStatuses = [
     'Pending',
-    'Under Review',
-    'Approved',
-    'Rejected',
-    'In Progress',
+    'Confirmed',
+    'Processing',
+    'Shipped',
     'Delivered',
     'Completed',
+    'Cancelled',
     'Refunded'
   ];
 
-  const reviewOfficers = [
-    { id: 1, name: 'John Smith', email: 'john@gule.com' },
-    { id: 2, name: 'Sarah Johnson', email: 'sarah@gule.com' },
-    { id: 3, name: 'Mike Wilson', email: 'mike@gule.com' }
-  ];
+  useEffect(() => {
+    dispatch(fetchReviewOfficers());
+  }, [dispatch]);
 
   useEffect(() => {
-    const fetchData = () => {
-      dispatch(fetchOrders({ 
-        page: pagination?.currentPage || 1, 
-        limit: 20,
-        search: searchTerm,
-        status: statusFilter,
-        startDate: dateFilter ? new Date(dateFilter).toISOString().split('T')[0] : '',
-        endDate: dateFilter ? new Date(dateFilter).toISOString().split('T')[0] : ''
-      }));
-    };
-
-    fetchData();
+    dispatch(fetchOrders({ 
+      page: pagination?.currentPage || 1, 
+      limit: 20,
+      search: searchTerm,
+      status: statusFilter,
+      dateFrom: dateFilter ? `${dateFilter}T00:00:00.000Z` : '',
+      dateTo: dateFilter ? `${dateFilter}T23:59:59.999Z` : ''
+    }));
   }, [dispatch, pagination?.currentPage, searchTerm, statusFilter, dateFilter]);
 
   const handleSelectOrder = (orderId) => {
@@ -76,7 +72,7 @@ const OrderManagement = () => {
     if (selectedOrders.length === filteredOrders.length) {
       setSelectedOrders([]);
     } else {
-      setSelectedOrders(filteredOrders.map(order => order.id));
+      setSelectedOrders(filteredOrders.map(order => order.rawId));
     }
   };
 
@@ -85,13 +81,13 @@ const OrderManagement = () => {
   };
 
   const handleBulkStatusUpdate = async (status) => {
-    dispatch(bulkUpdateOrders({ orderIds: selectedOrders, status }));
+    dispatch(bulkUpdateOrders({ orderIds: selectedOrders, updates: { status } }));
     setSelectedOrders([]);
     setShowBulkActions(false);
   };
 
   const handleAssignReviewOfficer = async (officerId) => {
-    dispatch(assignReviewOfficer({ orderIds: selectedOrders, officerId }));
+    dispatch(assignReviewOfficer({ orderIds: selectedOrders, reviewOfficerId: officerId }));
     setSelectedOrders([]);
     setShowAssignModal(false);
   };
@@ -105,18 +101,18 @@ const OrderManagement = () => {
     switch (status) {
       case 'Pending':
         return 'bg-yellow-100 text-yellow-800';
-      case 'Under Review':
+      case 'Confirmed':
         return 'bg-blue-100 text-blue-800';
-      case 'Approved':
-        return 'bg-green-100 text-green-800';
-      case 'Rejected':
-        return 'bg-red-100 text-red-800';
-      case 'In Progress':
+      case 'Processing':
         return 'bg-indigo-100 text-indigo-800';
+      case 'Shipped':
+        return 'bg-purple-100 text-purple-800';
       case 'Delivered':
         return 'bg-purple-100 text-purple-800';
       case 'Completed':
         return 'bg-green-100 text-green-800';
+      case 'Cancelled':
+        return 'bg-red-100 text-red-800';
       case 'Refunded':
         return 'bg-gray-100 text-gray-800';
       default:
@@ -313,8 +309,8 @@ const OrderManagement = () => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <input
                         type="checkbox"
-                        checked={selectedOrders.includes(order.id)}
-                        onChange={() => handleSelectOrder(order.id)}
+                        checked={selectedOrders.includes(order.rawId)}
+                        onChange={() => handleSelectOrder(order.rawId)}
                         className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
                       />
                     </td>
@@ -365,24 +361,42 @@ const OrderManagement = () => {
                             {order.status === 'Pending' && (
                               <>
                                 <button
-                                  onClick={() => handleStatusUpdate(order.id, 'Approved')}
+                                  onClick={() => handleStatusUpdate(order.rawId, 'Confirmed')}
                                   className="text-green-600 hover:text-green-900"
-                                  title="Approve"
+                                  title="Confirm"
                                 >
                                   <CheckCircleIcon className="h-4 w-4" />
                                 </button>
                                 <button
-                                  onClick={() => handleStatusUpdate(order.id, 'Rejected')}
+                                  onClick={() => handleStatusUpdate(order.rawId, 'Cancelled')}
                                   className="text-red-600 hover:text-red-900"
-                                  title="Reject"
+                                  title="Cancel"
                                 >
                                   <XCircleIcon className="h-4 w-4" />
                                 </button>
                               </>
                             )}
-                            {order.status === 'In Progress' && (
+                            {order.status === 'Confirmed' && (
                               <button
-                                onClick={() => handleStatusUpdate(order.id, 'Delivered')}
+                                onClick={() => handleStatusUpdate(order.rawId, 'Processing')}
+                                className="text-blue-600 hover:text-blue-900"
+                                title="Mark as Processing"
+                              >
+                                <CheckCircleIcon className="h-4 w-4" />
+                              </button>
+                            )}
+                            {order.status === 'Processing' && (
+                              <button
+                                onClick={() => handleStatusUpdate(order.rawId, 'Shipped')}
+                                className="text-green-600 hover:text-green-900"
+                                title="Mark as Shipped"
+                              >
+                                <CheckCircleIcon className="h-4 w-4" />
+                              </button>
+                            )}
+                            {order.status === 'Shipped' && (
+                              <button
+                                onClick={() => handleStatusUpdate(order.rawId, 'Delivered')}
                                 className="text-blue-600 hover:text-blue-900"
                                 title="Mark as Delivered"
                               >
@@ -391,7 +405,7 @@ const OrderManagement = () => {
                             )}
                             {order.status === 'Delivered' && (
                               <button
-                                onClick={() => handleStatusUpdate(order.id, 'Completed')}
+                                onClick={() => handleStatusUpdate(order.rawId, 'Completed')}
                                 className="text-green-600 hover:text-green-900"
                                 title="Mark as Completed"
                               >
@@ -412,10 +426,9 @@ const OrderManagement = () => {
 
       {/* Order Details Modal */}
       {showOrderDetailsModal && selectedOrderDetails && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-10 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white">
-            <div className="mt-3">
-              <div className="flex justify-between items-center mb-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-600 bg-opacity-50 p-4">
+          <div className="w-full max-w-5xl overflow-hidden rounded-md bg-white shadow-lg">
+            <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
                 <h3 className="text-xl font-semibold text-gray-900">
                   Order Details - #{selectedOrderDetails.id}
                 </h3>
@@ -427,8 +440,9 @@ const OrderManagement = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
-              </div>
+            </div>
 
+            <div className="max-h-[80vh] overflow-y-auto px-5 py-5">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Order Information */}
                 <div className="bg-gray-50 p-4 rounded-lg">
@@ -459,27 +473,63 @@ const OrderManagement = () => {
                   </div>
                 </div>
 
-                {/* Product Information */}
                 <div className="bg-gray-50 p-4 rounded-lg">
-                  <h4 className="text-lg font-medium text-gray-900 mb-3">Product Information</h4>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Product:</span>
-                      <span className="font-medium">{selectedOrderDetails.productTitle}</span>
+                  <h4 className="text-lg font-medium text-gray-900 mb-3">Order Items</h4>
+                  {Array.isArray(selectedOrderDetails.items) && selectedOrderDetails.items.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-white">
+                          <tr>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Image</th>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
+                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
+                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
+                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Open</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200 bg-white">
+                          {selectedOrderDetails.items.map((item) => {
+                            const productId = item?.product?._id || item?.product?.id || item?.productId || null;
+                            const storefrontUrl = productId ? `http://localhost:3000/product/${productId}` : null;
+                            return (
+                              <tr key={item.id || `${item.name}-${productId}`}>
+                                <td className="px-3 py-2">
+                                  {item.imageUrl ? (
+                                    <img src={item.imageUrl} alt={item.name} className="h-10 w-10 rounded object-cover" />
+                                  ) : (
+                                    <div className="h-10 w-10 rounded bg-gray-200" />
+                                  )}
+                                </td>
+                                <td className="px-3 py-2 text-sm text-gray-900">{item.name}</td>
+                                <td className="px-3 py-2 text-sm text-gray-500">{item.sku || '—'}</td>
+                                <td className="px-3 py-2 text-right text-sm text-gray-900">{item.quantity}</td>
+                                <td className="px-3 py-2 text-right text-sm text-gray-900">${item.unitPrice}</td>
+                                <td className="px-3 py-2 text-right text-sm font-medium text-gray-900">${item.total}</td>
+                                <td className="px-3 py-2 text-sm">
+                                  {storefrontUrl ? (
+                                    <a
+                                      href={storefrontUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-blue-600 hover:text-blue-800 hover:underline"
+                                    >
+                                      View
+                                    </a>
+                                  ) : (
+                                    <span className="text-gray-400">—</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Category:</span>
-                      <span>{selectedOrderDetails.category}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Quantity:</span>
-                      <span>{selectedOrderDetails.quantity || 1}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Unit Price:</span>
-                      <span>${selectedOrderDetails.unitPrice || selectedOrderDetails.amount}</span>
-                    </div>
-                  </div>
+                  ) : (
+                    <div className="text-sm text-gray-500">No items found for this order.</div>
+                  )}
                 </div>
 
                 {/* Buyer Information */}
@@ -559,38 +609,37 @@ const OrderManagement = () => {
                   <p className="text-gray-700">{selectedOrderDetails.notes}</p>
                 </div>
               )}
+            </div>
 
-              {/* Action Buttons */}
-              <div className="flex justify-end space-x-3 mt-6">
-                <button
-                  onClick={() => setShowOrderDetailsModal(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
-                >
-                  Close
-                </button>
-                {canManageOrders && selectedOrderDetails.status === 'Pending' && (
-                  <>
-                    <button
-                      onClick={() => {
-                        handleStatusUpdate(selectedOrderDetails.id, 'Approved');
-                        setShowOrderDetailsModal(false);
-                      }}
-                      className="px-4 py-2 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700"
-                    >
-                      Approve Order
-                    </button>
-                    <button
-                      onClick={() => {
-                        handleStatusUpdate(selectedOrderDetails.id, 'Rejected');
-                        setShowOrderDetailsModal(false);
-                      }}
-                      className="px-4 py-2 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700"
-                    >
-                      Reject Order
-                    </button>
-                  </>
-                )}
-              </div>
+            <div className="flex justify-end space-x-3 border-t border-gray-200 px-5 py-4">
+              <button
+                onClick={() => setShowOrderDetailsModal(false)}
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Close
+              </button>
+              {canManageOrders && selectedOrderDetails.status === 'Pending' && (
+                <>
+                  <button
+                    onClick={() => {
+                      handleStatusUpdate(selectedOrderDetails.rawId, 'Confirmed');
+                      setShowOrderDetailsModal(false);
+                    }}
+                    className="px-4 py-2 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700"
+                  >
+                    Confirm Order
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleStatusUpdate(selectedOrderDetails.rawId, 'Cancelled');
+                      setShowOrderDetailsModal(false);
+                    }}
+                    className="px-4 py-2 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700"
+                  >
+                    Cancel Order
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -598,9 +647,9 @@ const OrderManagement = () => {
 
       {/* Assign Review Officer Modal */}
       {showAssignModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-            <div className="mt-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-600 bg-opacity-50 p-4">
+          <div className="w-full max-w-md rounded-md bg-white p-5 shadow-lg">
+            <div>
               <h3 className="text-lg font-medium text-gray-900 mb-4">
                 Assign Review Officer
               </h3>
@@ -619,6 +668,11 @@ const OrderManagement = () => {
                     <div className="text-sm text-gray-500">{officer.email}</div>
                   </button>
                 ))}
+                {reviewOfficers.length === 0 && (
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-600">
+                    No review officers found.
+                  </div>
+                )}
               </div>
               
               <div className="flex justify-end space-x-3 mt-6">

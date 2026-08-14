@@ -40,7 +40,8 @@ const initialState = {
       cancelledOrders: 0
     },
     reviews: { totalReviews: 0, averageRating: 0 },
-    recentActivity: { newBuyers: 0, newSellers: 0, newOrders: 0 }
+    recentActivity: { newBuyers: 0, newSellers: 0, newOrders: 0 },
+    alerts: { lowStockProducts: 0, pendingComplaints: 0, pendingSellerApplications: 0 }
   },
   recentActivities: [],
   loading: false,

@@ -1,8 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import axios from 'axios';
 import api from '../../utils/api';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
 const ADMIN_CATEGORIES_API = '/admin/categories';
 
 // Async thunks for category management
@@ -25,7 +23,7 @@ export const fetchCategories = createAsyncThunk(
         params.append('status', status);
       }
       
-      if (parentId) params.append('parentId', parentId);
+      if (parentId) params.append('parent', parentId);
 
       const response = await api.get(`${ADMIN_CATEGORIES_API}?${params}`);
       return response.data;
@@ -51,15 +49,25 @@ export const createCategory = createAsyncThunk(
   'adminCategories/createCategory',
   async (categoryData, { rejectWithValue }) => {
     try {
+      const normalizedData = { ...categoryData };
+      if (normalizedData.parentId && !normalizedData.parentCategory) {
+        normalizedData.parentCategory = normalizedData.parentId;
+      }
+      if (normalizedData.sortOrder !== undefined && normalizedData.order === undefined) {
+        normalizedData.order = normalizedData.sortOrder;
+      }
+      delete normalizedData.parentId;
+      delete normalizedData.sortOrder;
+
       const formData = new FormData();
-      Object.keys(categoryData).forEach(key => {
-        if (categoryData[key] !== null && categoryData[key] !== undefined) {
-          if (key === 'image' && categoryData[key] instanceof File) {
-            formData.append(key, categoryData[key]);
-          } else if (typeof categoryData[key] === 'object') {
-            formData.append(key, JSON.stringify(categoryData[key]));
+      Object.keys(normalizedData).forEach(key => {
+        if (normalizedData[key] !== null && normalizedData[key] !== undefined) {
+          if (key === 'image' && normalizedData[key] instanceof File) {
+            formData.append(key, normalizedData[key]);
+          } else if (typeof normalizedData[key] === 'object') {
+            formData.append(key, JSON.stringify(normalizedData[key]));
           } else {
-            formData.append(key, categoryData[key]);
+            formData.append(key, normalizedData[key]);
           }
         }
       });
@@ -80,20 +88,30 @@ export const updateCategory = createAsyncThunk(
   'adminCategories/updateCategory',
   async ({ categoryId, categoryData }, { rejectWithValue }) => {
     try {
+      const normalizedData = { ...categoryData };
+      if (normalizedData.parentId && !normalizedData.parentCategory) {
+        normalizedData.parentCategory = normalizedData.parentId;
+      }
+      if (normalizedData.sortOrder !== undefined && normalizedData.order === undefined) {
+        normalizedData.order = normalizedData.sortOrder;
+      }
+      delete normalizedData.parentId;
+      delete normalizedData.sortOrder;
+
       const formData = new FormData();
-      Object.keys(categoryData).forEach(key => {
-        if (categoryData[key] !== null && categoryData[key] !== undefined) {
-          if (key === 'image' && categoryData[key] instanceof File) {
-            formData.append(key, categoryData[key]);
-          } else if (typeof categoryData[key] === 'object') {
-            formData.append(key, JSON.stringify(categoryData[key]));
+      Object.keys(normalizedData).forEach(key => {
+        if (normalizedData[key] !== null && normalizedData[key] !== undefined) {
+          if (key === 'image' && normalizedData[key] instanceof File) {
+            formData.append(key, normalizedData[key]);
+          } else if (typeof normalizedData[key] === 'object') {
+            formData.append(key, JSON.stringify(normalizedData[key]));
           } else {
-            formData.append(key, categoryData[key]);
+            formData.append(key, normalizedData[key]);
           }
         }
       });
 
-      const response = await axios.put(`${API_URL}/admin/categories/${categoryId}`, formData, {
+      const response = await api.put(`${ADMIN_CATEGORIES_API}/${categoryId}`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -107,9 +125,9 @@ export const updateCategory = createAsyncThunk(
 
 export const deleteCategory = createAsyncThunk(
   'adminCategories/deleteCategory',
-  async (categoryId, { rejectWithValue }) => {
+  async ({ categoryId, reason }, { rejectWithValue }) => {
     try {
-      await axios.delete(`${API_URL}/admin/categories/${categoryId}`);
+      await api.delete(`${ADMIN_CATEGORIES_API}/${categoryId}`, { data: { reason } });
       return categoryId;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to delete category');
@@ -121,7 +139,7 @@ export const updateCategoryStatus = createAsyncThunk(
   'adminCategories/updateCategoryStatus',
   async ({ categoryId, status }, { rejectWithValue }) => {
     try {
-      const response = await axios.patch(`${API_URL}/admin/categories/${categoryId}/status`, {
+      const response = await api.patch(`${ADMIN_CATEGORIES_API}/${categoryId}/status`, {
         status
       });
       return response.data;
@@ -135,7 +153,7 @@ export const bulkUpdateCategories = createAsyncThunk(
   'adminCategories/bulkUpdateCategories',
   async ({ categoryIds, action, data }, { rejectWithValue }) => {
     try {
-      const response = await axios.patch(`${API_URL}/admin/categories/bulk`, {
+      const response = await api.patch(`${ADMIN_CATEGORIES_API}/bulk`, {
         categoryIds,
         action,
         data
@@ -151,7 +169,7 @@ export const reorderCategories = createAsyncThunk(
   'adminCategories/reorderCategories',
   async ({ categoryIds, newOrder }, { rejectWithValue }) => {
     try {
-      const response = await axios.patch(`${API_URL}/admin/categories/reorder`, {
+      const response = await api.patch(`${ADMIN_CATEGORIES_API}/reorder`, {
         categoryIds,
         newOrder
       });
@@ -166,7 +184,7 @@ export const fetchCategoryStatistics = createAsyncThunk(
   'adminCategories/fetchCategoryStatistics',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`${API_URL}/admin/categories/statistics`);
+      const response = await api.get(`${ADMIN_CATEGORIES_API}/stats/summary`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch category statistics');
@@ -183,7 +201,7 @@ export const exportCategories = createAsyncThunk(
         if (filters[key]) params.append(key, filters[key]);
       });
 
-      const response = await axios.get(`${API_URL}/admin/categories/export?${params}`, {
+      const response = await api.get(`${ADMIN_CATEGORIES_API}/export?${params}`, {
         responseType: 'blob'
       });
       
@@ -438,7 +456,7 @@ const categorySlice = createSlice({
       })
       .addCase(fetchCategoryTree.fulfilled, (state, action) => {
         state.loading = false;
-        state.categoryTree = action.payload;
+        state.categoryTree = action.payload?.data?.categoryTree || action.payload?.categoryTree || [];
       })
       .addCase(fetchCategoryTree.rejected, (state, action) => {
         state.loading = false;

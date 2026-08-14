@@ -22,17 +22,17 @@ import {
   updateCategory,
   deleteCategory,
   bulkUpdateCategories,
+  fetchCategoryTree,
   fetchCategoryStatistics
 } from '../../store/slices/categorySlice';
 
 const CategoryManagement = () => {
   const dispatch = useDispatch();
   const {
-    categories,
+    categoryTree,
     loading,
-    pagination,
     selectedCategory,
-    categoryStatistics
+    statistics
   } = useSelector((state) => state.categories);
 
   // Local state management
@@ -41,11 +41,12 @@ const CategoryManagement = () => {
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState('');
   const [expandedCategories, setExpandedCategories] = useState(new Set());
+  const [existingImageUrl, setExistingImageUrl] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     parentId: '',
-    image: '',
+    image: null,
     status: 'active',
     sortOrder: 0,
     seoTitle: '',
@@ -55,27 +56,15 @@ const CategoryManagement = () => {
 
   useEffect(() => {
     const fetchData = () => {
-      dispatch(fetchCategories({ 
-        page: pagination?.currentPage || 1, 
-        limit: 50,
-        search: searchTerm
-        // Removed status: 'all' as it's not a valid backend value
-      }));
+      dispatch(fetchCategoryTree());
     };
 
     fetchData();
     dispatch(fetchCategoryStatistics());
-  }, [dispatch, pagination?.currentPage, searchTerm]);
+  }, [dispatch]);
   const handleSearch = (e) => {
     const searchValue = e.target.value;
     setSearchTerm(searchValue);
-    
-    // Dispatch search with debouncing could be added here
-    dispatch(fetchCategories({ 
-      page: 1, 
-      limit: 50, 
-      search: searchValue 
-    }));
   };
 
   const handleSelectCategory = (categoryId) => {
@@ -87,7 +76,7 @@ const CategoryManagement = () => {
   };
 
   const handleSelectAll = () => {
-    const allCategoryIds = getAllCategoryIds(categories || []);
+    const allCategoryIds = getAllCategoryIds(categoryTree || []);
     if (selectedCategories.length === allCategoryIds.length) {
       setSelectedCategories([]);
     } else {
@@ -124,23 +113,27 @@ const CategoryManagement = () => {
       dispatch(fetchCategoryById(category._id || category.id));
     }
     if (category) {
+      const resolvedParentId = category.parentCategory?._id || category.parentCategory || category.parentId || '';
+      const resolvedImageUrl = category.image?.url || category.image || '';
+      setExistingImageUrl(resolvedImageUrl);
       setFormData({
         name: category.name || '',
         description: category.description || '',
-        parentId: category.parentId || '',
-        image: category.image || '',
+        parentId: resolvedParentId,
+        image: null,
         status: category.status || 'active',
-        sortOrder: category.sortOrder || 0,
+        sortOrder: category.order ?? category.sortOrder ?? 0,
         seoTitle: category.seoTitle || '',
         seoDescription: category.seoDescription || '',
         slug: category.slug || ''
       });
     } else {
+      setExistingImageUrl('');
       setFormData({
         name: '',
         description: '',
         parentId: '',
-        image: '',
+        image: null,
         status: 'active',
         sortOrder: 0,
         seoTitle: '',
@@ -154,11 +147,12 @@ const CategoryManagement = () => {
   const closeModal = () => {
     setShowModal(false);
     setModalType('');
+    setExistingImageUrl('');
     setFormData({
       name: '',
       description: '',
       parentId: '',
-      image: '',
+      image: null,
       status: 'active',
       sortOrder: 0,
       seoTitle: '',
@@ -182,7 +176,7 @@ const CategoryManagement = () => {
       }
       
       // Refresh categories after successful operation
-      dispatch(fetchCategories({ page: 1, limit: 50 }));
+      dispatch(fetchCategoryTree());
       closeModal();
     } catch (error) {
       console.error('Form submission error:', error);
@@ -222,10 +216,14 @@ const CategoryManagement = () => {
   const handleCategoryAction = async (action, categoryId) => {
     try {
       if (action === 'delete') {
-        await dispatch(deleteCategory(categoryId)).unwrap();
+        const reason = window.prompt('Reason for deletion?');
+        if (!reason) {
+          return;
+        }
+        await dispatch(deleteCategory({ categoryId, reason })).unwrap();
         toast.success('Category deleted successfully');
         // Refresh categories after deletion
-        dispatch(fetchCategories({ page: 1, limit: 50 }));
+        dispatch(fetchCategoryTree());
       }
     } catch (error) {
       console.error('Category action error:', error);
@@ -252,7 +250,7 @@ const CategoryManagement = () => {
     }));
   };
 
-  const filteredCategories = filterCategories(categories, searchTerm);
+  const filteredCategories = filterCategories(categoryTree, searchTerm);
 
   const getStatusBadge = (status) => {
     const statusConfig = {
@@ -275,22 +273,22 @@ const CategoryManagement = () => {
 
   const renderCategoryTree = (categories, level = 0) => {
     return categories.map((category) => (
-      <div key={category.id} className={`${level > 0 ? 'ml-8' : ''}`}>
+      <div key={category._id || category.id} className={`${level > 0 ? 'ml-8' : ''}`}>
         <div className="flex items-center justify-between py-3 px-4 border-b border-gray-200">
           <div className="flex items-center space-x-3">
             <input
               type="checkbox"
-              checked={selectedCategories.includes(category.id)}
-              onChange={() => handleSelectCategory(category.id)}
+              checked={selectedCategories.includes(category._id || category.id)}
+              onChange={() => handleSelectCategory(category._id || category.id)}
               className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
             />
             
             {category.children && category.children.length > 0 && (
               <button
-                onClick={() => toggleExpanded(category.id)}
+                onClick={() => toggleExpanded(category._id || category.id)}
                 className="text-gray-400 hover:text-gray-600"
               >
-                {expandedCategories.has(category.id) ? (
+                {expandedCategories.has(category._id || category.id) ? (
                   <ChevronDownIcon className="h-4 w-4" />
                 ) : (
                   <ChevronRightIcon className="h-4 w-4" />
@@ -299,9 +297,9 @@ const CategoryManagement = () => {
             )}
             
             <div className="flex items-center space-x-3">
-              {category.image ? (
+              {category.image?.url ? (
                 <img
-                  src={category.image}
+                  src={category.image.url}
                   alt={category.name}
                   className="h-10 w-10 rounded-lg object-cover"
                 />
@@ -320,7 +318,7 @@ const CategoryManagement = () => {
           
           <div className="flex items-center space-x-4">
             <div className="text-xs text-gray-500">
-              {category.productCount} products
+              {category.metadata?.productCount || category.productCount || 0} products
             </div>
             {getStatusBadge(category.status)}
             
@@ -340,7 +338,7 @@ const CategoryManagement = () => {
                 <PencilIcon className="h-4 w-4" />
               </button>
               <button
-                onClick={() => handleCategoryAction('delete', category.id)}
+                onClick={() => handleCategoryAction('delete', category._id || category.id)}
                 className="text-red-400 hover:text-red-600"
                 title="Delete Category"
               >
@@ -350,7 +348,7 @@ const CategoryManagement = () => {
           </div>
         </div>
         
-        {expandedCategories.has(category.id) && category.children && category.children.length > 0 && (
+        {expandedCategories.has(category._id || category.id) && category.children && category.children.length > 0 && (
           <div className="bg-gray-50">
             {renderCategoryTree(category.children, level + 1)}
           </div>
@@ -359,13 +357,15 @@ const CategoryManagement = () => {
     ));
   };
 
-  const getParentCategories = (categories, excludeId = null) => {
+  const getParentCategories = (categories, excludeId = null, level = 0) => {
     let parents = [];
     categories.forEach(category => {
-      if (category.id !== excludeId) {
-        parents.push({ id: category.id, name: category.name });
+      const categoryId = category._id || category.id;
+      if (categoryId !== excludeId) {
+        const prefix = level > 0 ? `${'—'.repeat(level)} ` : '';
+        parents.push({ id: categoryId, name: `${prefix}${category.name}` });
         if (category.children && category.children.length > 0) {
-          parents = parents.concat(getParentCategories(category.children, excludeId));
+          parents = parents.concat(getParentCategories(category.children, excludeId, level + 1));
         }
       }
     });
@@ -405,7 +405,7 @@ const CategoryManagement = () => {
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Total Categories</dt>
                   <dd className="text-lg font-medium text-gray-900">
-                    {categoryStatistics?.totalCategories || getAllCategoryIds(categories || []).length}
+                    {statistics?.data?.summary?.totalCategories || getAllCategoryIds(categoryTree || []).length}
                   </dd>
                 </dl>
               </div>
@@ -423,8 +423,8 @@ const CategoryManagement = () => {
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Active Categories</dt>
                   <dd className="text-lg font-medium text-gray-900">
-                    {categoryStatistics?.activeCategories || 
-                     getAllCategoryIds((categories || []).filter(c => c.status === 'active')).length}
+                    {statistics?.data?.summary?.activeCategories || 
+                     getAllCategoryIds((categoryTree || []).filter(c => c.status === 'active')).length}
                   </dd>
                 </dl>
               </div>
@@ -442,8 +442,7 @@ const CategoryManagement = () => {
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Root Categories</dt>
                   <dd className="text-lg font-medium text-gray-900">
-                    {categoryStatistics?.rootCategories || 
-                     (categories || []).filter(c => !c.parentId).length}
+                    {statistics?.data?.summary?.rootCategories ?? (categoryTree || []).length}
                   </dd>
                 </dl>
               </div>
@@ -461,9 +460,7 @@ const CategoryManagement = () => {
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Total Products</dt>
                   <dd className="text-lg font-medium text-gray-900">
-                    {categoryStatistics?.totalProducts || 
-                     (categories || []).reduce((total, cat) => total + (cat.productCount || 0) + 
-                       ((cat.children || []).reduce((subTotal, child) => subTotal + (child.productCount || 0), 0)), 0)}
+                    {statistics?.data?.summary?.totalProducts ?? 0}
                   </dd>
                 </dl>
               </div>
@@ -610,11 +607,11 @@ const CategoryManagement = () => {
                     </div>
                   </div>
                   
-                  {selectedCategory?.image && (
+                  {selectedCategory?.image?.url && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700">Image</label>
                       <img
-                        src={selectedCategory.image}
+                        src={selectedCategory.image.url}
                         alt={selectedCategory.name}
                         className="mt-1 h-32 w-32 object-cover rounded-lg"
                       />
@@ -680,7 +677,7 @@ const CategoryManagement = () => {
                         className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                       >
                         <option value="">None (Root Category)</option>
-                        {getParentCategories(categories, selectedCategory?.id).map(parent => (
+                        {getParentCategories(categoryTree || [], selectedCategory?._id || selectedCategory?.id).map(parent => (
                           <option key={parent.id} value={parent.id}>{parent.name}</option>
                         ))}
                       </select>
@@ -700,13 +697,26 @@ const CategoryManagement = () => {
                   
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Image URL</label>
+                      <label className="block text-sm font-medium text-gray-700">Category Image</label>
                       <input
-                        type="url"
-                        value={formData.image}
-                        onChange={(e) => setFormData({...formData, image: e.target.value})}
-                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+                          setFormData({ ...formData, image: file });
+                          if (file) {
+                            setExistingImageUrl(URL.createObjectURL(file));
+                          }
+                        }}
+                        className="mt-1 block w-full text-sm text-gray-700 file:mr-4 file:rounded-md file:border-0 file:bg-primary-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary-700 hover:file:bg-primary-100"
                       />
+                      {existingImageUrl && (
+                        <img
+                          src={existingImageUrl}
+                          alt="Category"
+                          className="mt-3 h-24 w-24 rounded-lg object-cover"
+                        />
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700">Sort Order</label>

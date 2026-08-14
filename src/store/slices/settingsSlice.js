@@ -59,8 +59,8 @@ export const resetSettings = createAsyncThunk(
   'settings/resetSettings',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.post('/api/settings/reset');
-      return response.data;
+      const response = await api.post('/settings/reset');
+      return response.data?.data || response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to reset settings');
     }
@@ -96,8 +96,8 @@ export const backupSystem = createAsyncThunk(
   'settings/backupSystem',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.post('/api/settings/backup');
-      return response.data;
+      const response = await api.post('/settings/backup');
+      return response.data?.data || response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to backup system');
     }
@@ -111,12 +111,12 @@ export const restoreSystem = createAsyncThunk(
       const formData = new FormData();
       formData.append('backup', backupFile);
       
-      const response = await axios.post('/api/settings/restore', formData, {
+      const response = await api.post('/settings/restore', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
-      return response.data;
+      return response.data?.data || response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to restore system');
     }

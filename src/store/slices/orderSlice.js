@@ -1,8 +1,113 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import axios from 'axios';
 import api from '../../utils/api';
 
 const ADMIN_ORDERS_API = '/admin/orders';
+
+const statusLabelMap = {
+  pending: 'Pending',
+  confirmed: 'Confirmed',
+  processing: 'Processing',
+  shipped: 'Shipped',
+  delivered: 'Delivered',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+  refunded: 'Refunded'
+};
+
+const toApiStatus = (status) => {
+  if (!status) return status;
+  const normalized = String(status).toLowerCase().trim();
+  const reverse = Object.entries(statusLabelMap).reduce((acc, [apiValue, label]) => {
+    acc[label.toLowerCase()] = apiValue;
+    return acc;
+  }, {});
+  return reverse[normalized] || normalized;
+};
+
+const buildDisplayName = (value) => {
+  if (!value) return '';
+  const first = value.firstName || '';
+  const last = value.lastName || '';
+  return `${first} ${last}`.trim();
+};
+
+const normalizeOrderItem = (item = {}) => {
+  const product = item.product || item.productSnapshot || {};
+  const images = Array.isArray(product.images) ? product.images : [];
+  const imageUrl = images.length ? (images[0]?.url || images[0]) : null;
+  const quantity = Number(item.quantity || 0);
+  const unitPrice = Number(item.unitPrice || item.price || product.price || 0);
+  const total = Number(item.totalPrice || (quantity * unitPrice) || 0);
+
+  return {
+    ...item,
+    id: item._id || item.id,
+    product,
+    name: product.name || item.name || 'Product',
+    sku: product.sku || item.sku || '',
+    imageUrl,
+    quantity,
+    unitPrice,
+    total
+  };
+};
+
+const normalizeOrder = (order = {}) => {
+  const normalizedItems = Array.isArray(order.items) ? order.items.map(normalizeOrderItem) : [];
+  const totalQuantity = normalizedItems.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+  const firstItem = normalizedItems[0];
+  const productTitle = normalizedItems.length === 1
+    ? (firstItem?.name || 'Product')
+    : normalizedItems.length > 1
+      ? `${normalizedItems.length} items`
+      : '';
+
+  const buyer = order.buyer || {};
+  const reviewOfficer = order.reviewOfficer || {};
+  const firstSeller = firstItem?.seller || {};
+
+  return {
+    ...order,
+    id: order.orderNumber || order._id || order.id,
+    rawId: order._id || order.id,
+    status: statusLabelMap[String(order.status || '').toLowerCase()] || order.status,
+    rawStatus: String(order.status || '').toLowerCase(),
+    amount: Number(order.totalAmount || order.amount || 0),
+    createdAt: order.createdAt || order.orderDate,
+    buyerName: buildDisplayName(buyer) || buyer.displayName || 'Customer',
+    buyerEmail: buyer.email || '',
+    buyerPhone: buyer.phone || '',
+    sellerName: firstSeller.businessName || firstSeller.name || '',
+    sellerEmail: firstSeller.email || '',
+    businessName: firstSeller.businessName || '',
+    reviewOfficer: buildDisplayName(reviewOfficer) || '',
+    trackingNumber: order.trackingNumber || '',
+    shippingAddress: order.shippingAddress || null,
+    items: normalizedItems,
+    productTitle,
+    quantity: totalQuantity,
+    unitPrice: normalizedItems.length === 1 ? (firstItem?.unitPrice || 0) : 0
+  };
+};
+
+const patchOrderStatusFields = (existingOrder, statusValue) => {
+  if (!statusValue) return existingOrder;
+  const apiStatus = toApiStatus(statusValue);
+  return {
+    ...existingOrder,
+    rawStatus: apiStatus,
+    status: statusLabelMap[apiStatus] || statusValue
+  };
+};
+
+const patchOrderInState = (state, predicate, patch) => {
+  const index = state.orders.findIndex(predicate);
+  if (index === -1) return;
+
+  let next = { ...state.orders[index], ...patch };
+  next = patchOrderStatusFields(next, patch?.status);
+  state.orders[index] = next;
+};
 
 // Async thunks
 export const fetchOrders = createAsyncThunk(
@@ -12,8 +117,8 @@ export const fetchOrders = createAsyncThunk(
     limit = 10, 
     search = '', 
     status = '', 
-    startDate = '', 
-    endDate = '', 
+    dateFrom = '', 
+    dateTo = '', 
     minAmount = '', 
     maxAmount = '', 
     paymentStatus = '', 
@@ -26,9 +131,9 @@ export const fetchOrders = createAsyncThunk(
       });
       
       if (search) params.append('search', search);
-      if (status) params.append('status', status);
-      if (startDate) params.append('startDate', startDate);
-      if (endDate) params.append('endDate', endDate);
+      if (status) params.append('status', toApiStatus(status));
+      if (dateFrom) params.append('dateFrom', dateFrom);
+      if (dateTo) params.append('dateTo', dateTo);
       if (minAmount) params.append('minAmount', minAmount);
       if (maxAmount) params.append('maxAmount', maxAmount);
       if (paymentStatus) params.append('paymentStatus', paymentStatus);
@@ -42,11 +147,23 @@ export const fetchOrders = createAsyncThunk(
   }
 );
 
+export const fetchReviewOfficers = createAsyncThunk(
+  'orders/fetchReviewOfficers',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await api.get(`${ADMIN_ORDERS_API}/review-officers`);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch review officers');
+    }
+  }
+);
+
 export const fetchOrderById = createAsyncThunk(
   'orders/fetchOrderById',
   async (orderId, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`${ADMIN_ORDERS_API}/${orderId}`);
+      const response = await api.get(`${ADMIN_ORDERS_API}/${orderId}`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch order');
@@ -58,8 +175,8 @@ export const updateOrderStatus = createAsyncThunk(
   'orders/updateOrderStatus',
   async ({ orderId, status, reason }, { rejectWithValue }) => {
     try {
-      const response = await axios.put(`${ADMIN_ORDERS_API}/${orderId}/status`, {
-        status,
+      const response = await api.patch(`${ADMIN_ORDERS_API}/${orderId}/status`, {
+        status: toApiStatus(status),
         reason
       });
       return response.data;
@@ -71,9 +188,10 @@ export const updateOrderStatus = createAsyncThunk(
 
 export const assignReviewOfficer = createAsyncThunk(
   'orders/assignReviewOfficer',
-  async ({ orderId, reviewOfficerId }, { rejectWithValue }) => {
+  async ({ orderIds, reviewOfficerId }, { rejectWithValue }) => {
     try {
-      const response = await axios.put(`${ADMIN_ORDERS_API}/${orderId}/assign-reviewer`, {
+      const response = await api.post(`${ADMIN_ORDERS_API}/assign-reviewer`, {
+        orderIds,
         reviewOfficerId
       });
       return response.data;
@@ -87,9 +205,13 @@ export const bulkUpdateOrders = createAsyncThunk(
   'orders/bulkUpdateOrders',
   async ({ orderIds, updates }, { rejectWithValue }) => {
     try {
-      const response = await axios.put(`${ADMIN_ORDERS_API}/bulk-update`, {
+      const payload = { ...updates };
+      if (payload.status) {
+        payload.status = toApiStatus(payload.status);
+      }
+      const response = await api.patch(`${ADMIN_ORDERS_API}/bulk-update`, {
         orderIds,
-        updates
+        updates: payload
       });
       return response.data;
     } catch (error) {
@@ -112,7 +234,7 @@ export const exportOrders = createAsyncThunk(
         }
       });
 
-      const response = await axios.get(`${ADMIN_ORDERS_API}/export?${queryParams.toString()}`, {
+      const response = await api.get(`${ADMIN_ORDERS_API}/export?${queryParams.toString()}`, {
         responseType: 'blob'
       });
       
@@ -137,7 +259,7 @@ export const getOrderDetails = createAsyncThunk(
   'orders/getOrderDetails',
   async (orderId, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`${ADMIN_ORDERS_API}/${orderId}`);
+      const response = await api.get(`${ADMIN_ORDERS_API}/${orderId}`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch order details');
@@ -149,11 +271,15 @@ const initialState = {
   orders: [],
   selectedOrders: [],
   orderDetails: null,
+  reviewOfficers: [],
   loading: false,
   error: null,
-  totalCount: 0,
-  currentPage: 1,
-  pageSize: 10,
+  pagination: {
+    currentPage: 1,
+    totalPages: 1,
+    totalItems: 0,
+    itemsPerPage: 20
+  },
   filters: {
     status: '',
     search: '',
@@ -213,14 +339,25 @@ const orderSlice = createSlice({
       })
       .addCase(fetchOrders.fulfilled, (state, action) => {
         state.loading = false;
-        // Handle nested response structure from backend
         const responseData = action.payload.data || action.payload;
-        state.orders = Array.isArray(responseData.orders) ? responseData.orders : 
-                      Array.isArray(responseData) ? responseData : [];
-        state.totalCount = responseData.totalCount || responseData.total || 0;
-        state.currentPage = responseData.currentPage || responseData.page || 1;
+        const rawOrders = Array.isArray(responseData.orders) ? responseData.orders : [];
+        state.orders = rawOrders.map(normalizeOrder);
+        state.pagination = responseData.pagination || state.pagination;
       })
       .addCase(fetchOrders.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      .addCase(fetchReviewOfficers.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchReviewOfficers.fulfilled, (state, action) => {
+        state.loading = false;
+        const officers = action.payload?.officers || action.payload?.data?.officers || [];
+        state.reviewOfficers = Array.isArray(officers) ? officers : [];
+      })
+      .addCase(fetchReviewOfficers.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })
@@ -231,7 +368,9 @@ const orderSlice = createSlice({
       })
       .addCase(fetchOrderById.fulfilled, (state, action) => {
         state.loading = false;
-        state.orderDetails = action.payload;
+        const responseData = action.payload?.data || action.payload;
+        const rawOrder = responseData?.order || responseData;
+        state.orderDetails = normalizeOrder(rawOrder);
       })
       .addCase(fetchOrderById.rejected, (state, action) => {
         state.loading = false;
@@ -244,12 +383,19 @@ const orderSlice = createSlice({
       })
       .addCase(updateOrderStatus.fulfilled, (state, action) => {
         state.loading = false;
-        const index = state.orders.findIndex(order => order.id === action.payload.id);
-        if (index !== -1) {
-          state.orders[index] = action.payload;
-        }
-        if (state.orderDetails && state.orderDetails.id === action.payload.id) {
-          state.orderDetails = action.payload;
+        const updated = action.payload?.order || action.payload?.data?.order || null;
+        if (!updated) return;
+
+        patchOrderInState(
+          state,
+          (order) => order.rawId === String(updated.id) || order.rawId === String(action.meta.arg.orderId),
+          { trackingNumber: updated.trackingNumber, updatedAt: updated.updatedAt, status: updated.status }
+        );
+
+        if (state.orderDetails && state.orderDetails.rawId === String(updated.id)) {
+          let next = { ...state.orderDetails, trackingNumber: updated.trackingNumber, updatedAt: updated.updatedAt };
+          next = patchOrderStatusFields(next, updated.status);
+          state.orderDetails = next;
         }
       })
       .addCase(updateOrderStatus.rejected, (state, action) => {
@@ -263,12 +409,15 @@ const orderSlice = createSlice({
       })
       .addCase(assignReviewOfficer.fulfilled, (state, action) => {
         state.bulkActionLoading = false;
-        const index = state.orders.findIndex(order => order.id === action.payload.id);
-        if (index !== -1) {
-          state.orders[index] = action.payload;
-        }
-        if (state.orderDetails && state.orderDetails.id === action.payload.id) {
-          state.orderDetails = action.payload;
+        const officerName = action.payload?.reviewOfficer?.name || '';
+        const orderIds = Array.isArray(action.meta?.arg?.orderIds) ? action.meta.arg.orderIds : [];
+
+        orderIds.forEach((id) => {
+          patchOrderInState(state, (order) => order.rawId === String(id), { reviewOfficer: officerName });
+        });
+
+        if (state.orderDetails && orderIds.includes(state.orderDetails.rawId)) {
+          state.orderDetails = { ...state.orderDetails, reviewOfficer: officerName };
         }
       })
       .addCase(assignReviewOfficer.rejected, (state, action) => {
@@ -282,14 +431,13 @@ const orderSlice = createSlice({
       })
       .addCase(bulkUpdateOrders.fulfilled, (state, action) => {
         state.bulkActionLoading = false;
-        if (action.payload.orders) {
-          action.payload.orders.forEach(updatedOrder => {
-            const index = state.orders.findIndex(order => order.id === updatedOrder.id);
-            if (index !== -1) {
-              state.orders[index] = updatedOrder;
-            }
-          });
-        }
+        const orderIds = Array.isArray(action.meta?.arg?.orderIds) ? action.meta.arg.orderIds : [];
+        const updates = action.meta?.arg?.updates || {};
+
+        orderIds.forEach((id) => {
+          patchOrderInState(state, (order) => order.rawId === String(id), updates);
+        });
+
         state.selectedOrders = [];
       })
       .addCase(bulkUpdateOrders.rejected, (state, action) => {
@@ -315,7 +463,9 @@ const orderSlice = createSlice({
       })
       .addCase(getOrderDetails.fulfilled, (state, action) => {
         state.loading = false;
-        state.orderDetails = action.payload;
+        const responseData = action.payload?.data || action.payload;
+        const rawOrder = responseData?.order || responseData;
+        state.orderDetails = rawOrder ? normalizeOrder(rawOrder) : null;
       })
       .addCase(getOrderDetails.rejected, (state, action) => {
         state.loading = false;

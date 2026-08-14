@@ -100,8 +100,7 @@ const Dashboard = () => {
     {
       name: 'Total Users',
       value: (statistics.users?.buyers?.total || 0) + (statistics.users?.sellers?.total || 0),
-      change: '+12%',
-      changeType: 'increase',
+      note: `Last 30 days: ${(statistics.recentActivity?.newBuyers || 0) + (statistics.recentActivity?.newSellers || 0)}`,
       icon: UsersIcon,
       color: 'bg-blue-500',
       link: '/admin/users'
@@ -109,8 +108,7 @@ const Dashboard = () => {
     {
       name: 'Total Products',
       value: statistics.products?.total || 0,
-      change: '+8%',
-      changeType: 'increase',
+      note: `Pending: ${statistics.products?.pending || 0}`,
       icon: ShoppingBagIcon,
       color: 'bg-green-500',
       link: '/admin/products'
@@ -118,8 +116,7 @@ const Dashboard = () => {
     {
       name: 'Total Revenue',
       value: `$${(statistics.orders?.totalRevenue || 0).toLocaleString()}`,
-      change: '+15%',
-      changeType: 'increase',
+      note: `AOV: $${(statistics.orders?.averageOrderValue || 0).toFixed(2)}`,
       icon: CurrencyDollarIcon,
       color: 'bg-yellow-500',
       link: '/admin/finance'
@@ -127,8 +124,7 @@ const Dashboard = () => {
     {
       name: 'Total Orders',
       value: statistics.orders?.totalOrders || 0,
-      change: '+10%',
-      changeType: 'increase',
+      note: `Last 30 days: ${statistics.recentActivity?.newOrders || 0}`,
       icon: ChartBarIcon,
       color: 'bg-purple-500',
       link: '/admin/orders'
@@ -136,8 +132,7 @@ const Dashboard = () => {
     {
       name: 'Pending Orders',
       value: statistics.orders?.pendingOrders || 0,
-      change: '-5%',
-      changeType: 'decrease',
+      note: `Completed: ${statistics.orders?.completedOrders || 0}`,
       icon: TruckIcon,
       color: 'bg-orange-500',
       link: '/admin/orders'
@@ -145,8 +140,7 @@ const Dashboard = () => {
     {
       name: 'Average Rating',
       value: (statistics.reviews?.averageRating || 0).toFixed(1),
-      change: '+0.2',
-      changeType: 'increase',
+      note: `Reviews: ${statistics.reviews?.totalReviews || 0}`,
       icon: StarIcon,
       color: 'bg-pink-500',
       link: '/admin/reviews'
@@ -253,21 +247,11 @@ const Dashboard = () => {
                 <p className="text-2xl font-black text-slate-900">{stat.value}</p>
               </div>
             </div>
-            <div className="mt-4 flex items-center">
-              {stat.changeType === 'increase' ? (
-                <ArrowTrendingUpIcon className="h-4 w-4 text-green-500" />
-              ) : (
-                  <ArrowTrendingDownIcon className="h-4 w-4 text-red-500" />
-              )}
-              <span
-                className={`ml-1 text-sm font-medium ${
-                  stat.changeType === 'increase' ? 'text-green-600' : 'text-red-600'
-                }`}
-              >
-                {stat.change}
-              </span>
-              <span className="ml-1 text-sm text-gray-500">from last month</span>
-            </div>
+            {stat.note && (
+              <div className="mt-4 text-sm text-slate-600">
+                {stat.note}
+              </div>
+            )}
           </Link>
         ))}
       </div>
@@ -423,7 +407,7 @@ const Dashboard = () => {
               <ExclamationTriangleIcon className="h-5 w-5 text-yellow-500 mt-0.5" />
               <div className="flex-1">
                 <p className="text-sm font-medium text-yellow-800">Low Stock Alert</p>
-                <p className="text-sm text-yellow-700">15 products are running low on inventory</p>
+                <p className="text-sm text-yellow-700">{statistics.alerts?.lowStockProducts || 0} products are running low on inventory</p>
                 <Link to="/admin/inventory" className="text-sm text-yellow-600 hover:text-yellow-800 underline">
                   View Details
                 </Link>
@@ -433,7 +417,7 @@ const Dashboard = () => {
               <ExclamationTriangleIcon className="h-5 w-5 text-red-500 mt-0.5" />
               <div className="flex-1">
                 <p className="text-sm font-medium text-red-800">Pending Complaints</p>
-                <p className="text-sm text-red-700">8 complaints require immediate attention</p>
+                <p className="text-sm text-red-700">{statistics.alerts?.pendingComplaints || 0} complaints require immediate attention</p>
                 <Link to="/admin/complaints" className="text-sm text-red-600 hover:text-red-800 underline">
                   Handle Now
                 </Link>
@@ -443,7 +427,7 @@ const Dashboard = () => {
               <BellIcon className="h-5 w-5 text-blue-500 mt-0.5" />
               <div className="flex-1">
                 <p className="text-sm font-medium text-blue-800">New Seller Applications</p>
-                <p className="text-sm text-blue-700">5 new sellers awaiting approval</p>
+                <p className="text-sm text-blue-700">{statistics.alerts?.pendingSellerApplications || 0} sellers awaiting approval</p>
                 <Link to="/admin/users" className="text-sm text-blue-600 hover:text-blue-800 underline">
                   Review Applications
                 </Link>
