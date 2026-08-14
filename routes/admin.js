@@ -8,6 +8,7 @@ const QRCode = require('qrcode');
 
 // Import models
 const { Admin, AdminSettings, AuditLog, User, Seller, Product, Order, Review } = require('../models');
+const Complaint = require('../models/Complaint');
 
 // Import middleware
 const { authenticate, authorizeUserType, requirePermission } = require('../middleware/auth');
@@ -762,6 +763,12 @@ router.get('/system/statistics',
       const productCount = await Product.countDocuments();
       const activeProductCount = await Product.countDocuments({ status: 'active' });
       const pendingProductCount = await Product.countDocuments({ status: 'pending' });
+      const lowStockProducts = await Product.countDocuments({
+        $or: [
+          { stock: { $lte: 5 } },
+          { 'variants.stock': { $lte: 5 } }
+        ]
+      });
 
       // Get order statistics
       const orderStats = await Order.aggregate([
@@ -811,6 +818,14 @@ router.get('/system/statistics',
         createdAt: { $gte: thirtyDaysAgo }
       });
 
+      const pendingComplaints = await Complaint.countDocuments({
+        status: { $in: ['submitted', 'acknowledged', 'in_progress'] }
+      });
+
+      const pendingSellerApplications = await Seller.countDocuments({
+        verificationStatus: 'pending'
+      });
+
       const statistics = {
         users: {
           buyers: {
@@ -846,6 +861,11 @@ router.get('/system/statistics',
           newBuyers: recentBuyers,
           newSellers: recentSellers,
           newOrders: recentOrders
+        },
+        alerts: {
+          lowStockProducts,
+          pendingComplaints,
+          pendingSellerApplications
         }
       };
 

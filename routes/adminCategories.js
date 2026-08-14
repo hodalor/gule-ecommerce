@@ -5,6 +5,7 @@ const Product = require('../models/Product');
 const AuditLog = require('../models/AuditLog');
 const { authenticate, authorizeUserType, requirePermission } = require('../middleware/auth');
 const { body, query, validationResult } = require('express-validator');
+const { uploadToCloudinary } = require('../utils/cloudinary');
 const logger = require('../utils/logger');
 
 // Validation middleware
@@ -263,6 +264,10 @@ router.post('/',
   async (req, res) => {
     try {
       const { name, description, parentCategory, status = 'active', order = 0 } = req.body;
+      const imageUpload = req.files?.image;
+      const uploadedImage = imageUpload
+        ? await uploadToCloudinary(imageUpload.tempFilePath || imageUpload.data, { folder: 'categories' })
+        : null;
 
       // Check if category name already exists at the same level
       const existingCategory = await Category.findOne({ 
@@ -293,7 +298,10 @@ router.post('/',
         description,
         parentCategory: parentCategory || null,
         status,
-        order
+        order,
+        image: uploadedImage
+          ? { url: uploadedImage.secure_url || uploadedImage.url, alt: name }
+          : undefined
       });
 
       await category.save();
@@ -355,6 +363,10 @@ router.put('/:id',
       }
 
       const { name, description, parentCategory, status, order } = req.body;
+      const imageUpload = req.files?.image;
+      const uploadedImage = imageUpload
+        ? await uploadToCloudinary(imageUpload.tempFilePath || imageUpload.data, { folder: 'categories' })
+        : null;
 
       // Store original data for audit
       const originalData = {
@@ -406,6 +418,9 @@ router.put('/:id',
       if (parentCategory !== undefined) category.parentCategory = parentCategory || null;
       if (status !== undefined) category.status = status;
       if (order !== undefined) category.order = order;
+      if (uploadedImage) {
+        category.image = { url: uploadedImage.secure_url || uploadedImage.url, alt: category.name };
+      }
 
       category.updatedAt = new Date();
       await category.save();
@@ -503,6 +518,59 @@ router.patch('/:id/status',
       res.status(500).json({
         success: false,
         message: 'Failed to update category status',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+);
+
+// Bulk update categories (Admin only)
+router.patch('/bulk',
+  authenticate,
+  authorizeUserType(['admin']),
+  requirePermission(['super_admin', 'category_management']),
+  body('categoryIds').isArray({ min: 1 }).withMessage('Category IDs must be a non-empty array'),
+  body('categoryIds.*').isMongoId().withMessage('Invalid category ID'),
+  body('action').isIn(['activate', 'deactivate']).withMessage('Invalid bulk action'),
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      const { categoryIds, action } = req.body;
+      const newStatus = action === 'activate' ? 'active' : 'inactive';
+
+      const result = await Category.updateMany(
+        { _id: { $in: categoryIds } },
+        { $set: { status: newStatus, updatedAt: new Date() } }
+      );
+
+      await AuditLog.logAction({
+        action: 'ADMIN_BULK_UPDATE_CATEGORIES',
+        userId: req.user.id,
+        userType: 'admin',
+        resourceType: 'Category',
+        details: {
+          categoryIds,
+          action,
+          updatedCount: result.modifiedCount
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+        severity: 'medium'
+      });
+
+      res.json({
+        success: true,
+        message: `Updated ${result.modifiedCount} categories`,
+        data: {
+          updatedCount: result.modifiedCount,
+          status: newStatus
+        }
+      });
+    } catch (error) {
+      logger.error('Admin bulk update categories error', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to bulk update categories',
         error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
@@ -706,6 +774,9 @@ router.get('/stats/summary',
         inactiveCategories: 0,
         rootCategories: 0
       };
+
+      const totalProducts = await Product.countDocuments({});
+      result.totalProducts = totalProducts;
 
       // Log statistics access
       await AuditLog.logAction({

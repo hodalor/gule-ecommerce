@@ -131,6 +131,33 @@ router.get('/',
   }
 );
 
+router.get('/review-officers',
+  authenticate,
+  authorizeUserType(['admin']),
+  requirePermission(['super_admin', 'order_management']),
+  async (req, res) => {
+    try {
+      const officers = await Admin.find({ role: 'review_officer', status: 'active' })
+        .select('firstName lastName email role status')
+        .sort({ firstName: 1, lastName: 1 });
+
+      res.json({
+        officers: officers.map((officer) => ({
+          id: officer._id,
+          name: `${officer.firstName || ''} ${officer.lastName || ''}`.trim(),
+          email: officer.email || ''
+        }))
+      });
+    } catch (error) {
+      logger.error('Get review officers error', error);
+      res.status(500).json({
+        error: 'Failed to fetch review officers',
+        message: 'An error occurred while fetching review officer data'
+      });
+    }
+  }
+);
+
 // Get order by ID
 router.get('/:id',
   authenticate,
